@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Obsidian | Cyberbot</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1018;--panel:#151e2b;--muted:#a0aec0;--accent:#2dd4bf}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#e2e8f0;font:15px system-ui,sans-serif}main{max-width:1150px;margin:auto;padding:24px}header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}h1{letter-spacing:.12em;margin:0;color:var(--accent)}h2{font-size:19px;margin-top:28px}small,p{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.card{background:var(--panel);border:1px solid #263449;border-radius:12px;padding:16px}.value{font-size:26px;font-weight:700;display:block;margin-top:8px}.tag{color:var(--accent);font-size:12px;font-weight:700}.warning{border-left:3px solid #fbbf24;padding:10px;background:#201c18;color:#fcd34d}button{background:#193e42;color:#c5fff7;border:1px solid #327a76;border-radius:7px;padding:10px 12px;cursor:pointer;margin:4px 0}button:disabled{opacity:.45}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:9px;border-bottom:1px solid #263449}.scroll{overflow:auto}nav{display:flex;gap:12px;flex-wrap:wrap;margin:20px 0}a{color:var(--accent)}#message{min-height:24px;color:#fcd34d} @media(max-width:500px){main{padding:14px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.value{font-size:20px}}
+</style></head><body><main>
+<header><div><h1>OBSIDIAN</h1><small>CYBERBOT · 0.1</small></div><span class="tag">YALNIZCA SANAL İŞLEM</span></header>
+<nav><a href="#overview">Genel Bakış</a><a href="#markets">Piyasalar</a><a href="#portfolio">Portföy</a><a href="#lab">Strateji Lab.</a><a href="#development">Bot Gelişimi</a></nav>
+<p class="warning">Sentetik demo. Gerçek fiyat, gerçek emir veya doğrulanmış yatırım getirisi değildir.</p>
+<h2 id="overview">Genel Bakış</h2><div class="grid">
+<div class="card"><small>Sanal portföy (USD)</small><span class="value" id="equity">—</span></div>
+<div class="card"><small>Toplam K/Z (USD)</small><span class="value" id="pnl">—</span></div>
+<div class="card"><small>Açık işlem</small><span class="value" id="open_count">—</span></div>
+<div class="card"><small>Zirveye göre düşüş</small><span class="value" id="drawdown_pct">—</span></div></div>
+<h2 id="markets">Piyasa Merkezi</h2><div id="marketCards" class="grid"></div>
+<p><button id="advance">Sonraki sentetik gözlem</button> <span id="tick"></span></p><div id="message" role="status"></div>
+<h2 id="portfolio">Sanal Portföy ve İşlem Geçmişi</h2><div class="card"><p>Sanal nakit: <strong id="cash">—</strong> USD</p><div class="scroll"><table><thead><tr><th>Sembol</th><th>Miktar</th><th>Giriş</th><th>Durum</th><th>Gerç. K/Z</th><th>İşlem</th></tr></thead><tbody id="trades"></tbody></table></div></div>
+<h2 id="lab">Strateji Laboratuvarı</h2><div class="card"><p>Hareketli ortalama deneyi · sentetik seri</p><div id="labButtons"></div><p id="labResult">Bir sembol seçin.</p></div>
+<h2 id="development">Bot Gelişimi</h2><div class="grid"><div class="card"><b>Risk Merkezi</b><p>Risk %1 · 5 pozisyon · günlük kayıp %3 · düşüş %10. Gözlem aralıkları nedeniyle kayıp sınırı aşılabilir.</p></div><div class="card"><b>AI Analiz Merkezi</b><p>Henüz bağlı değil.</p></div><div class="card"><b>Solana Cüzdan Radarı</b><p>Henüz bağlı değil.</p></div><div class="card"><b>Veri Merkezi / Bildirimler</b><p>Canlı sağlayıcı ve bildirim henüz bağlı değil.</p></div></div>
+</main><script>
+const by=id=>document.getElementById(id);
+const num=x=>Number(x).toLocaleString('tr-TR',{maximumFractionDigits:2});
+const node=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=text;if(cls)n.className=cls;return n};
+async function api(path,body){const opt=body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json','X-Cyberbot-Paper':'1'},body:JSON.stringify(body)};const res=await fetch(path,opt);const data=await res.json();if(!res.ok)throw new Error(typeof data.detail==='string'?data.detail:'İstek başarısız.');return data}
+function draw(s){for(const k of ['equity','pnl','open_count','drawdown_pct','cash'])by(k).textContent=num(s[k])+(k==='drawdown_pct'?'%':'');by('tick').textContent='Gözlem '+(s.tick+1)+'/10';by('advance').disabled=s.tick>=9;
+by('marketCards').replaceChildren();by('labButtons').replaceChildren();for(const m of s.markets){const c=node('div','','card');c.append(node('strong',m.market),node('p',m.symbol),node('span',num(m.price)+' USD','value'));const b=node('button','Sanal alım');b.onclick=()=>act('/api/paper/buy',{symbol:m.symbol});c.append(b);by('marketCards').append(c);const lb=node('button',m.market);lb.onclick=async()=>{try{const d=await api('/api/lab/'+m.symbol);by('labResult').textContent='Örnek getiri: %'+num(d.return_pct)+' · Maks. düşüş: %'+num(d.max_drawdown_pct)+' · Giriş: '+d.entries}catch(e){by('message').textContent=e.message}};by('labButtons').append(lb)}
+by('trades').replaceChildren();for(const t of s.trades){const tr=node('tr','');for(const v of [t.symbol,num(t.quantity),num(t.entry),t.exit===null?'Açık':'Kapalı ('+t.reason+')',t.pnl===null?'—':num(t.pnl)])tr.append(node('td',v));const td=node('td','');if(t.exit===null){const b=node('button','Kapat');b.onclick=()=>act('/api/paper/sell/'+t.id,{});td.append(b)}tr.append(td);by('trades').append(tr)}}
+let busy=false;async function act(path,body){if(busy)return;busy=true;by('message').textContent='';try{draw(await api(path,body))}catch(e){by('message').textContent=e.message}finally{busy=false}}
+by('advance').onclick=()=>act('/api/paper/advance',{});act('/api/status');
+</script></body></html>
