@@ -1,0 +1,2 @@
+# Optional local CPU model; not installed by standard CI.
+chronos-forecasting>=2.3,<3

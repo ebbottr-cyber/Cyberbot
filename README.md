@@ -37,3 +37,6 @@ Tüm fiyatlar **sentetik ve USD cinsindendir**; gerçek piyasa performansı değ
 
 ## Model Merkezi
 `/models` çevrimdışı tahmin kıyaslaması. İsteğe bağlı yerel Ollama bağlantısı: `CYBERBOT_LOCAL_LLM_ENABLED=1` ve `CYBERBOT_OLLAMA_MODEL` kurulu yerel modelin adı. Ollama ayrı kurulur; Cyberbot yalnız 127.0.0.1:11434 üzerinden sentetik rapor özeti gönderir, model indirmez. Yerel modelin kendi ayarları operatörün sorumluluğundadır. LLM yanıtı doğrulanmamış metindir; emir ve otomatik terfi yoktur. Chronos henüz bağlı değildir.
+
+### İsteğe bağlı Chronos 2
+Ayrı `requirements-chronos.txt` bağımlılık dosyası; standart Cyberbot kurulumuna dahil değildir. Önceden edinilmiş, güvenilir ve kullanım hakkı kontrol edilmiş yerel Chronos 2 ağırlık dizinini `CYBERBOT_CHRONOS_PATH` ile belirtin, `CYBERBOT_CHRONOS_ENABLED=1` ile etkinleştirin. Model Merkezi üzerinden manuel kıyaslama. Otomatik ağırlık ve piyasa verisi indirme yoktur. Referans: https://huggingface.co/amazon/chronos-2 ve https://github.com/amazon-science/chronos-forecasting. Gerçek çıkarım testi henüz yapılmadı.

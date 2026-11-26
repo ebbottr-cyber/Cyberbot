@@ -20,3 +20,6 @@ Vibe-Trading araştırma yaklaşımından esinlenilmiş bağımsız beş stratej
 
 ## Model merkezi ilk sürüm
 Yerel Ollama için sabit loopback bağlantısı, isteğe bağlı ve varsayılan kapalı; yalnız sentetik rapor özeti, araç/emir yok. Tahmin araştırmasında sıfır getiri ve kayan ortalama referanslarına karşı 60 gözlemli kayan AR(1) modeli, ileri test MAE/yön doğruluğu. Chronos, diğer derin modeller ve gerçek LLM bağlantı testi henüz yok; otomatik terfi yok.
+
+## Chronos 2 araştırma adaptörü
+İsteğe bağlı yerel CPU modeli, yalnız operatörün sağladığı safetensors dizini; otomatik model indirme yok. Ortak 60 getiri bağlamı ve 8–32 ileri testte AR(1), kayan ortalama, sıfır getiri ve Chronos 2 karşılaştırılır; çapraz seri öğrenmesi kapalı. P10/P50/P90, aralık kapsaması, MAE ve yön doğruluğu. CI sahte modelle sözleşme testleri yapar; gerçek ağırlıklarla çıkarım doğrulanmamıştır. Modelin gerçek veya sanal işlem yetkisi yoktur.
