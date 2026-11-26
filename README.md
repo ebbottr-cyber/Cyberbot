@@ -34,3 +34,6 @@ Tüm fiyatlar **sentetik ve USD cinsindendir**; gerçek piyasa performansı değ
 
 ## Toplu veri toplama
 [EBBot veri toplama talimatları](docs/DATA_COLLECTION_TR.md). GitHub envanter işi fiyat arşivi yerine aday listesi ve sınırlı Solana gözlemi üretir.
+
+## Model Merkezi
+`/models` çevrimdışı tahmin kıyaslaması. İsteğe bağlı yerel Ollama bağlantısı: `CYBERBOT_LOCAL_LLM_ENABLED=1` ve `CYBERBOT_OLLAMA_MODEL` kurulu yerel modelin adı. Ollama ayrı kurulur; Cyberbot yalnız 127.0.0.1:11434 üzerinden sentetik rapor özeti gönderir, model indirmez. Yerel modelin kendi ayarları operatörün sorumluluğundadır. LLM yanıtı doğrulanmamış metindir; emir ve otomatik terfi yoktur. Chronos henüz bağlı değildir.

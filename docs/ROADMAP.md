@@ -17,3 +17,6 @@ Vibe-Trading araştırma yaklaşımından esinlenilmiş bağımsız beş stratej
 
 ## Öğrenme merkezi ilk sürüm
 60 gözlemli kayan eğitim bağlamı (20 ısınma + 40 ölçüm), ardından 20 gözlemli örtüşmeyen ileri test. Beş sabit pencere adayı yalnız eğitimde karşılaştırılır. Deneyler SQLite üzerinde sürüm, veri modu ve veri özetiyle tekilleştirilir. Sentetik ve doğrulanmamış tarihsel sonuçlar ayrı tutulur. Parametre taraması gerçek ML eğitimi değildir; arka plan zamanlayıcısı, LLM ve otomatik terfi yoktur. Ana işlem motoru değiştirilmez. Toplu fiyat indirme kapalıdır.
+
+## Model merkezi ilk sürüm
+Yerel Ollama için sabit loopback bağlantısı, isteğe bağlı ve varsayılan kapalı; yalnız sentetik rapor özeti, araç/emir yok. Tahmin araştırmasında sıfır getiri ve kayan ortalama referanslarına karşı 60 gözlemli kayan AR(1) modeli, ileri test MAE/yön doğruluğu. Chronos, diğer derin modeller ve gerçek LLM bağlantı testi henüz yok; otomatik terfi yok.
