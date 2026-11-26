@@ -41,3 +41,20 @@ def add(body:NewsRef):
     try:return save(body.model_dump())
     except ValueError as e:raise HTTPException(422,str(e)) from None
     except (OSError,sqlite3.Error):raise HTTPException(503,"Haber kaydedilemedi.") from None
+
+from .news_feed import read as rss_read,refresh as rss_refresh,analysis as news_analysis,FeedError
+@router.get("/api/news/rss")
+def rss(market:str="ALL"):
+    if market not in ("ALL","BIST","NASDAQ","XETRA","FUTURES","SOLANA","GLOBAL"):raise HTTPException(422,"Geçersiz piyasa.")
+    try:return rss_read(market)
+    except (ValueError,OSError,sqlite3.Error):raise HTTPException(503,"RSS kayıtları okunamadı.") from None
+@router.post("/api/news/rss/{source}")
+def update_rss(source:str):
+    try:return rss_refresh(source)
+    except FeedError as e:raise HTTPException(409,str(e)) from None
+    except (ValueError,OSError,sqlite3.Error):raise HTTPException(503,"RSS güncellenemedi.") from None
+@router.get("/api/news/analysis")
+def analyze_news(market:str="ALL"):
+    if market not in ("ALL","BIST","NASDAQ","XETRA","FUTURES","SOLANA","GLOBAL"):raise HTTPException(422,"Geçersiz piyasa.")
+    try:return news_analysis(market)
+    except (ValueError,OSError,sqlite3.Error):raise HTTPException(503,"Haber analizi okunamadı.") from None

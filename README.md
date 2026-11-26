@@ -95,3 +95,5 @@ Twelve Data exchange_rate, USD/TRY ve USDT/USD (iki ayrı kaynak zaman damgası)
 
 ## Bilgi ve haber merkezi
 `/knowledge` salt okunur araştırma haritası ve Obsidian uyumlu ZIP dışa aktarımı; `/news` manuel haber ve takvim referansları. Ayrıntılar: [Bilgi ve haber planı](docs/KNOWLEDGE_NEWS_TR.md). Canlı haber akışı ve otomatik haber etkisi ölçümü henüz yok.
+
+İsteğe bağlı FED/ECB RSS pilotu ve kural tabanlı haber araştırması eklendi. Varsayılan kapalı, kullanım izinleri yerel olarak onaylanmalıdır. Ayrıntılar docs/KNOWLEDGE_NEWS_TR.md.
