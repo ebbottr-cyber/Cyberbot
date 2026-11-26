@@ -1,0 +1,12 @@
+/* Shared layout safety; preserve Pulse colors. */
+*,*::before,*::after{box-sizing:border-box}
+main,section,article,.card,.metric,.grid>*,.charthead>*{min-width:0;max-width:100%}
+main{overflow-wrap:anywhere}
+button,input,select,textarea{max-width:100%;min-height:44px;font:inherit}
+button{white-space:normal;overflow-wrap:anywhere}
+button:disabled{opacity:.5;cursor:not-allowed}
+.scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+table{max-width:100%}svg,img{max-width:100%}
+a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #35c9ba;outline-offset:2px}
+@media(max-width:420px){main{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}.charthead{flex-wrap:wrap}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.grid>*,.card,section{overflow-wrap:anywhere}select{width:auto;max-width:100%}}
+@media(max-width:340px){.grid{grid-template-columns:1fr}}

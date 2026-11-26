@@ -112,3 +112,6 @@ from .news_overview import snapshot as news_snapshot
 def overview_news():
     try:return news_snapshot()
     except (OSError,sqlite3.Error,ValueError,KeyError,TypeError,ArithmeticError):raise HTTPException(503,"Haber özeti okunamadı.") from None
+
+@router.get("/ui/panel-mobile.css")
+def mobile_style():return Response((ROOT/"panel-mobile.css").read_text(encoding="utf-8"),media_type="text/css")
