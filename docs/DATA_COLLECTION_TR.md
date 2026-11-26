@@ -1,3 +1,7 @@
+# DURUM: Toplu fiyat indirmesi kullanıcı kararıyla durduruldu.
+
+GitHub günlük fiyat işi devre dışıdır. Eski çalışma talimatları aşağıda tarihsel referans olarak korunmuştur; yeniden etkinleştirme veya yerel toplu indirme yapılmamalıdır. Daha önce tetiklenen işler Actions üzerinden ayrıca iptal edilmelidir. Mevcut arşivler silinmez.
+
 # EBBot aracılığıyla veri toplama
 
 GitHub Actions envanter işi BIST, NASDAQ ve Xetra resmî aday listelerini EBBot koduyla yeniler; Solana için tek seferlik herkese açık havuz/profil gözlemi yapar. Başarısız kaynaklar raporlanır; seed liste tam kapsam değildir. Fiyat arşivi GitHub'a yüklenmez. Artifact 7 gün saklanır.
