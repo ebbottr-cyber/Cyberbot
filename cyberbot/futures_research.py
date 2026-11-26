@@ -7,7 +7,7 @@ from .robustness import bootstrap,metrics,score
 from .analysis import review
 from .models import evaluate as forecasts
 
-VERSION="futures-research-1"
+VERSION="futures-research-2"
 NAMES={"trend":"Çift yönlü trend","momentum":"Çift yönlü momentum","reversion":"Ortalamaya dönüş","long":"LONG referansı","short":"SHORT referansı","cash":"Nakit referansı"}
 WINDOWS=(5,10,20)
 HOLDOUT=60
@@ -106,8 +106,15 @@ def run_job(symbol):
     if previous:
         return {"status":"duplicate","id":key,"market":"FUTURES","symbol":symbol,"summary":previous["summary"]}
     result=evaluate(rows,symbol)
+    from .futures_adaptive import evaluate as adaptive_evaluate
+    from .strategy_memory import StrategyMemory,filter_choice
+    adapt=adaptive_evaluate([tuple(D(str(x[k])) for k in ("open","close")) for x in rows])
+    mem=StrategyMemory(research_path()).record({**adapt,"market":"FUTURES","symbol":symbol})
+    adapt["memory"]=mem
+    adapt["next_research_candidate"]=filter_choice(adapt["next_research_candidate"],mem["states"])
+    result["adaptive"]=adapt
     result["id"]=key
     result["summary"]={"regime":result["regime"]["id"],"tournament_status":"validated_research_candidate" if result["research_champion"] else "no_validated_candidate",
-                       "research_champion":result["research_champion"],"next_candidate":result["research_champion"] or "cash",
-                       "quarantined":[],"new_evidence":0,"stages":5}
+                       "research_champion":result["research_champion"],"next_candidate":adapt["next_research_candidate"]["strategy"],
+                       "quarantined":[n for n,s in mem["states"].items() if s["status"]=="quarantined"],"new_evidence":mem["accepted"],"shadow_return_pct":adapt["shadow"]["return_pct"],"shadow_drawdown_pct":adapt["shadow"]["drawdown_pct"],"stages":6}
     return {"status":"new" if journal.save(result) else "duplicate","id":key,"market":"FUTURES","symbol":symbol,"summary":result["summary"]}

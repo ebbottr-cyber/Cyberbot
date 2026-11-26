@@ -71,3 +71,6 @@ ETRE v3 (ismailkaraabc/etre-trading-office, 532968b7) Hyperliquid perps ve Solan
 
 ## Futures araştırma bağlantısı
 Ayrı LONG/SHORT tek gözlemli sentetik araştırma simülatörü, 1000 USDT ve 2x; maliyet/fonlama ve basit izole likidasyon modeli. Walk-forward keşif, Monte Carlo, son 60 gözlem final turnuvası, rejim/kural analizi, temel tahmin kıyası; iki Futures sembolü otomatik pipeline ve öğrenme DB kaydına bağlı. Opt-in yerel Chronos 2 aynı sentetik seriyle test edilebilir. Gerçek borsa/Chronos doğrulaması, adaptif Futures karantinası ve canlı veri yok.
+
+## Futures adaptif hafıza
+20 gözlemli nedensel replay, mevcut adaptif aday eşikleri ve ayrıca baz/2x maliyet likidasyonu karantinası. Strateji hafızası FUTURES ve sembol kapsamıyla öğrenme DB'de; aynı blok tekrar kanıt olmaz. Üç aktif olumlu, likidasyonsuz blok yeniden izleme. Sonuçlar Futures paneli ve ortak pipeline özeti. Sentetik veri dışında yeni kanıt yok; turnuvayla örtüşen veri bağımsız doğrulama değildir.

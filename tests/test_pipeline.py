@@ -22,7 +22,7 @@ class PipelineTests(unittest.TestCase):
                 j=PipelineJournal(p/"learning.sqlite3")
                 for x in first["research_pipeline"]:
                     d=j.get(x["id"])
-                    self.assertEqual(d["summary"]["stages"],5 if d["market"]=="FUTURES" else 7)
+                    self.assertEqual(d["summary"]["stages"],6 if d["market"]=="FUTURES" else 7)
                     self.assertFalse(d["paper_orders"])
                     self.assertFalse(d["promotion_enabled"])
                 with patch("cyberbot.research_pipeline.robustness",side_effect=AssertionError("must not recompute")):

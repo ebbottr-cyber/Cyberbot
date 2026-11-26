@@ -15,12 +15,13 @@ def update(state,block):
     s=dict(state)
     s["blocks"]+=1
     s["last_end"]=block["end_key"]
-    severe=max(block["drawdown_pct"],block["double_cost_drawdown_pct"])>10
+    liquidated=block.get("liquidations",0)>0
+    severe=liquidated or max(block["drawdown_pct"],block["double_cost_drawdown_pct"])>10
     active=block["closed_trades"]>0
     good=active and block["return_pct"]>0 and block["double_cost_return_pct"]>0 and not severe
     bad=active and (block["return_pct"]<0 or block["double_cost_return_pct"]<0)
     if severe:
-        s.update(status="quarantined",reason="drawdown_limit",loss_streak=0,recovery_streak=0)
+        s.update(status="quarantined",reason="liquidation" if liquidated else "drawdown_limit",loss_streak=0,recovery_streak=0)
     elif s["status"]=="quarantined":
         s["recovery_streak"]=s["recovery_streak"]+1 if good else 0
         if s["recovery_streak"]>=3:
