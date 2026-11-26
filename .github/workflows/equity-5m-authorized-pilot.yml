@@ -1,0 +1,69 @@
+name: Equity 5m authorized pilot
+on:
+  workflow_dispatch:
+    inputs:
+      rights_confirmed:
+        description: "Provider permission for automated access, private storage and research has been obtained"
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: cyberbot-history
+  cancel-in-progress: false
+jobs:
+  pilot:
+    if: inputs.rights_confirmed == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-history.txt
+      - name: Collect bounded three-market pilot
+        run: |
+          python - <<'PY'
+          import datetime as dt, json, math, sqlite3, time
+          from pathlib import Path
+          import yfinance as yf
+          import pandas as pd
+          symbols={'THYAO.IS':'BIST','ASELS.IS':'BIST','GARAN.IS':'BIST','AAPL':'NASDAQ','MSFT':'NASDAQ','NVDA':'NASDAQ','SAP.DE':'XETRA','SIE.DE':'XETRA','ALV.DE':'XETRA'}
+          out=Path('var/intraday-pilot');out.mkdir(parents=True,exist_ok=True)
+          cutoff=dt.datetime.now(dt.timezone.utc)
+          db=sqlite3.connect(out/'pilot.sqlite3')
+          db.execute('CREATE TABLE candles_5m(market TEXT,ticker TEXT,ts_utc TEXT,open REAL,high REAL,low REAL,close REAL,volume REAL,fetched_at_utc TEXT,PRIMARY KEY(market,ticker,ts_utc))')
+          counts={}
+          for ticker,market in symbols.items():
+              frame=yf.download(ticker,period='5d',interval='5m',auto_adjust=False,prepost=False,threads=False,progress=False,timeout=15)
+              if isinstance(frame.columns,pd.MultiIndex):
+                  frame=frame.xs(ticker,axis=1,level=-1)
+              if not frame.empty and frame.index.tz is None:
+                  raise ValueError('Missing source timezone')
+              fetched=dt.datetime.now(dt.timezone.utc).isoformat()
+              rows=[]
+              for stamp,r in frame.iterrows():
+                  t=stamp.to_pydatetime().astimezone(dt.timezone.utc)
+                  if t.second or t.microsecond or t.minute%5 or t+dt.timedelta(minutes=5)>cutoff:continue
+                  o,h,l,c,v=(float(r[k]) for k in ('Open','High','Low','Close','Volume'))
+                  if not all(map(math.isfinite,(o,h,l,c,v))) or min(o,h,l,c)<=0 or v<0 or h<max(o,l,c) or l>min(o,h,c):continue
+                  rows.append((market,ticker,t.isoformat(),o,h,l,c,v,fetched))
+              with db:
+                  db.executemany('INSERT INTO candles_5m VALUES (?,?,?,?,?,?,?,?,?)',rows)
+              counts[ticker]=len(rows)
+              time.sleep(3)
+          assert db.execute('PRAGMA integrity_check').fetchone()==('ok',)
+          db.close()
+          report={'counts':counts,'interval':'5m','source':'Yahoo Finance','auto_adjust':False,'venue_verified':False,'full_coverage_verified':False,'real_orders':False}
+          (out/'coverage.json').write_text(json.dumps(report,indent=2))
+          print(json.dumps(report))
+          if not all(counts.values()):raise SystemExit('Incomplete pilot')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: authorized-equity-5m-pilot
+          path: var/intraday-pilot/
+          retention-days: 7
