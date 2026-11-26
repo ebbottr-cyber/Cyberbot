@@ -20,3 +20,7 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install -r requirements.txt
       - run: python -m unittest discover -s tests -v
+
+      - name: Extended synthetic stress suite
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        run: python -m tools.stress --steps 240

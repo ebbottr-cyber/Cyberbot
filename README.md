@@ -54,3 +54,6 @@ Cyberbot'un ayrı checkout klasöründe PowerShell: ` .\\scripts\\setup-windows.
 
 ## Araştırma zamanlayıcısı (isteğe bağlı)
 Tek döngü: `python -m tools.worker`. Sürekli: `python -m tools.worker --loop --interval 900` (Ctrl+C durdurur). Windows: `scripts/worker-windows.ps1`. Varsayılan sentetik, aynı deney yeniden öğrenme olarak sayılmaz. İzinli yerel arşiv için açıkça `--market BIST --symbol THYAO.IS` ve CYBERBOT_EBBOT_DB gerekir. `--daily-backup` eklenirse UTC gününde en çok bir başarılı yerel yedek. Sistem Sağlığı sayfası son döngüyü gösterir; worker kayıtları var/worker.sqlite3 içinde en çok 1000 kayıt, mevcut yedek kapsamı dışında. Windows oturum açılışında çalıştırmak için ayrı ve isteğe bağlı `scripts/register-worker-windows.ps1 -Register`; görev otomatik başlatılmaz, mevcut görev üzerine yazılmaz. Görev adı Cyberbot-Research-Worker; Görev Zamanlayıcı'dan durdurulabilir. Gerçek PC kurulumu henüz yapılmadı.
+
+## Sentetik stres testi
+`python -m tools.stress --steps 240`: dört ayrı senaryo, mevcut paper motoru ve geçici SQLite defteri; ana portföy ve EBBot dosyalarına dokunulmaz. Obsidian Risk Merkezi altında `/stress`. Her senaryo tek varsayımsal UTC oturumudur; gerçek piyasa performansı değildir. Otomatik gerçek veya sanal portföy işlemi yoktur.

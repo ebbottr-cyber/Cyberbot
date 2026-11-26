@@ -41,3 +41,6 @@ Windows kurulum ve ön planda başlatma betikleri, uygulama sağlık paneli, SQL
 
 ## Yerel araştırma zamanlayıcısı
 Ayrı, açıkça başlatılan 15 dakika varsayılan döngü; sağlık kontrolü, sentetik veya açıkça seçilmiş salt okunur arşiv araştırması, tekilleştirilen deney ve son 1000 döngü kaydı. İsteğe bağlı günlük yerel yedek. SQLite ile eşzamanlı döngü engeli. Windows oturum açılış görevi yalnız operatörün -Register komutuyla oluşturulur; fiziksel cihazda denenmedi. Gerçek işlem, paper emir, model indirme ve piyasa ağı yok. Son döngü kaydı canlı süreç kanıtı değildir.
+
+## Uzun sentetik risk simülasyonu
+Gerçek paper motoru ayrı geçici SQLite ve bağımsız enstrüman evreni ile 240 gözlemli dört senaryoda sınanır. Sabit tek varsayımsal UTC oturumu ile günlük kayıp koruması zorlanır; gerçek 240 gün değildir. Nakit, pozisyon, tekrar işlem ve muhasebe kontrolleri; gözlenen düşüş ve engellenen girişler. Fiyat boşluğu kaybı stop limitini aşabilir. CI genişletilmiş test çalıştırır. Gerçek kârlılık, likidite ve günlük reset davranışı doğrulanmaz.

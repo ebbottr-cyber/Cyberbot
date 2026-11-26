@@ -86,3 +86,6 @@ app.include_router(pwa_router)
 
 from .operations_api import router as operations_router
 app.include_router(operations_router)
+
+from .stress_api import router as stress_router
+app.include_router(stress_router)
