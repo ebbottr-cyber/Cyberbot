@@ -99,3 +99,5 @@ Twelve Data exchange_rate, USD/TRY ve USDT/USD (iki ayrı kaynak zaman damgası)
 İsteğe bağlı FED/ECB RSS pilotu ve kural tabanlı haber araştırması eklendi. Varsayılan kapalı, kullanım izinleri yerel olarak onaylanmalıdır. Ayrıntılar docs/KNOWLEDGE_NEWS_TR.md.
 
 Haber bilgi ağı `/api/news/graph`: kaynak, piyasa, kategori, strateji hipotezi ve operatör kanıt bağlantısı. Vault Haberler.canvas yalnız kayıt kapsamı özetini taşır; fiyat etkisi doğrulanmaz.
+
+Haber olay penceresi araştırması: 5/15/60/1440 dk, yayın ve ilk kayıt zamanı ayrı; yalnız izinli yerel 1/5 dk kapanış dosyasıyla, eksik pencereler ölçülmez. Sentetik örnek ayrıdır. docs/KNOWLEDGE_NEWS_TR.md.

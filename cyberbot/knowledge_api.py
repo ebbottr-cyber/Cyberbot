@@ -75,3 +75,9 @@ def link_asset(body:AssetLink):
     try:return asset_link(**body.model_dump())
     except ValueError as e:raise HTTPException(422,str(e)) from None
     except (OSError,sqlite3.Error):raise HTTPException(503,"Bağlantı kaydedilemedi.") from None
+
+from .news_impact import demo as impact_demo,recent as impact_recent
+@router.get("/api/news/impact")
+def impact():
+    try:return {"demo":impact_demo(),"records":impact_recent(),"real_orders":False}
+    except (OSError,sqlite3.Error,ValueError):raise HTTPException(503,"Olay araştırması okunamadı.") from None
