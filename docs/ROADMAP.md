@@ -68,3 +68,6 @@ Windows worker --full-research ile 15 dakika aralığında dört sentetik piyasa
 
 ## Bağımsız Futures merkezi
 ETRE v3 (ismailkaraabc/etre-trading-office, 532968b7) Hyperliquid perps ve Solana spot kopya araştırmasıdır; GPL-3.0 kodu taşınmadı. Cyberbot bağımsız USDT-M tarzı sentetik Futures hesabı: 1000 USDT, BTC/ETH örnek seri, LONG/SHORT, sabit 2x, en çok bir pozisyon, varsayımsal ücret/kayma/fonlama/bakım teminatı. Gerçek Binance mark fiyatı, fonlama, sembol evreni ve likidasyon doğrulanmadı; hiçbir ağ/emir/anahtar yok. Genel USD değerleme için ayrı USDT/USD girdisi gerekli. Futures araştırma ve otomatik pipeline henüz ayrı entegrasyon gerektirir.
+
+## Futures araştırma bağlantısı
+Ayrı LONG/SHORT tek gözlemli sentetik araştırma simülatörü, 1000 USDT ve 2x; maliyet/fonlama ve basit izole likidasyon modeli. Walk-forward keşif, Monte Carlo, son 60 gözlem final turnuvası, rejim/kural analizi, temel tahmin kıyası; iki Futures sembolü otomatik pipeline ve öğrenme DB kaydına bağlı. Opt-in yerel Chronos 2 aynı sentetik seriyle test edilebilir. Gerçek borsa/Chronos doğrulaması, adaptif Futures karantinası ve canlı veri yok.

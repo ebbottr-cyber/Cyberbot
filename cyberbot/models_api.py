@@ -55,7 +55,10 @@ def chronos(mode:str="synthetic",market:str="BIST",symbol:str="THYAO.IS",windows
     if not _lock.acquire(blocking=False):raise HTTPException(429,"Bir model isteği zaten çalışıyor.")
     try:
         if mode=="synthetic":
-            prices=[r["close"] for r in demo_rows()]
+            if market=="FUTURES":
+                from .futures_research import rows_for
+                prices=[r["close"] for r in rows_for(symbol)]
+            else:prices=[r["close"] for r in demo_rows()]
         elif mode=="historical_unverified":
             prices=[b["close"] for b in history(os.getenv("CYBERBOT_EBBOT_DB"),market,symbol,250)["bars"]]
         else:raise ChronosError("Geçersiz veri modu.")

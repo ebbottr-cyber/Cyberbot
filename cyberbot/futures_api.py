@@ -17,3 +17,17 @@ def close(trade_id:int):
 @router.post("/api/futures/advance")
 def advance():
     f=store();f.advance();return f.snapshot()
+
+from fastapi import HTTPException
+from threading import Lock
+from .futures_research import run_job
+from .research_pipeline import PipelineJournal,research_path
+_lock=Lock()
+@router.post("/api/futures/research/{symbol}")
+def research(symbol:str):
+    if not _lock.acquire(blocking=False):raise HTTPException(429,"Araştırma çalışıyor.")
+    try:
+        job=run_job(symbol)
+        return {"status":job["status"],"result":PipelineJournal(research_path()).get(job["id"])}
+    except (ValueError,ArithmeticError) as e:raise HTTPException(422,str(e)) from None
+    finally:_lock.release()

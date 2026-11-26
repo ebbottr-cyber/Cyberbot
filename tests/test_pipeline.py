@@ -17,12 +17,12 @@ class PipelineTests(unittest.TestCase):
                 before=portfolio.snapshot()
                 first=run_cycle(full_research=True)
                 self.assertEqual(first["status"],"ok",first)
-                self.assertEqual(len(first["research_pipeline"]),4)
+                self.assertEqual(len(first["research_pipeline"]),6)
                 self.assertTrue(all(x["status"]=="new" for x in first["research_pipeline"]))
                 j=PipelineJournal(p/"learning.sqlite3")
                 for x in first["research_pipeline"]:
                     d=j.get(x["id"])
-                    self.assertEqual(d["summary"]["stages"],7)
+                    self.assertEqual(d["summary"]["stages"],5 if d["market"]=="FUTURES" else 7)
                     self.assertFalse(d["paper_orders"])
                     self.assertFalse(d["promotion_enabled"])
                 with patch("cyberbot.research_pipeline.robustness",side_effect=AssertionError("must not recompute")):

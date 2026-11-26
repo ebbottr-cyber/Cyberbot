@@ -81,3 +81,6 @@ Windows araştırma başlatıcısı artık `--full-research` kullanır; CLI: `py
 
 ## Kripto Futures
 Obsidian /futures: bağımsız 1000 USDT sentetik hesap, BTCUSDT/ETHUSDT, LONG/SHORT, 2x, izole teminat ve varsayımsal fonlama/likidasyon. Gerçek Binance API bağlantısı yok; ETRE Hyperliquid kaynak kodu kullanılmadı. Genel kasa için FX JSON içindeki usdtusd alanı (1 USDT başına USD, aynı zaman damgası) gereklidir. Futures henüz araştırma zamanlayıcısına bağlı değil. Toplu veri indirme kapalıdır.
+
+## Futures araştırma bağlantısı
+Futures merkezi BTC/ETH için bağımsız tek gözlem LONG/SHORT araştırması, walk-forward, Monte Carlo, son 60 gözlem turnuvası, kural tabanlı analiz/rejim ve temel tahmin kıyaslaması sunar. 1000 USDT, 2x izole, ayrı sentetik model; ana Futures defteri kullanılmaz. Tam otomatik araştırma döngüsü 4 mevcut piyasa + BTC/ETH için 2 Futures işi çalıştırır ve aynı girdiyi tekilleştirir. Chronos 2 isteğe bağlı yerel Futures sentetik testine bağlandı; gerçek model çalışması doğrulanmadı. Futures'a özgü adaptif karantina ve canlı veri henüz yok; yeni veri indirme yok.

@@ -51,6 +51,9 @@ class PipelineJournal:
             return bool(db.execute("INSERT OR IGNORE INTO research_pipeline VALUES(?,?,?,?,?,?)",(result["id"],datetime.now(timezone.utc).isoformat(),result["mode"],result["market"],result["symbol"],json.dumps(result,ensure_ascii=False,allow_nan=False))).rowcount)
 
 def run(rows,*,mode,market,symbol):
+    if market=="FUTURES" and mode=="synthetic":
+        from .futures_research import run_job
+        return run_job(symbol)
     if market not in CAPITAL or mode not in ("synthetic","historical_unverified"):raise ValueError("Invalid market/mode.")
     path=research_path()
     journal=PipelineJournal(path)
@@ -85,3 +88,7 @@ def run(rows,*,mode,market,symbol):
 def demo_jobs():
     for market in CAPITAL:
         yield market,"DEMO-ADAPTIVE-"+market,demo_rows(market)
+
+    from .futures_research import rows_for
+    for symbol in ("BTCUSDT","ETHUSDT"):
+        yield "FUTURES",symbol,rows_for(symbol)
