@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 import unittest
 import tempfile
@@ -12,7 +13,7 @@ class ImportTests(unittest.TestCase):
     def check_import(self, tmp_path):
         source=tmp_path/"ebbot.sqlite3"
         dest=tmp_path/"cyberbot.sqlite3"
-        with sqlite3.connect(source) as db:
+        with closing(sqlite3.connect(source)) as db, db:
             db.execute("CREATE TABLE candles_5m(market TEXT,ticker TEXT,ts_utc TEXT,open REAL,high REAL,low REAL,close REAL,volume REAL,fetched_at_utc TEXT,PRIMARY KEY(market,ticker,ts_utc))")
             for i in range(6):
                 db.execute("INSERT INTO candles_5m VALUES (?,?,?,?,?,?,?,?,?)",("NASDAQ","AAPL",f"2026-01-05T14:{30+i*5}:00Z",10+i,12+i,9+i,11+i,100,"2026-01-05T16:00:00Z"))
@@ -23,7 +24,7 @@ class ImportTests(unittest.TestCase):
         assert source.read_bytes()==before
         assert result["source_rows"]==8 and result["imported_rows"]==7
         assert result["derived"]=={"15":2,"30":1}
-        with sqlite3.connect(dest) as db:
+        with closing(sqlite3.connect(dest)) as db:
             assert db.execute("SELECT open,high,low,close,volume FROM candles_30m").fetchone()==(10,17,9,16,600)
         with self.assertRaises(ValueError):
             run(source,dest)
