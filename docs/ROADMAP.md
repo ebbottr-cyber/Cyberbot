@@ -89,3 +89,6 @@ Yapılandırılmış DB yolları ortak kontrol, symlink/hardlink çakışmaları
 
 ## Futures grafiği ve kurtarma pilotu
 Futures kasa gözlemleri aynı işlem transaction'ında kaydedilir; eski defter ilk açıldığında yalnız mevcut gözlem eklenir. Ana panel ve Futures ekranında son 200 kayıt. Yeni kurtarma CLI yalnız ayrı klasöre doğrulanmış kopya çıkarır; aktif veritabanlarını değiştirmez. Manifest dosya adları, boyut, SHA-256 ve SQLite bütünlüğü kontrol edilir. Worker yedek kapsamı dışında, farklı DB'ler tek atomik anlık görüntü değildir. Fiziksel cihaz ve canlı borsa doğrulanmadı.
+
+## Panel denetimi
+13 HTML sayfasının inline JavaScript sözdizimi ve sabit DOM kimlikleri kaynak incelemesinde kontrol edildi. Ortak mobil CSS, çevrimdışı portföy/Futures temizliği, kapalı model/Solana düğmeleri ve bilgi hafızası yarış kontrolü. CI Chromium smoke testi: 1280,390,320 px ekranlarda 13 sayfa, API hatası, yatay taşma, kapalı düğmeler ve ana panel çevrimdışı geçişi. Tarayıcı yalnız yerel izole sunucuya erişir. Fiziksel iPhone/Safari doğrulaması değildir.
