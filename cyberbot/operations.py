@@ -13,11 +13,15 @@ DATABASES={"paper":("CYBERBOT_DB","var/paper.sqlite3",{"state","trades","equity_
            "learning":("CYBERBOT_LEARNING_DB","var/learning.sqlite3",{"experiments"})}
 
 def sources():
-    from .db_paths import checked
-    paths=checked()
+    from .db_paths import checked,pilot_path
+    paths={**checked(),"observed_pilot":pilot_path()}
     return {k:p for k,p in paths.items() if k in ("paper","learning") or (k!="worker" and p.is_file())}
 
+def pilot_backup_permitted():
+    return os.getenv("CYBERBOT_PILOT_BACKUP_RIGHTS_CONFIRMED")=="1"
+
 def required(name):
+    if name=="observed_pilot":return {"observed_accounts","observed_events"}
     if name=="futures":return {"futures_state"}
     return DATABASES["paper"][2] if name.startswith("paper_") else DATABASES[name][2]
 
@@ -44,6 +48,7 @@ def health():
 def backup(root):
     root=Path(root).expanduser().resolve()
     paths=sources()
+    if "observed_pilot" in paths and not pilot_backup_permitted():raise ValueError("Pilot verisi yedekleme izni onaylanmadı.")
     archive=os.getenv("CYBERBOT_EBBOT_DB")
     if archive and Path(archive).expanduser().resolve() in paths.values():
         raise ValueError("EBBot arşivi yedekleme kapsamına alınamaz.")

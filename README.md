@@ -112,7 +112,7 @@ Futures grafiği: son 200 kayıt, gerçek geçmiş uydurulmaz. Yedek kurtarma: `
 
 Canlı sanal test hazırlığı: `/api/readiness` ve Sistem Sağlığı ekranı beş piyasanın yerel durumunu salt okunur inceler; canlı fiyatla işlem başlatmaz. Mevcut kasalar sentetiktir.
 
-Bağımsız yerel gözlem pilotu: `python -m tools.observed_pilot status`. Varsayılan kapalı. BIST/NASDAQ örnek sembolleri; izinli yerel bid/ask girdileri, sonraki gözlem sanal dolumu. Ayrı DB; otomatik giriş, canlı veri ve gerçek emir yok. Pilot yedeği henüz kapsam dışı.
+Bağımsız yerel gözlem pilotu: `python -m tools.observed_pilot status`. Varsayılan kapalı. BIST/NASDAQ örnek sembolleri; izinli yerel bid/ask girdileri, sonraki gözlem sanal dolumu. Ayrı DB; otomatik giriş, canlı veri ve gerçek emir yok. Pilot yedeği ayrı kullanım izniyle kapsamda.
 
 XETRA SAP.DE gözlem pilotu: EUR hisse fiyatı / USD kasa, ayrı taze EUR/USD alış-satış girdisi ve açık kur kullanım izni. Yerel dosya; gerçek kur veya borsa bağlantısı yok.
 
@@ -121,3 +121,5 @@ Solana Meme gözlem pilotu: `python -m tools.solana_pilot status`, varsayılan k
 Futures gözlem pilotu: `python -m tools.futures_pilot status`, varsayılan kapalı. 2x izole model, ayrı mark/bid/ask, beyanlı derinlik, 8 saatlik varsayımsal fonlama ve eksik olay engeli; gerçek borsa takvimi/likidasyon doğrulanmadı.
 
 Gözlem Performansı (/pilot): beş pilotun ayrı para birimlerinde kapanış K/Z, model ücretleri, fonlama ve güncel risk görünümü. Salt okunur; gerçek veri, kârlılık veya yürütme doğrulaması değildir.
+
+Gözlem DB yedek/kurtarma: CYBERBOT_PILOT_BACKUP_RIGHTS_CONFIRMED=1 gerekli. Tek yerel gözlem giriş sözleşmesi: `python -m tools.pilot_ingress --file <quote.json>`; varsayılan kapalı, kaynak izin listesi ve motor doğrulaması. Ağ sağlayıcısı henüz bağlı değil.

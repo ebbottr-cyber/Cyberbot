@@ -2,10 +2,11 @@
 import hashlib,json,shutil,tempfile,re
 from datetime import datetime,timezone
 from pathlib import Path
-from .operations import inspect_db,required
-from .db_paths import checked,same,resolved
+from .operations import inspect_db,required,pilot_backup_permitted
+from .db_paths import checked,same,resolved,pilot_path
+import os
 
-NAMES={"paper","learning","paper_bist","paper_nasdaq","paper_xetra","paper_solana","futures"}
+NAMES={"paper","learning","paper_bist","paper_nasdaq","paper_xetra","paper_solana","futures","observed_pilot"}
 MAX_MANIFEST=65536
 MAX_FILE_BYTES=20*1024**3
 
@@ -30,7 +31,10 @@ def manifest_entries(folder):
     if not isinstance(skipped,list) or any(not isinstance(x,str) or x not in NAMES or x+".sqlite3" in entries for x in skipped) or len(set(skipped))!=len(skipped):raise ValueError("Manifest atlama listesi geçersiz.")
     # No unexpected files, sidecar WAL or directory symlinks.
     if set(x.name for x in folder.iterdir())!=set(entries)|{"manifest.json"}:raise ValueError("Yedek klasörü beklenmeyen dosya içeriyor.")
-    active=checked()
+    if "observed_pilot.sqlite3" in entries and not pilot_backup_permitted():raise ValueError("Pilot kurtarma izni onaylanmadı.")
+    active={**checked(),"observed_pilot":pilot_path()}
+    if os.getenv("CYBERBOT_EBBOT_DB"):active["archive"]=resolved(os.environ["CYBERBOT_EBBOT_DB"])
+    if os.getenv("CYBERBOT_FX_FILE"):active["fx_input"]=resolved(os.environ["CYBERBOT_FX_FILE"])
     for name,row in entries.items():
         src=folder/name
         if src.is_symlink() or not src.is_file() or any(same(src.resolve(),p) for p in active.values()) or src.stat().st_size!=row["bytes"] or digest(src)!=row["sha256"]:
@@ -49,13 +53,13 @@ def recover(source,output):
         restored=[]
         for name,row in entries.items():
             role=name[:-8]
-            rel=Path("paper-markets")/name.removeprefix("paper_") if role.startswith("paper_") else Path("paper-markets/futures.sqlite3") if role=="futures" else Path(name)
+            rel=Path("paper-markets")/name.removeprefix("paper_") if role.startswith("paper_") else Path("paper-markets/futures.sqlite3") if role=="futures" else Path("paper-observed-pilot.sqlite3") if role=="observed_pilot" else Path(name)
             target=stage/rel;target.parent.mkdir(parents=True,exist_ok=True)
             shutil.copyfile(folder/name,target)
             if target.stat().st_size!=row["bytes"] or digest(target)!=row["sha256"] or inspect_db(target,required(role))!="ok" or digest(target)!=row["sha256"]:
                 raise ValueError("Kurtarma bütünlük kontrolü başarısız: "+name)
             restored.append({"role":role,"path":rel.as_posix(),"bytes":row["bytes"],"sha256":row["sha256"]})
-        report={"status":"verified_copy","source_created_at":m.get("created_at"),"restored":restored,"missing_roles":sorted(NAMES-{x["role"] for x in restored}),"active_files_modified":False,"activated":False,"worker_included":False,"cross_database_atomic_snapshot_verified":False,"real_orders":False}
+        report={"status":"verified_copy","source_created_at":m.get("created_at"),"restored":restored,"missing_roles":sorted(NAMES-{x["role"] for x in restored}),"active_files_modified":False,"activated":False,"worker_included":False,"pilot_included":any(x["role"]=="observed_pilot" for x in restored),"cross_database_atomic_snapshot_verified":False,"real_orders":False}
         (stage/"recovery.json").write_text(json.dumps(report,indent=2,ensure_ascii=True),encoding="utf-8")
         target=root/("cyberbot-recovered-"+datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ"))
         if target.exists():raise ValueError("Kurtarma hedefi zaten var.")
