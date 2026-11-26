@@ -71,3 +71,6 @@ def lab(symbol:str):
 
 from .data_api import router as data_router
 app.include_router(data_router)
+
+from .trader_api import router as trader_router
+app.include_router(trader_router)
