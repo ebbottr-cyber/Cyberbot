@@ -25,7 +25,9 @@ class PaperError(ValueError):
     pass
 
 class Ledger:
-    def __init__(self, path, *, instruments=None, day_clock=None):
+    def __init__(self, path, *, instruments=None, day_clock=None, start=START, currency="USD"):
+        self.start=D(str(start)); self.currency=currency
+        if not self.start.is_finite() or self.start<=0 or currency not in ("USD","TRY"):raise ValueError("Invalid capital.")
         self.instruments=INDEX if instruments is None else dict(instruments)
         if not self.instruments or any(k!=v.symbol or not v.prices or any(not p.is_finite() or p<=0 for p in v.prices) for k,v in self.instruments.items()):
             raise ValueError("Invalid instrument universe.")
@@ -35,7 +37,14 @@ class Ledger:
         with self.tx() as c:
             c.execute("CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY CHECK(id=1), cash TEXT NOT NULL, tick INTEGER NOT NULL, peak TEXT NOT NULL, day TEXT NOT NULL, day_equity TEXT NOT NULL)")
             c.execute("CREATE TABLE IF NOT EXISTS trades (id INTEGER PRIMARY KEY, symbol TEXT NOT NULL, quantity TEXT NOT NULL, entry TEXT NOT NULL, cost TEXT NOT NULL, stop TEXT NOT NULL, target TEXT NOT NULL, opened_tick INTEGER NOT NULL, exit TEXT, pnl TEXT, closed_tick INTEGER, reason TEXT)")
-            c.execute("INSERT OR IGNORE INTO state VALUES (1, ?, 0, ?, ?, ?)", (str(START),str(START),self.day_clock(),str(START)))
+            c.execute("CREATE TABLE IF NOT EXISTS ledger_config (id INTEGER PRIMARY KEY CHECK(id=1), capital TEXT NOT NULL, currency TEXT NOT NULL)")
+            config=c.execute("SELECT capital,currency FROM ledger_config WHERE id=1").fetchone()
+            if config and (D(config[0])!=self.start or config[1]!=self.currency):raise ValueError("Ledger capital/currency mismatch.")
+            if not config:
+                if c.execute("SELECT 1 FROM state WHERE id=1").fetchone() and (self.start!=START or self.currency!="USD"):
+                    raise ValueError("Legacy ledger cannot be reinterpreted.")
+                c.execute("INSERT INTO ledger_config VALUES(1,?,?)",(str(self.start),self.currency))
+            c.execute("INSERT OR IGNORE INTO state VALUES (1, ?, 0, ?, ?, ?)", (str(self.start),str(self.start),self.day_clock(),str(self.start)))
 
             c.execute("CREATE TABLE IF NOT EXISTS equity_history (id INTEGER PRIMARY KEY, at TEXT NOT NULL, tick INTEGER NOT NULL, equity TEXT NOT NULL, drawdown TEXT NOT NULL)")
             if not c.execute("SELECT 1 FROM equity_history LIMIT 1").fetchone():
@@ -142,4 +151,4 @@ class Ledger:
             points=c.execute("SELECT at,tick,equity,drawdown FROM equity_history ORDER BY id DESC LIMIT 200").fetchall()
             max_dd=max((D(row[0]) for row in c.execute("SELECT drawdown FROM equity_history")),default=D(0))
             open_markets=len({self.instruments[t["symbol"]].market for t in self._open(c)})
-            return {"daily_pnl":str((equity-D(s["day_equity"])).quantize(D(".01"))),"return_pct":str(((equity/START-1)*100).quantize(D(".01"))),"open_markets":open_markets,"max_recorded_drawdown_pct":str(max_dd.quantize(D(".01"))),"equity_history":[{"at":p["at"],"tick":p["tick"],"equity":str(D(p["equity"]).quantize(D(".01")))} for p in reversed(points)],"history_limit":200,"mode":"synthetic_paper","real_orders":False,"currency":"USD","cash":str(D(s["cash"]).quantize(D("0.01"))),"equity":str(equity.quantize(D("0.01"))),"pnl":str((equity-START).quantize(D("0.01"))),"drawdown_pct":str(((1-equity/peak)*100).quantize(D("0.01"))),"tick":s["tick"],"open_count":len(self._open(c)),"trades":trades,"markets":[{"market":i.market,"symbol":i.symbol,"price":str(self._quote(i.symbol,s["tick"]))} for i in self.instruments.values()]}
+            return {"daily_pnl":str((equity-D(s["day_equity"])).quantize(D(".01"))),"return_pct":str(((equity/self.start-1)*100).quantize(D(".01"))),"open_markets":open_markets,"max_recorded_drawdown_pct":str(max_dd.quantize(D(".01"))),"equity_history":[{"at":p["at"],"tick":p["tick"],"equity":str(D(p["equity"]).quantize(D(".01")))} for p in reversed(points)],"history_limit":200,"mode":"synthetic_paper","real_orders":False,"currency":self.currency,"cash":str(D(s["cash"]).quantize(D("0.01"))),"equity":str(equity.quantize(D("0.01"))),"pnl":str((equity-self.start).quantize(D("0.01"))),"drawdown_pct":str(((1-equity/peak)*100).quantize(D("0.01"))),"tick":s["tick"],"open_count":len(self._open(c)),"trades":trades,"markets":[{"market":i.market,"symbol":i.symbol,"price":str(self._quote(i.symbol,s["tick"]))} for i in self.instruments.values()]}

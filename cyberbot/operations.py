@@ -13,7 +13,13 @@ DATABASES={"paper":("CYBERBOT_DB","var/paper.sqlite3",{"state","trades","equity_
            "learning":("CYBERBOT_LEARNING_DB","var/learning.sqlite3",{"experiments"})}
 
 def sources():
-    return {k:Path(os.getenv(env,default)).expanduser().resolve() for k,(env,default,_) in DATABASES.items()}
+    result={k:Path(os.getenv(env,default)).expanduser().resolve() for k,(env,default,_) in DATABASES.items()}
+    from .capital import account_paths
+    result.update({"paper_"+m.lower():p for m,p in account_paths().items() if p.is_file()})
+    return result
+
+def required(name):
+    return DATABASES["paper"][2] if name.startswith("paper_") else DATABASES[name][2]
 
 def inspect_db(path,required):
     if not path.is_file():return "not_initialized"
@@ -25,7 +31,7 @@ def inspect_db(path,required):
     except (sqlite3.Error,OSError):return "unreadable"
 
 def health():
-    dbs={k:inspect_db(p,DATABASES[k][2]) for k,p in sources().items()}
+    dbs={k:inspect_db(p,required(k)) for k,p in sources().items()}
     return {"status":"ok" if all(v in ("ok","not_initialized") for v in dbs.values()) else "degraded",
             "databases":dbs,"mode":"synthetic_paper","bulk_price_download_enabled":False,"real_orders":False,
             "remote_configured":os.getenv("CYBERBOT_TAILSCALE_ENABLED")=="1",
@@ -45,7 +51,7 @@ def backup(root):
     manifest={"created_at":datetime.now(timezone.utc).isoformat(),"files":[],"skipped":[],"scope":"cyberbot_only"}
     try:
         for name,source in paths.items():
-            state=inspect_db(source,DATABASES[name][2])
+            state=inspect_db(source,required(name))
             if state=="not_initialized":
                 manifest["skipped"].append(name)
                 continue
@@ -53,7 +59,7 @@ def backup(root):
             target=stage/(name+".sqlite3")
             with closing(sqlite3.connect(source.as_uri()+"?mode=ro",uri=True,timeout=5)) as src, closing(sqlite3.connect(target)) as dst:
                 src.backup(dst,pages=128,sleep=.05)
-            if inspect_db(target,DATABASES[name][2])!="ok":raise ValueError("Yedek doğrulanamadı.")
+            if inspect_db(target,required(name))!="ok":raise ValueError("Yedek doğrulanamadı.")
             with target.open("rb") as stream:
                 digest=hashlib.file_digest(stream,"sha256").hexdigest()
             manifest["files"].append({"name":target.name,"bytes":target.stat().st_size,"sha256":digest})

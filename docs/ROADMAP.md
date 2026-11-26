@@ -44,3 +44,6 @@ Ayrı, açıkça başlatılan 15 dakika varsayılan döngü; sağlık kontrolü,
 
 ## Uzun sentetik risk simülasyonu
 Gerçek paper motoru ayrı geçici SQLite ve bağımsız enstrüman evreni ile 240 gözlemli dört senaryoda sınanır. Sabit tek varsayımsal UTC oturumu ile günlük kayıp koruması zorlanır; gerçek 240 gün değildir. Nakit, pozisyon, tekrar işlem ve muhasebe kontrolleri; gözlenen düşüş ve engellenen girişler. Fiyat boşluğu kaybı stop limitini aşabilir. CI genişletilmiş test çalıştırır. Gerçek kârlılık, likidite ve günlük reset davranışı doğrulanmaz.
+
+## Piyasa sermayesi ve kur
+BIST 45.000 TRY; NASDAQ, XETRA, Solana ayrı 1.000 USD. Ana panel yeni piyasa defterlerini kullanır, eski ortak defter korunur. XETRA demo USD bazlıdır, gerçek EUR işlem adaptörü değildir. USD toplamı yalnız en fazla 5 dakika yaşındaki yerel USD/TRY girdisiyle hesaplanır, kaynak doğrulanmış sayılmaz. İşlem K/Z güncel kurla çevrilir; tarihsel kur getirisi ve birleşik tarihsel düşüş henüz hesaplanmaz. Stres kıyaslaması 45 varsayımsal sabit kur kullanır ve varsa güncel kur değerlemesini ayrıca verir. Fiyat indirme kapalıdır.

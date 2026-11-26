@@ -57,3 +57,6 @@ Tek döngü: `python -m tools.worker`. Sürekli: `python -m tools.worker --loop 
 
 ## Sentetik stres testi
 `python -m tools.stress --steps 240`: dört ayrı senaryo, mevcut paper motoru ve geçici SQLite defteri; ana portföy ve EBBot dosyalarına dokunulmaz. Obsidian Risk Merkezi altında `/stress`. Her senaryo tek varsayımsal UTC oturumudur; gerçek piyasa performansı değildir. Otomatik gerçek veya sanal portföy işlemi yoktur.
+
+## Piyasa kasaları ve kur
+Ana panel `/api/portfolio/status`: BIST 45000 TRY, NASDAQ/XETRA/Solana 1000 USD ayrı SQLite defterleri (`var/paper-markets/`). Eski `var/paper.sqlite3` ve eski API korunur, yeni kasalara aktarılmaz. XETRA sentetik USD araştırma hesabıdır, gerçek EUR dolumu değildir. USD/TRY için `CYBERBOT_FX_FILE` ile yerel JSON dosyasını belirtin: `{"usdtry":"45.00","observed_at":"2026-11-26T12:00:00Z","source":"example only"}`. Bu sadece biçim örneğidir, güncel kur değildir. Kullanım hakkı olan canlı besleme dosyayı güncellemeli; 300 saniyeden eski veya geçersiz girdide toplam hesaplanmaz. Otomatik kur sağlayıcısı henüz bağlı değil. Birleşik kur K/Z geçmişi henüz yok; native işlem K/Z güncel kurla çevrilir. Piyasa riskleri ayrı hesaplanır. Mevcut yeni piyasa dosyaları bakım yedeğine dahil edilir.

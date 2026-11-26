@@ -4,7 +4,8 @@ from decimal import Decimal as D
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from .market import instrument
-from .engine import Ledger, PaperError, START, MAX_OPEN, MAX_DRAWDOWN, DAILY_LOSS, FEE, SLIP
+from .capital import CAPITAL, usd_total, fx_quote
+from .engine import Ledger, PaperError, MAX_OPEN, MAX_DRAWDOWN, DAILY_LOSS, FEE, SLIP
 
 SCENARIOS=("bull","bear","sideways","gap")
 LABELS={"bull":"Yükseliş","bear":"Düşüş","sideways":"Yatay","gap":"Ani düşüş / fiyat boşluğu"}
@@ -27,11 +28,12 @@ def universe(scenario,steps):
         out[v.symbol]=v
     return out
 
-def run(scenario,steps=240):
-    instruments=universe(scenario,steps)
+def run_market(scenario,steps,market):
+    instruments={k:v for k,v in universe(scenario,steps).items() if v.market==market}
+    currency,START=CAPITAL[market]
     # Conservative one-session test: no daily risk reset masks a loss.
     with TemporaryDirectory(prefix="cyberbot-stress-") as tmp:
-        ledger=Ledger(Path(tmp)/"isolated.sqlite3",instruments=instruments,day_clock=lambda:"2000-01-01")
+        ledger=Ledger(Path(tmp)/"isolated.sqlite3",instruments=instruments,day_clock=lambda:"2000-01-01",start=START,currency=currency)
         rejected=0; attempted=0; violations=[]; peak_open=0; curve=[]; peak=START
         for tick in range(steps):
             snap=ledger.snapshot()
@@ -68,13 +70,40 @@ def run(scenario,steps=240):
         realized=sum((D(t["pnl"]) for t in trades),D(0))
         if abs(realized-(D(snap["equity"])-START))>D(".011"):violations.append("pnl_reconciliation")
         return {"scenario":scenario,"label":LABELS[scenario],"observations":steps,"mode":"synthetic_stress",
-                "initial_equity":str(START),"final_equity":snap["equity"],"return_pct":snap["return_pct"],
+                "market":market,"currency":currency,"initial_equity":str(START),"final_equity":snap["equity"],"return_pct":snap["return_pct"],
                 "max_recorded_drawdown_pct":snap["max_recorded_drawdown_pct"],"closed_trades":len(trades),
                 "stop_exits":reasons["stop"],"target_exits":reasons["hedef"],"rejected_entries":rejected,
                 "entry_attempts":attempted,"peak_open":peak_open,"invariant_violations":sorted(set(violations)),
                 "passed":not violations,"curve":curve,"daily_reset_simulated":False,"real_orders":False,
                 "profitability_verified":False,"promotion_enabled":False,
                 "limits":["Sentetik ve tek varsayımsal UTC oturumu; gerçek günler değildir.","Ani fiyat boşlukları stop ve zarar eşiklerini aşabilir.","Gözlem bazlı sanal dolum, sabit ücret ve kayma; gerçek likidite, gün içi yol ve gecikme yok."]}
+
+def run(scenario,steps=240):
+    accounts=[run_market(scenario,steps,m) for m in CAPITAL]
+    fx=fx_quote()
+    # Only for deterministic stress comparison; never described as a current market quote.
+    reference={"status":"synthetic_reference","usdtry":"45","source":"Fixed hypothetical stress FX"}
+    initial=usd_total(accounts,reference,"initial_equity")
+    final=usd_total(accounts,reference,"final_equity")
+    curve=[{"tick":i,"equity":usd_total([{"currency":a["currency"],"equity":a["curve"][i]["equity"]} for a in accounts],reference)} for i in range(steps)]
+    peak=D(initial);dd=D(0)
+    for p in curve:
+        v=D(p["equity"]);peak=max(peak,v);dd=max(dd,(1-v/peak)*100)
+    peak=max(peak,D(final));dd=max(dd,(1-D(final)/peak)*100)
+    sums={k:sum(a[k] for a in accounts) for k in ("closed_trades","stop_exits","target_exits","rejected_entries","entry_attempts","peak_open")}
+    return {"scenario":scenario,"label":LABELS[scenario],"observations":steps,"mode":"synthetic_stress",
+            "accounts":accounts,"currency":"USD","initial_equity":initial,"final_equity":final,
+            "return_pct":str(((D(final)/D(initial)-1)*100).quantize(D(".01"))),
+            "max_recorded_drawdown_pct":str(dd.quantize(D(".01"))),"curve":curve,**sums,
+            "current_fx":fx,"current_fx_initial_equity_usd":usd_total(accounts,fx,"initial_equity"),
+            "current_fx_final_equity_usd":usd_total(accounts,fx,"final_equity"),
+            "stress_fx":reference,"passed":all(a["passed"] for a in accounts),
+            "invariant_violations":[a["market"]+":"+v for a in accounts for v in a["invariant_violations"]],
+            "real_orders":False,"profitability_verified":False,"promotion_enabled":False,
+            "limits":["Sabit 45 TL/USD tamamen varsayımsal stres kuru; anlık kur değildir.",
+                      "Güncel kur toplamı yalnız geçerli yerel kur girdisi varsa ayrıca gösterilir.",
+                      "Piyasa başına bağımsız risk limitleri; tek varsayımsal UTC oturumu, gerçek günler değildir.",
+                      "Fiyat boşlukları zarar eşiklerini aşabilir; gerçek likidite modellenmez."]}
 
 def suite(steps=240):
     return [run(s,steps) for s in SCENARIOS]
