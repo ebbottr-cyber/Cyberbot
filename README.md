@@ -131,3 +131,5 @@ Solana: `python -m tools.solana_observed` salt okunur kotasyon tanılaması, var
 Hisse kotasyon köprüsü: python -m tools.equity_observed --market BIST --quote <json> --schedule <json> (varsayılan yalnız doğrulama; --apply ayrı izinli). IEX AAPL tanılama: --iex-probe, XNAS dolumu yok. Gerçek zamanlı lisanslı üç piyasa kaynağı henüz bağlı değil.
 
 Gölge kararlar: `python -m tools.pilot_decisions --market BIST` (beş piyasa), açık izinle yalnız karar kaydı. Mevcut araştırma bağlamı, gözlem sinyalleri ve HOLD; otomatik sanal emir oluşturmaz.
+
+Gözlem döngüsü: `python -m tools.pilot_loop --status` (salt okunur), açık izinle `--cycles 1 --interval 20` yerel ön plan. Varsayılan kapalı; docs/ROADMAP.md. Otomatik giriş/gerçek emir yok, sürekli servis kurulmadı.

@@ -56,3 +56,9 @@ from .pilot_decisions import snapshot as pilot_decision_snapshot
 def pilot_decisions():
     try:return pilot_decision_snapshot()
     except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Gölge kararlar okunamadı."},status_code=503)
+
+from .pilot_loop import snapshot as pilot_loop_snapshot
+@router.get("/api/pilot/loop")
+def pilot_loop():
+    try:return pilot_loop_snapshot()
+    except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Pilot döngüsü okunamadı."},status_code=503)

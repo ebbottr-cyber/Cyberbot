@@ -22,6 +22,7 @@ def status():
         p=worker_path()
         if not p.is_file():return empty
         with closing(sqlite3.connect(p.as_uri()+"?mode=ro",uri=True,timeout=1)) as db:
+            if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='cycles'").fetchone():return empty
             rows=db.execute("SELECT payload FROM cycles ORDER BY id DESC LIMIT 20").fetchall()
             recent=[json.loads(r[0]) for r in rows]
             count=db.execute("SELECT count(*) FROM cycles").fetchone()[0]
