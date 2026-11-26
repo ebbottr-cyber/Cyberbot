@@ -14,3 +14,6 @@ TradingAgents yaklaşımından esinlenen bağımsız araştırma rolleri eklendi
 
 ## Strateji laboratuvarı ilk sürüm
 Vibe-Trading araştırma yaklaşımından esinlenilmiş bağımsız beş strateji karşılaştırması. %70 eğitim bölümü, %30 ileri dönem; pencere yalnız eğitimde seçilir; kapanış sinyali sonraki açılışta uygulanır. Ücret/kayma, azami düşüş, kapanan işlem ve kazanma oranı. Sentetik demo ve yerel arşiv; hiçbir fiyat indirme veya emir yok. Tam walk-forward, Monte Carlo, çoklu varlık portföyü ve otomatik terfi henüz yoktur.
+
+## Öğrenme merkezi ilk sürüm
+60 gözlemli kayan eğitim bağlamı (20 ısınma + 40 ölçüm), ardından 20 gözlemli örtüşmeyen ileri test. Beş sabit pencere adayı yalnız eğitimde karşılaştırılır. Deneyler SQLite üzerinde sürüm, veri modu ve veri özetiyle tekilleştirilir. Sentetik ve doğrulanmamış tarihsel sonuçlar ayrı tutulur. Parametre taraması gerçek ML eğitimi değildir; arka plan zamanlayıcısı, LLM ve otomatik terfi yoktur. Ana işlem motoru değiştirilmez. Toplu fiyat indirme kapalıdır.
