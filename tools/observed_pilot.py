@@ -3,7 +3,7 @@ import argparse,json
 from pathlib import Path
 from cyberbot.observed_pilot import observe,request,snapshot
 def main():
-    p=argparse.ArgumentParser();p.add_argument("action",choices=["status","observe","buy","sell"]);p.add_argument("--market",choices=["BIST","NASDAQ"]);p.add_argument("--file");a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument("action",choices=["status","observe","buy","sell"]);p.add_argument("--market",choices=["BIST","NASDAQ","XETRA"]);p.add_argument("--file");a=p.parse_args()
     try:
         if a.action=="status":d=snapshot()
         elif a.action=="observe":

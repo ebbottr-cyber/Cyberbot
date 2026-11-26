@@ -113,3 +113,5 @@ Futures grafiği: son 200 kayıt, gerçek geçmiş uydurulmaz. Yedek kurtarma: `
 Canlı sanal test hazırlığı: `/api/readiness` ve Sistem Sağlığı ekranı beş piyasanın yerel durumunu salt okunur inceler; canlı fiyatla işlem başlatmaz. Mevcut kasalar sentetiktir.
 
 Bağımsız yerel gözlem pilotu: `python -m tools.observed_pilot status`. Varsayılan kapalı. BIST/NASDAQ örnek sembolleri; izinli yerel bid/ask girdileri, sonraki gözlem sanal dolumu. Ayrı DB; otomatik giriş, canlı veri ve gerçek emir yok. Pilot yedeği henüz kapsam dışı.
+
+XETRA SAP.DE gözlem pilotu: EUR hisse fiyatı / USD kasa, ayrı taze EUR/USD alış-satış girdisi ve açık kur kullanım izni. Yerel dosya; gerçek kur veya borsa bağlantısı yok.

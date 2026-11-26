@@ -7,8 +7,9 @@ from .db_paths import checked,pilot_path
 from .engine import FEE,SLIP,RISK,STOP,TARGET,MAX_NOTIONAL,DAILY_LOSS,MAX_DRAWDOWN
 
 VERSION="observed-pilot-1"
-ACCOUNTS={"BIST":("THYAO.IS","TRY",D("45000")),"NASDAQ":("AAPL","USD",D("1000"))}
+ACCOUNTS={"BIST":("THYAO.IS","TRY",D("45000")),"NASDAQ":("AAPL","USD",D("1000")),"XETRA":("SAP.DE","USD",D("1000"))}
 MAX_AGE=30
+FX_MAX_SKEW=10
 ORDER_TTL=60
 class PilotError(ValueError):pass
 def utc():return datetime.now(timezone.utc)
@@ -30,16 +31,31 @@ def path():
     checked()
     return pilot_path()
 def account(m):
-    if m not in ACCOUNTS:raise PilotError("Pilot yalnız BIST ve NASDAQ örnek sembollerini destekliyor.")
+    if m not in ACCOUNTS:raise PilotError("Pilot yalnız BIST, NASDAQ ve XETRA örnek sembollerini destekliyor.")
     return ACCOUNTS[m]
-def fresh(q,now):
-    return q is not None and 0<=(now-ts(q["source_at"])).total_seconds()<=MAX_AGE
+def fx_permitted():
+    return os.getenv("CYBERBOT_OBSERVED_FX_RIGHTS_CONFIRMED")=="1"
+def quote_currency(m):
+    return "EUR" if m=="XETRA" else account(m)[1]
+def fresh(q,now,m):
+    return q is not None and 0<=(now-ts(q["source_at"])).total_seconds()<=MAX_AGE and (m!="XETRA" or (fx_permitted() and q.get("fx") is not None and 0<=(now-ts(q["fx"]["source_at"])).total_seconds()<=MAX_AGE))
+def rate(q,side):
+    return D(q["fx"][side]) if "fx" in q else D(1)
+def validate_fx(q,now,stock_time):
+    if not fx_permitted():raise PilotError("EUR/USD kullanım izni kapalı.")
+    fx=q.get("fx")
+    if not isinstance(fx,dict) or fx.get("pair")!="EUR/USD":raise PilotError("EUR/USD alış/satış gözlemi gerekli.")
+    source=fx.get("source")
+    if not isinstance(source,str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}",source):raise PilotError("Kur kaynak kimliği gerekli.")
+    t=ts(fx.get("source_at"));bid,ask=dec(fx.get("bid")),dec(fx.get("ask"))
+    if not 0<=(now-t).total_seconds()<=MAX_AGE or abs((t-stock_time).total_seconds())>FX_MAX_SKEW or not D(".1")<=bid<=ask<=D("10") or ask/bid-1>D(".01"):raise PilotError("Kur eski, uyumsuz, gelecekte veya spread geniş.")
+    return {"pair":"EUR/USD","source":source,"source_at":t.isoformat(),"bid":str(bid),"ask":str(ask)}
 def initial(m):
     symbol,cur,start=account(m)
     return {"version":VERSION,"market":m,"symbol":symbol,"currency":cur,"initial_capital":str(start),"cash":str(start),"peak":str(start),"day":None,"day_equity":str(start),"quote":None,"position":None,"pending":None,"last_event":None,"fills":0}
 def equity(s):
     p=s["position"]
-    return D(s["cash"])+(D(p["quantity"])*D(s["quote"]["bid"])*(1-SLIP)*(1-FEE) if p else D(0))
+    return D(s["cash"])+(D(p["quantity"])*D(s["quote"]["bid"])*(1-SLIP)*(1-FEE)*rate(s["quote"],"bid") if p else D(0))
 def blocked(s):
     e=equity(s)
     return e<=D(s["peak"])*(1-MAX_DRAWDOWN) or e<=D(s["day_equity"])*(1-DAILY_LOSS)
@@ -51,13 +67,16 @@ def refresh(s,now):
     s["peak"]=str(max(D(s["peak"]),e))
 def validate(m,q,now):
     symbol,cur,_=account(m)
-    if not isinstance(q,dict) or q.get("symbol")!=symbol or q.get("currency")!=cur or q.get("market")!=m:raise PilotError("Piyasa, sembol veya para birimi uyuşmuyor.")
+    if not isinstance(q,dict) or q.get("symbol")!=symbol or q.get("currency")!=quote_currency(m) or q.get("market")!=m:raise PilotError("Piyasa, sembol veya para birimi uyuşmuyor.")
     source=q.get("source")
     if not isinstance(source,str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}",source):raise PilotError("Kaynak kimliği gerekli.")
     if q.get("session_open") is not True:raise PilotError("Açık seans beyanı gerekli; gerçek borsa takvimi doğrulanmadı.")
     t=ts(q.get("source_at"));bid,ask=dec(q.get("bid")),dec(q.get("ask"))
     if not 0<=(now-t).total_seconds()<=MAX_AGE or ask<bid or ask/bid-1>D(".02"):raise PilotError("Eski/gelecek fiyat veya geniş alış-satış farkı.")
-    return {"source":source,"source_at":t.isoformat(),"received_at":now.isoformat(),"bid":str(bid),"ask":str(ask),"session_asserted_open":True}
+    result={"source":source,"source_at":t.isoformat(),"received_at":now.isoformat(),"bid":str(bid),"ask":str(ask),"session_asserted_open":True}
+    if m=="XETRA":result["fx"]=validate_fx(q,now,t)
+    elif "fx" in q:raise PilotError("Bu hesapta kur girdisi kullanılmaz.")
+    return result
 @contextmanager
 def tx():
     if not permitted():raise PilotError("Pilot ve veri kullanım izni kapalı.")
@@ -85,7 +104,7 @@ def request(m,side,*,clock=utc):
     if side not in ("buy","sell"):raise PilotError("Geçersiz sanal istek.")
     with tx() as db:
         now=clock();s=load(db,m)
-        if not fresh(s["quote"],now):raise PilotError("Taze alış/satış fiyatı gerekli.")
+        if not fresh(s["quote"],now,m):raise PilotError("Taze alış/satış fiyatı gerekli.")
         if s["pending"]:raise PilotError("Bekleyen istek var.")
         refresh(s,now)
         if side=="buy" and (s["position"] or blocked(s)):raise PilotError("Pozisyon veya risk sınırı.")
@@ -98,26 +117,30 @@ def observe(m,input_quote,*,clock=utc):
     with tx() as db:
         now=clock();q=validate(m,input_quote,now);s=load(db,m);old=s["quote"]
         if old and (q["source"]!=old["source"] or ts(q["source_at"])<=ts(old["source_at"]) or ts(q["received_at"])<ts(old["received_at"])):raise PilotError("Kaynak değişikliği veya tekrar/sırasız gözlem.")
+        if m=="XETRA" and old:
+            prior,new=old["fx"],q["fx"]
+            if new["source"]!=prior["source"] or ts(new["source_at"])<ts(prior["source_at"]) or (new["source_at"]==prior["source_at"] and new!=prior):raise PilotError("Kur kaynağı değişti veya zaman/fiyat tutarsız.")
         s["quote"]=q;refresh(s,now)
         pending=s["pending"];event="observation";detail={}
         if pending:
             if now>ts(pending["expires_at"]) or (pending["side"]=="buy" and ts(pending["requested_at"]).date()!=now.date()):
                 s["pending"]=None;event="expired"
-            elif ts(q["source_at"])>ts(pending["requested_at"]):
+            elif ts(q["source_at"])>ts(pending["requested_at"]) and (m!="XETRA" or ts(q["fx"]["source_at"])>ts(pending["requested_at"])):
                 s["pending"]=None
                 if pending["side"]=="buy" and not s["position"] and not blocked(s):
                     entry=D(q["ask"])*(1+SLIP);stop=entry*(1-STOP);e=equity(s)
-                    loss=entry*(1+FEE)-stop*(1-SLIP)*(1-FEE)
-                    qty=min(e*RISK/loss,e*MAX_NOTIONAL/entry,D(s["cash"])/(entry*(1+FEE))).quantize(D(".000001"),rounding=ROUND_DOWN)
+                    entry_usd_or_native=entry*rate(q,"ask")
+                    loss=entry_usd_or_native*(1+FEE)-stop*(1-SLIP)*(1-FEE)*rate(q,"bid")
+                    qty=min(e*RISK/loss,e*MAX_NOTIONAL/entry_usd_or_native,D(s["cash"])/(entry_usd_or_native*(1+FEE))).quantize(D("1") if m=="XETRA" else D(".000001"),rounding=ROUND_DOWN)
                     if qty>0:
-                        cost=qty*entry*(1+FEE);s["cash"]=str(D(s["cash"])-cost)
-                        s["position"]={"quantity":str(qty),"entry":str(entry),"cost":str(cost),"stop":str(stop),"target":str(entry*(1+TARGET)),"opened_at":now.isoformat()}
+                        cost=qty*entry_usd_or_native*(1+FEE);s["cash"]=str(D(s["cash"])-cost)
+                        s["position"]={"quantity":str(qty),"entry":str(entry),"cost":str(cost),"stop":str(stop),"target":str(entry*(1+TARGET)),"opened_at":now.isoformat(),"price_currency":quote_currency(m),"entry_conversion_rate":str(rate(q,"ask"))}
                         detail=dict(s["position"]);event="buy_fill"
                     else:event="risk_rejected"
                 elif pending["side"]=="sell" and s["position"]:
-                    pos=s["position"];exit_price=D(q["bid"])*(1-SLIP);proceeds=D(pos["quantity"])*exit_price*(1-FEE)
+                    pos=s["position"];exit_price=D(q["bid"])*(1-SLIP);proceeds=D(pos["quantity"])*exit_price*(1-FEE)*rate(q,"bid")
                     s["cash"]=str(D(s["cash"])+proceeds);s["position"]=None
-                    detail={"quantity":pos["quantity"],"exit":str(exit_price),"pnl":str(proceeds-D(pos["cost"])),"reason":pending["reason"]};event="sell_fill"
+                    detail={"quantity":pos["quantity"],"exit":str(exit_price),"pnl":str(proceeds-D(pos["cost"])),"reason":pending["reason"],"price_currency":quote_currency(m),"exit_conversion_rate":str(rate(q,"bid"))};event="sell_fill"
                 else:event="risk_rejected"
                 if event.endswith("_fill"):s["fills"]+=1
         p=s["position"]
@@ -136,6 +159,6 @@ def snapshot(*,clock=utc):
                 db.execute("PRAGMA query_only=ON")
                 if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='observed_accounts'").fetchone():
                     s=load(db,m);exists=bool(db.execute("SELECT 1 FROM observed_accounts WHERE market=?",(m,)).fetchone())
-        is_fresh=permitted() and fresh(s["quote"],now)
-        result["accounts"].append({"market":m,"symbol":s["symbol"],"currency":s["currency"],"initial_capital":s["initial_capital"],"initialized":exists,"cash":s["cash"] if permitted() and exists else None,"equity":str(equity(s)) if is_fresh else None,"quote_fresh":is_fresh,"last_quote_at":s["quote"]["source_at"] if permitted() and s["quote"] else None,"position_open":bool(s["position"]) if permitted() else None,"pending":s["pending"] if permitted() else None,"fills":s["fills"] if permitted() else None})
+        is_fresh=permitted() and fresh(s["quote"],now,m)
+        result["accounts"].append({"market":m,"symbol":s["symbol"],"currency":s["currency"],"price_currency":quote_currency(m),"fx_required":m=="XETRA","fx_rights_confirmed":fx_permitted() if m=="XETRA" else None,"last_fx_at":s["quote"]["fx"]["source_at"] if permitted() and fx_permitted() and m=="XETRA" and s["quote"] else None,"initial_capital":s["initial_capital"],"initialized":exists,"cash":s["cash"] if permitted() and exists else None,"equity":str(equity(s)) if is_fresh else None,"quote_fresh":is_fresh,"last_quote_at":s["quote"]["source_at"] if permitted() and s["quote"] else None,"position_open":bool(s["position"]) if permitted() else None,"pending":s["pending"] if permitted() else None,"fills":s["fills"] if permitted() else None})
     return result

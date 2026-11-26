@@ -36,7 +36,7 @@ def snapshot():
                     data.update(status=d["status"],observations=len(d["bars"]),last_session=d["bars"][-1]["session"] if d["bars"] else None,age_days=d["age_days"],currency=d["currency"])
                 except DataError:data["status"]="archive_unavailable"
             blockers.append("Canlı fiyat akışı ve borsa/işlem yeri doğrulaması yok.")
-            if market=="XETRA":blockers.append("Gerçek EUR fiyatı ile USD sanal sermaye dönüşümü doğrulanmadı.")
+            if market=="XETRA":blockers.append("EUR/USD bid/ask dönüşüm pilotu mevcut; gerçek kur kaynağı doğrulanmadı.")
             if not rights:blockers.append("Arşiv araştırma kullanım hakkı beyanı yok.")
         elif market=="SOLANA":
             data["status"]="read_only_configured" if os.getenv("CYBERBOT_SOLANA_READ_ENABLED")=="1" else "read_only_disabled"
@@ -44,7 +44,7 @@ def snapshot():
         else:
             data["status"]="synthetic_only"
             blockers.append("Gerçek Futures fiyatı, mark fiyatı, fonlama ve likidasyon doğrulaması yok.")
-        blockers.append("Canlı veriyle ileri test doğrulaması yok; yalnız BIST/NASDAQ manuel gözlem pilotu mevcut.")
+        blockers.append("Canlı veriyle ileri test doğrulaması yok; BIST/NASDAQ/XETRA manuel gözlem pilotu mevcut.")
         markets.append({"market":market,"currency":currency,"initial_capital":str(amount),"database":db,"data":data,"status":"blocked","blockers":blockers,"live_data_verified":False,"paper_execution_verified":False})
     worker=worker_status()
     last=worker.get("last_cycle") or {}
