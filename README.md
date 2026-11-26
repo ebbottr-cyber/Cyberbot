@@ -66,3 +66,6 @@ Strateji Laboratuvarı'nda manuel dayanıklılık deneyi: 1000 blok-bootstrap yo
 
 ## Strateji turnuvası
 Strateji Lab. altında piyasa/sembol bazlı keşif ve ayrılmış son 60 gözlem testi. En az 240 gözlem gerekir. BIST/NASDAQ/XETRA yerel arşiv veya dört piyasa için sentetik senaryo; gerçek Solana tarihsel arşivi bağlı değil. Araştırma şampiyonu yalnız deney kapsamındadır, ana motora geçirilmez. Turnuva sonuçları öğrenme SQLite dosyasında ayrı tabloda saklanır. Tekrarlanan veri yeni kayıt değildir; örtüşen veri bağımsız doğrulama sayılmaz.
+
+## Piyasa rejimi
+Strateji Laboratuvarı'nda turnuva piyasası için nedensel 20 gözlemli rejim etiketi ve ileri dönem net getiri gözlem ortalamaları. Volatilite yıllıklandırılmaz, eşikler sabit ve deneysel. Sonuç tek sembolü temsil eder, strateji seçme veya işlem yetkisi yok. Sentetik dört piyasa veya mevcut izinli yerel hisse arşivi; yeni veri indirilmez.

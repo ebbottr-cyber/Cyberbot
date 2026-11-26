@@ -90,3 +90,21 @@ def tournament_result(key:str):
     except ValueError as e:raise HTTPException(422,str(e)) from None
     if result is None:raise HTTPException(404,"Turnuva bulunamadı.")
     return result
+
+from .regimes import evaluate as regime_evaluate, demo_rows as regime_demo
+
+@router.post("/api/strategies/regimes")
+def regimes(mode:str="synthetic",market:str="BIST",symbol:str="THYAO.IS",limit:int=Query(360,ge=120,le=1000)):
+    if not _robust_lock.acquire(blocking=False):raise HTTPException(429,"Bir araştırma deneyi çalışıyor.")
+    try:
+        if market not in CAPITAL:raise ValueError("Geçersiz piyasa.")
+        if mode=="synthetic":
+            rows=regime_demo(market)
+            symbol="DEMO-REGIME-"+market
+        elif mode=="historical_unverified":
+            if market=="SOLANA":raise ValueError("Solana tarihsel arşivi bağlı değil.")
+            rows=history(os.getenv("CYBERBOT_EBBOT_DB"),market,symbol,limit)["bars"]
+        else:raise ValueError("Geçersiz veri modu.")
+        return regime_evaluate(rows,mode=mode,market=market,symbol=symbol)
+    except (DataError,ValueError,ArithmeticError) as e:raise HTTPException(422,str(e)) from None
+    finally:_robust_lock.release()

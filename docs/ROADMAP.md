@@ -53,3 +53,6 @@ BIST 45.000 TRY; NASDAQ, XETRA, Solana ayrı 1.000 USD. Ana panel yeni piyasa de
 
 ## Strateji turnuvası
 Piyasa ve sembol bazında, son 60 gözlem keşiften tamamen ayrılır. Dayanıklılık adayında en az 65 puan ve varsa ikinci uygun adaya 5 puan fark; yalnız seçilen aday, keşifte sabitlenmiş pencereyle final testinde değerlendirilir. Finalde en az 5 kapanmış işlem, pozitif net ve iki kat maliyet getirisi, her iki düşüş en fazla %10. Başarısızsa şampiyon yok; finalist değişmez. Sentetik ve tarihsel kayıtlar ayrı, aynı veri SHA-256 ile tekilleştirilir; SQLite öğrenme dosyasında ayrı turnuva tablosu. Tek sembol şampiyonu piyasa geneli kanıtı değildir; otomatik terfi yok.
+
+## Piyasa rejimi araştırması
+Tek sembolde 20 geçmiş kapanış getirisi, ±%3 trend ve gözlem başına %2,5 standart sapma eşikleri; volatilite öncelikli. Etiket sonraki açılıştan önce bilinen kapanışlarla oluşturulur. Walk-forward strateji özsermaye değişimleri rejimlere betimsel olarak ayrılır, 40 gözlem altı yetersiz. Bitişik olmayan rejimlerden portföy eğrisi üretilmez. Sentetik veya yerel arşiv; otomatik strateji değiştirme/terfi yok. Eşikler deneysel ve kalibre edilmemiştir.
