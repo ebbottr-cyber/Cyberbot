@@ -108,3 +108,21 @@ def regimes(mode:str="synthetic",market:str="BIST",symbol:str="THYAO.IS",limit:i
         return regime_evaluate(rows,mode=mode,market=market,symbol=symbol)
     except (DataError,ValueError,ArithmeticError) as e:raise HTTPException(422,str(e)) from None
     finally:_robust_lock.release()
+
+from .adaptive import evaluate as adaptive_evaluate
+
+@router.post("/api/strategies/adaptive")
+def adaptive(mode:str="synthetic",market:str="BIST",symbol:str="THYAO.IS",limit:int=Query(360,ge=240,le=1000)):
+    if not _robust_lock.acquire(blocking=False):raise HTTPException(429,"Bir araştırma deneyi çalışıyor.")
+    try:
+        if market not in CAPITAL:raise ValueError("Geçersiz piyasa.")
+        if mode=="synthetic":
+            rows=regime_demo(market)
+            symbol="DEMO-ADAPTIVE-"+market
+        elif mode=="historical_unverified":
+            if market=="SOLANA":raise ValueError("Solana tarihsel arşivi bağlı değil.")
+            rows=history(os.getenv("CYBERBOT_EBBOT_DB"),market,symbol,limit)["bars"]
+        else:raise ValueError("Geçersiz veri modu.")
+        return adaptive_evaluate(rows,mode=mode,market=market,symbol=symbol)
+    except (DataError,ValueError,ArithmeticError) as e:raise HTTPException(422,str(e)) from None
+    finally:_robust_lock.release()

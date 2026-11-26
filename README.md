@@ -69,3 +69,6 @@ Strateji Lab. altında piyasa/sembol bazlı keşif ve ayrılmış son 60 gözlem
 
 ## Piyasa rejimi
 Strateji Laboratuvarı'nda turnuva piyasası için nedensel 20 gözlemli rejim etiketi ve ileri dönem net getiri gözlem ortalamaları. Volatilite yıllıklandırılmaz, eşikler sabit ve deneysel. Sonuç tek sembolü temsil eder, strateji seçme veya işlem yetkisi yok. Sentetik dört piyasa veya mevcut izinli yerel hisse arşivi; yeni veri indirilmez.
+
+## Adaptif gölge araştırması
+Strateji Lab. içindeki adaptif deney, 20 gözlemli bloklar için geçmiş kanıta dayalı araştırma adayı veya nakit seçer. Karar sonraki blokta test edilir; ana portföye emir yok. Sentetik veya izinli mevcut arşiv, 240–1000 gözlem. Geçmiş replay sonuçları canlı performans kanıtı değildir; otomatik zamanlayıcıya bağlı değildir.

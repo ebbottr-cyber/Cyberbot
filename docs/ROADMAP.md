@@ -56,3 +56,6 @@ Piyasa ve sembol bazında, son 60 gözlem keşiften tamamen ayrılır. Dayanıkl
 
 ## Piyasa rejimi araştırması
 Tek sembolde 20 geçmiş kapanış getirisi, ±%3 trend ve gözlem başına %2,5 standart sapma eşikleri; volatilite öncelikli. Etiket sonraki açılıştan önce bilinen kapanışlarla oluşturulur. Walk-forward strateji özsermaye değişimleri rejimlere betimsel olarak ayrılır, 40 gözlem altı yetersiz. Bitişik olmayan rejimlerden portföy eğrisi üretilmez. Sentetik veya yerel arşiv; otomatik strateji değiştirme/terfi yok. Eşikler deneysel ve kalibre edilmemiştir.
+
+## Adaptif gölge araştırması
+Her 20 gözlemli blok başlamadan rejim ve aday yalnız önceki kapanışlar/tamamlanmış bloklardan seçilir; geçmiş eğitimle pencere sabitlenir. Rejim başına 40 gözlem, geçmiş toplam 20 kapanış, ortalama net %0,02 ve çift maliyette pozitif, son 6 blok pozitif ve düşüş ≤%10. Uygun aday yoksa nakit. Tamamlanmış blok sonrası kanıt güncellenir; ana portföy değiştirilmez. Tarihsel gölge replay, canlı gölge veya otomatik strateji terfisi değildir. Karşılaştırmalar nakit, al-tut, sabit strateji ve 2x maliyet. Eşikler deneysel.
