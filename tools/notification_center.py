@@ -3,7 +3,7 @@ import sqlite3
 from contextlib import closing
 from datetime import datetime, timezone
 
-CATEGORIES = {"news", "market", "data", "system", "risk", "ai", "trade", "github", "crypto"}
+CATEGORIES = {"news", "market", "data", "system", "risk", "ai", "trade", "github"}
 LEVELS = {"info", "warning", "critical"}
 
 class NotificationStore:
