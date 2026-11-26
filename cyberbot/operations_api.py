@@ -79,3 +79,9 @@ from .pilot_authorization import snapshot as pilot_authorization_snapshot
 def pilot_authorization():
     try:return pilot_authorization_snapshot()
     except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"authorization":"blocked","detail":"Yetki denetimi okunamadı."},status_code=503)
+
+from .pilot_preflight import snapshot as pilot_preflight_snapshot
+@router.get("/api/pilot/preflight")
+def pilot_preflight():
+    try:return pilot_preflight_snapshot()
+    except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"status":"blocked","detail":"Başlangıç denetimi okunamadı."},status_code=503)

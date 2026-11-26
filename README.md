@@ -139,3 +139,5 @@ Giriş freni: `python -m tools.pilot_control halt` / `resume` / `status`; `outco
 Windows gözlem gözetmeni: `scripts/pilot-supervisor-windows.ps1` (tek döngü; -Continuous açıkça seçilir). `scripts/register-pilot-windows.ps1` önizleme; -Register yeni devre dışı görev oluşturur, başlatmaz. İzinler önceden ayarlanmalı. docs/ROADMAP.md.
 
 Otomatik giriş denetimi: `python -m tools.pilot_authorization` salt okunur, aynı kapsam ileri ölçüm/kill switch/izinler; doğrulanmamış veri ve yürütme nedeniyle otomatik giriş kapalı.
+
+Windows pilot başlangıç denetimi: `powershell -NoProfile -File .\\scripts\\prepare-pilot-windows.ps1` salt okunur; `-Prepare` yalnız bağımlılık kurulumu ve izole testler. Sağlık panelinde başlangıç denetimi. Görev veya veri sağlayıcısı başlatılmaz.
