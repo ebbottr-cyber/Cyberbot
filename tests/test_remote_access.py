@@ -33,3 +33,16 @@ class RemoteTests(unittest.TestCase):
     def test_missing_config(self):
         with patch.dict(os.environ,{**ENV,"CYBERBOT_TAILSCALE_LOGIN":""}):
             self.assertEqual(self.client().get("/",headers=HEAD).status_code,403)
+
+    def test_pwa_new_routes_and_identity_guard(self):
+        with patch.dict(os.environ,ENV):
+            with self.client() as c:
+                for path in ("/alerts","/pilot","/api/alerts","/api/data/coverage/5m","/api/pilot/performance"):
+                    self.assertEqual(c.get(path).status_code,403,path)
+                    self.assertEqual(c.get(path,headers=[("Tailscale-User-Login","owner@example.com"),("Tailscale-User-Login","other@example.com")]).status_code,403,path)
+                for path in ("/alerts","/pilot","/manifest.webmanifest","/sw.js","/api/data/coverage/5m"):
+                    r=c.get(path,headers=HEAD)
+                    self.assertEqual(r.status_code,200,path)
+                    self.assertEqual(r.headers["cache-control"],"no-store",path)
+                for path in ("/api/portfolio/BIST/buy/THYAO.IS","/api/futures/open/BTCUSDT/LONG"):
+                    self.assertEqual(c.post(path,headers={**HEAD,"X-Cyberbot-Paper":"1","Origin":"https://pc.example.ts.net:8443"}).status_code,403,path)
