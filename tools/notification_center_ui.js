@@ -8,7 +8,7 @@ export function mountNotificationCenter(root, request) {
   panel.setAttribute("aria-label", "Bildirim merkezi");
   const filter = make("select");
   filter.setAttribute("aria-label", "Kategori");
-  for (const [value, label] of Object.entries({"":"Tümü",news:"Haberler",market:"Piyasalar",data:"Veri",risk:"Risk",ai:"Yapay zekâ",trade:"İşlemler",system:"Sistem",github:"GitHub"})) {
+  for (const [value, label] of Object.entries({"":"Tümü",news:"Haberler",market:"Piyasalar",data:"Veri",risk:"Risk",ai:"Yapay zekâ",trade:"İşlemler",system:"Sistem",github:"GitHub",crypto:"Kripto"})) {
     const option = make("option", label); option.value = value; filter.append(option);
   }
   const unread = make("input"); unread.type = "checkbox";
