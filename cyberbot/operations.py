@@ -13,13 +13,9 @@ DATABASES={"paper":("CYBERBOT_DB","var/paper.sqlite3",{"state","trades","equity_
            "learning":("CYBERBOT_LEARNING_DB","var/learning.sqlite3",{"experiments"})}
 
 def sources():
-    result={k:Path(os.getenv(env,default)).expanduser().resolve() for k,(env,default,_) in DATABASES.items()}
-    from .capital import account_paths
-    result.update({"paper_"+m.lower():p for m,p in account_paths().items() if p.is_file()})
-    from .futures import path_for
-    p=path_for()
-    if p.is_file():result["futures"]=p
-    return result
+    from .db_paths import checked
+    paths=checked()
+    return {k:p for k,p in paths.items() if k in ("paper","learning") or (k!="worker" and p.is_file())}
 
 def required(name):
     if name=="futures":return {"futures_state"}
@@ -35,7 +31,9 @@ def inspect_db(path,required):
     except (sqlite3.Error,OSError):return "unreadable"
 
 def health():
-    dbs={k:inspect_db(p,required(k)) for k,p in sources().items()}
+    from .db_paths import PathCollision
+    try:dbs={k:inspect_db(p,required(k)) for k,p in sources().items()}
+    except PathCollision:dbs={"path_isolation":"collision"}
     return {"status":"ok" if all(v in ("ok","not_initialized") for v in dbs.values()) else "degraded",
             "databases":dbs,"mode":"synthetic_paper","bulk_price_download_enabled":False,"real_orders":False,
             "remote_configured":os.getenv("CYBERBOT_TAILSCALE_ENABLED")=="1",

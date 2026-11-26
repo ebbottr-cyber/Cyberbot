@@ -44,11 +44,11 @@ def run_market(scenario,steps,market):
                 if symbol in active:continue
                 attempted+=1
                 pre=ledger.snapshot()
-                blocked=D(pre["equity"])<=START*(1-DAILY_LOSS) or D(pre["drawdown_pct"])>MAX_DRAWDOWN*100+D(".01")
+                blocked=D(pre["equity"])<START*(1-DAILY_LOSS)-D(".01") or D(pre["drawdown_pct"])>MAX_DRAWDOWN*100+D(".01")
                 try:
                     ledger.buy(symbol)
                     # Snapshot uses cents: leave tolerance at the exact rounded threshold.
-                    if blocked and D(pre["equity"])<START*(1-DAILY_LOSS)-D(".01"):violations.append("risk_guard")
+                    if blocked:violations.append("risk_guard")
                 except PaperError:
                     rejected+=1
             snap=ledger.snapshot()
@@ -79,10 +79,11 @@ def run_market(scenario,steps,market):
                 "limits":["Sentetik ve tek varsayımsal UTC oturumu; gerçek günler değildir.","Ani fiyat boşlukları stop ve zarar eşiklerini aşabilir.","Gözlem bazlı sanal dolum, sabit ücret ve kayma; gerçek likidite, gün içi yol ve gecikme yok."]}
 
 def run(scenario,steps=240):
-    accounts=[run_market(scenario,steps,m) for m in CAPITAL]
+    from .futures_stress import run_futures
+    accounts=[run_market(scenario,steps,m) for m in CAPITAL]+[run_futures(scenario,steps)]
     fx=fx_quote()
     # Only for deterministic stress comparison; never described as a current market quote.
-    reference={"status":"synthetic_reference","usdtry":"45","source":"Fixed hypothetical stress FX"}
+    reference={"status":"synthetic_reference","usdtry":"45","usdtusd":"1","source":"Fixed hypothetical stress FX"}
     initial=usd_total(accounts,reference,"initial_equity")
     final=usd_total(accounts,reference,"final_equity")
     curve=[{"tick":i,"equity":usd_total([{"currency":a["currency"],"equity":a["curve"][i]["equity"]} for a in accounts],reference)} for i in range(steps)]
@@ -97,10 +98,10 @@ def run(scenario,steps=240):
             "max_recorded_drawdown_pct":str(dd.quantize(D(".01"))),"curve":curve,**sums,
             "current_fx":fx,"current_fx_initial_equity_usd":usd_total(accounts,fx,"initial_equity"),
             "current_fx_final_equity_usd":usd_total(accounts,fx,"final_equity"),
-            "stress_fx":reference,"passed":all(a["passed"] for a in accounts),
+            "liquidations":sum(a.get("liquidations",0) for a in accounts),"stress_fx":reference,"passed":all(a["passed"] for a in accounts),
             "invariant_violations":[a["market"]+":"+v for a in accounts for v in a["invariant_violations"]],
             "real_orders":False,"profitability_verified":False,"promotion_enabled":False,
-            "limits":["Sabit 45 TL/USD tamamen varsayımsal stres kuru; anlık kur değildir.",
+            "limits":["Sabit 45 TL/USD ve 1 USD/USDT tamamen varsayımsal stres kurları; anlık kur değildir.",
                       "Güncel kur toplamı yalnız geçerli yerel kur girdisi varsa ayrıca gösterilir.",
                       "Piyasa başına bağımsız risk limitleri; tek varsayımsal UTC oturumu, gerçek günler değildir.",
                       "Fiyat boşlukları zarar eşiklerini aşabilir; gerçek likidite modellenmez."]}

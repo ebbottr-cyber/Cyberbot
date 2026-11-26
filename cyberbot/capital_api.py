@@ -11,7 +11,8 @@ lock=Lock()
 def portfolio(base):
     return Portfolio(base)
 def store():
-    return portfolio(os.getenv("CYBERBOT_DB","var/paper.sqlite3"))
+    from .db_paths import checked
+    return portfolio(checked()["paper"])
 def market_ledger(market):
     if market not in CAPITAL:raise HTTPException(404,"Bilinmeyen piyasa.")
     return store().ledgers[market]

@@ -83,3 +83,6 @@ Obsidian salt okunur SQLite araştırma özeti, beş piyasa, sentetik/tarihsel f
 
 ## Bilgi ve haber merkezi
 İlk sürüm: bağımsız Vault ZIP, Canvas/Bases, ajan beceri dosyası, ortak panel CSS ve manuel haber/takvim kayıtları. İleri araçlar ve RSS pilotu docs/KNOWLEDGE_NEWS_TR.md içinde; izin doğrulaması olmadan ağ erişimi yok.
+
+## Genel denetim düzeltmeleri
+Yapılandırılmış DB yolları ortak kontrol, symlink/hardlink çakışmaları ve EBBot arşivi koruması; önbellekli API girişinde tekrar kontrol. Futures sentetik stres (4 senaryo, beşinci hesap), bağımsız günlük/düşüş risk kontrolü, çift maliyet likidasyonu aday dışı, stres ekranı JS yeniden yazıldı. Gerçek cihaz/işlem doğrulaması değil. Yerel süreçlerin dosyaları eşzamanlı değiştirmesi güven sınırı dışıdır.

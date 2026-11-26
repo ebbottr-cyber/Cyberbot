@@ -14,8 +14,10 @@ class StressTests(unittest.TestCase):
                 self.assertEqual(len(r["curve"]),60)
                 self.assertEqual(r["entry_attempts"],r["closed_trades"]+r["rejected_entries"])
                 self.assertGreaterEqual(D(r["max_recorded_drawdown_pct"]),0)
-                self.assertEqual([a["initial_equity"] for a in r["accounts"]],["45000","1000","1000","1000"])
+                self.assertEqual([a["initial_equity"] for a in r["accounts"]],["45000","1000","1000","1000","1000"])
                 self.assertEqual(r["stress_fx"]["status"],"synthetic_reference")
+                self.assertEqual(r["initial_equity"],"5000.00")
+                self.assertEqual(r["accounts"][-1]["market"],"FUTURES")
         self.assertIn("DEMO-BIST",INDEX)
         self.assertEqual(len(INDEX["DEMO-BIST"].prices),10)
     def test_gap_guard(self):

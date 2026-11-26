@@ -11,9 +11,9 @@ CAPITAL={"BIST":("TRY",D("45000")),"NASDAQ":("USD",D("1000")),"XETRA":("USD",D("
 MAX_FX_AGE=300
 
 def account_paths(base=None):
-    base=Path(base or os.getenv("CYBERBOT_DB","var/paper.sqlite3")).expanduser().resolve()
-    root=base.parent/(base.stem+"-markets")
-    return {m:root/(m.lower()+".sqlite3") for m in CAPITAL}
+    from .db_paths import layout
+    paths=layout(base)
+    return {m:paths["paper_"+m.lower()] for m in CAPITAL}
 
 def valid_usdt(value):
     try:
@@ -56,9 +56,9 @@ def usd_total(accounts,quote,field="equity"):
 
 class Portfolio:
     def __init__(self,base=None):
+        from .db_paths import checked
+        checked(base)
         paths=account_paths(base)
-        archive=os.getenv("CYBERBOT_EBBOT_DB")
-        if archive and Path(archive).expanduser().resolve() in paths.values():raise ValueError("Archive path collision.")
         from .futures import Futures,path_for
         self.futures=Futures(path_for(base))
         self.ledgers={m:Ledger(paths[m],instruments={k:v for k,v in INDEX.items() if v.market==m},start=amount,currency=cur) for m,(cur,amount) in CAPITAL.items()}

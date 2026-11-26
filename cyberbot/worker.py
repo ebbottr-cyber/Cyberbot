@@ -13,12 +13,8 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 def worker_path():
-    p=Path(os.getenv("CYBERBOT_WORKER_DB","var/worker.sqlite3")).expanduser().resolve()
-    excluded=set(sources().values())
-    if os.getenv("CYBERBOT_EBBOT_DB"):
-        excluded.add(Path(os.environ["CYBERBOT_EBBOT_DB"]).expanduser().resolve())
-    if p in excluded:raise ValueError("Worker database must be separate.")
-    return p
+    from .db_paths import checked
+    return checked()["worker"]
 
 def status():
     empty={"status":"not_started","last_cycle":None,"cycles_recorded":0,"recent":[],"real_orders":False}

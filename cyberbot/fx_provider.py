@@ -18,12 +18,12 @@ def paths():
     root=Path("var").resolve()
     quote=root/"fx-provider.json"
     quota=root/"fx-provider-quota.sqlite3"
-    from .capital import account_paths
-    from .futures import path_for
-    forbidden=set(account_paths().values())|{path_for()}
+    from .db_paths import checked,same
+    forbidden=set(checked().values())
     for env,default in (("CYBERBOT_DB","var/paper.sqlite3"),("CYBERBOT_LEARNING_DB","var/learning.sqlite3"),("CYBERBOT_WORKER_DB","var/worker.sqlite3"),("CYBERBOT_EBBOT_DB","")):
         value=os.getenv(env,default)
         if value:forbidden.add(Path(value).expanduser().resolve())
+    if same(quote,quota):raise FXError("Kur dosyaları çakışıyor.")
     for p in (quote,quota):
         if p.is_symlink() or any(p.resolve()==q or (p.exists() and q.exists() and p.samefile(q)) for q in forbidden):
             raise FXError("Kur dosyası yolu çakışıyor.")

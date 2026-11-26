@@ -12,7 +12,8 @@ router=APIRouter()
 def journal(path):
     return Journal(path)
 def store():
-    return journal(os.getenv("CYBERBOT_LEARNING_DB","var/learning.sqlite3"))
+    from .db_paths import checked
+    return journal(checked()["learning"])
 
 @router.get("/learning",response_class=HTMLResponse)
 def panel():

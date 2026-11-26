@@ -7,7 +7,7 @@ from .robustness import bootstrap,metrics,score
 from .analysis import review
 from .models import evaluate as forecasts
 
-VERSION="futures-research-2"
+VERSION="futures-research-3"
 NAMES={"trend":"Çift yönlü trend","momentum":"Çift yönlü momentum","reversion":"Ortalamaya dönüş","long":"LONG referansı","short":"SHORT referansı","cash":"Nakit referansı"}
 WINDOWS=(5,10,20)
 HOLDOUT=60
@@ -65,24 +65,24 @@ def evaluate(raw,symbol):
     if any(not v.is_finite() or not D("1e-12")<=v<=D("1e9") for pair in bars for v in pair):raise ValueError("Geçersiz fiyat.")
     split=len(bars)-HOLDOUT;ranking=[]
     for name,label in NAMES.items():
-        returns=[];stress=[];positive=closed=folds=0;liqs=0;longs=shorts=0
+        returns=[];stress=[];positive=closed=folds=0;liqs=cost_liqs=0;longs=shorts=0
         for i in range(60,split-BLOCK+1,BLOCK):
             w=max(WINDOWS,key=lambda w:simulate(bars,name,w,i-40,i)["net"])
             a=simulate(bars,name,w,i,i+BLOCK);b=simulate(bars,name,w,i,i+BLOCK,2)
             returns+=a["returns"];stress+=b["returns"];folds+=1;positive+=a["net"]>0
-            closed+=a["closed"];liqs+=a["liquidations"];longs+=a["longs"];shorts+=a["shorts"]
+            closed+=a["closed"];liqs+=a["liquidations"];cost_liqs+=b["liquidations"];longs+=a["longs"];shorts+=a["shorts"]
         net,dd=metrics(returns);cost_net,_=metrics(stress);mc=bootstrap(returns)
         rating=score(folds=folds,trades=closed,positive=positive,net=net,dd=dd,cost_net=cost_net,mc=mc,reference=name in ("long","short","cash"))
         ranking.append({"id":name,"name":label,"return_pct":round(net*100,5),"drawdown_pct":round(dd*100,5),"double_cost_return_pct":round(cost_net*100,5),
-                        "closed_trades":closed,"long_trades":longs,"short_trades":shorts,"liquidations":liqs,"monte_carlo":mc,**rating})
+                        "closed_trades":closed,"long_trades":longs,"short_trades":shorts,"liquidations":liqs,"double_cost_liquidations":cost_liqs,"monte_carlo":mc,**rating})
     ranking.sort(key=lambda x:(x["status"]!="research_candidate",-(x["score"] if x["score"] is not None else -1),x["id"]))
-    eligible=[x for x in ranking if x["status"]=="research_candidate" and x["score"]>=65 and x["liquidations"]==0]
+    eligible=[x for x in ranking if x["status"]=="research_candidate" and x["score"]>=65 and x["liquidations"]==0 and x["double_cost_liquidations"]==0]
     candidate=eligible[0]["id"] if eligible and (len(eligible)==1 or eligible[0]["score"]-eligible[1]["score"]>=5) else None
     validation=None;champion=None
     if candidate:
         w=max(WINDOWS,key=lambda w:simulate(bars,candidate,w,20,split)["net"])
         a=simulate(bars,candidate,w,split,len(bars));b=simulate(bars,candidate,w,split,len(bars),2)
-        validation={"window":w,"return_pct":round(a["net"]*100,5),"double_cost_return_pct":round(b["net"]*100,5),"drawdown_pct":round(a["dd"]*100,5),"closed_trades":a["closed"],"liquidations":a["liquidations"]}
+        validation={"window":w,"return_pct":round(a["net"]*100,5),"double_cost_return_pct":round(b["net"]*100,5),"drawdown_pct":round(a["dd"]*100,5),"closed_trades":a["closed"],"liquidations":a["liquidations"],"double_cost_liquidations":b["liquidations"]}
         if a["net"]>0 and b["net"]>0 and max(a["dd"],b["dd"])<=.10 and a["closed"]>=5 and not (a["liquidations"] or b["liquidations"]):champion=candidate
     prices=[x["close"] for x in raw]
     regime=classify(prices)

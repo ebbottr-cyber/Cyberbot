@@ -50,12 +50,8 @@ from .stress import universe
 
 def tournament_store():
     from .learning_api import store
-    path=Path(os.getenv("CYBERBOT_LEARNING_DB","var/learning.sqlite3")).expanduser().resolve()
-    forbidden=set(account_paths().values())
-    forbidden.add(Path(os.getenv("CYBERBOT_DB","var/paper.sqlite3")).expanduser().resolve())
-    if os.getenv("CYBERBOT_EBBOT_DB"):forbidden.add(Path(os.environ["CYBERBOT_EBBOT_DB"]).expanduser().resolve())
-    if path in forbidden:raise ValueError("Araştırma veritabanı ayrı olmalı.")
-    # Initialize the existing learning schema; tournament records use a separate table.
+    from .db_paths import checked
+    path=checked()["learning"]
     store()
     return TournamentJournal(path)
 

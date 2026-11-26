@@ -8,12 +8,16 @@ from .engine import Ledger, PaperError
 from .lab import experiment
 from .market import INDEX
 from .access import authorize
+from .db_paths import checked,PathCollision
 
 app=FastAPI(title="Cyberbot Obsidian",docs_url=None,redoc_url=None,openapi_url=None)
 
 @lru_cache
+def _ledger(path):
+    return Ledger(path)
 def ledger():
-    return Ledger(os.environ.get("CYBERBOT_DB","var/paper.sqlite3"))
+    return _ledger(checked()["paper"])
+ledger.cache_clear=_ledger.cache_clear
 
 @app.middleware("http")
 async def local_guard(request:Request, call_next):
@@ -26,6 +30,10 @@ async def local_guard(request:Request, call_next):
     response.headers["X-Frame-Options"]="DENY"
     response.headers["Content-Security-Policy"]="default-src 'none'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; manifest-src 'self'; img-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
     return response
+
+@app.exception_handler(PathCollision)
+async def collision(request:Request,exc:PathCollision):
+    return JSONResponse({"detail":str(exc)},status_code=409)
 
 @app.exception_handler(PaperError)
 async def paper_error(request:Request,exc:PaperError):

@@ -20,16 +20,8 @@ from .models import evaluate as models
 VERSION="pipeline-1"
 
 def research_path():
-    p=Path(os.getenv("CYBERBOT_LEARNING_DB","var/learning.sqlite3")).expanduser().resolve()
-    forbidden=set(account_paths().values())
-    base=Path(os.getenv("CYBERBOT_DB","var/paper.sqlite3")).expanduser().resolve()
-    forbidden.add((base.parent/(base.stem+"-markets")/"futures.sqlite3").resolve())
-    forbidden.add(Path(os.getenv("CYBERBOT_DB","var/paper.sqlite3")).expanduser().resolve())
-    forbidden.add(Path(os.getenv("CYBERBOT_WORKER_DB","var/worker.sqlite3")).expanduser().resolve())
-    if os.getenv("CYBERBOT_EBBOT_DB"):forbidden.add(Path(os.environ["CYBERBOT_EBBOT_DB"]).expanduser().resolve())
-    if p in forbidden or any(p.exists() and q.exists() and p.samefile(q) for q in forbidden):
-        raise ValueError("Research database must be separate.")
-    return p
+    from .db_paths import checked
+    return checked()["learning"]
 
 def fingerprint(rows,mode,market,symbol):
     if not 240<=len(rows)<=1000:raise ValueError("240–1000 observations required.")
