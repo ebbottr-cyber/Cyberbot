@@ -8,3 +8,6 @@
 - Aşama 6: PWA, kullanıcı doğrulama, güvenli uzaktan erişim, sürekli veri toplama ve uzun süreli paper doğrulaması.
 
 Başka depolara dokunulmaz. Gerçek alım-satım hiçbir aşamada hedef değildir. Demo verisi ve gerçek gözlem verisi ayrı tutulur. Başarı veya getiri garantisi verilmez.
+
+## AI analiz merkezi başlangıcı
+TradingAgents yaklaşımından esinlenen bağımsız araştırma rolleri eklendi. İlk sürüm kural tabanlıdır; LLM sağlayıcısı, finansal tablo/haber/makro veri bağlantıları ve gerçek çoklu ajan tartışması henüz yoktur. Sentetik ve yerel tarihsel veri ayrıdır. Toplu fiyat indirme durduruldu; AI hiçbir emir yetkisine sahip değildir.

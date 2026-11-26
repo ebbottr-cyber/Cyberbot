@@ -74,3 +74,6 @@ app.include_router(data_router)
 
 from .trader_api import router as trader_router
 app.include_router(trader_router)
+
+from .analysis_api import router as analysis_router
+app.include_router(analysis_router)
