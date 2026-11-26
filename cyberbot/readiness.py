@@ -35,7 +35,9 @@ def snapshot():
                     d=history(archive,market,PROBES[market],250)
                     data.update(status=d["status"],observations=len(d["bars"]),last_session=d["bars"][-1]["session"] if d["bars"] else None,age_days=d["age_days"],currency=d["currency"])
                 except DataError:data["status"]="archive_unavailable"
-            blockers.append("Canlı fiyat akışı ve borsa/işlem yeri doğrulaması yok.")
+            from .providers.equity_observed import configured
+            data["local_quote_bridge_configured"]=configured(market)
+            blockers.append("Lisanslı yerel kotasyon adaptörü mevcut; gerçek zamanlı akış, seans ve işlem yeri doğrulanmadı.")
             if market=="XETRA":blockers.append("EUR/USD bid/ask dönüşüm pilotu mevcut; gerçek kur kaynağı doğrulanmadı.")
             if not rights:blockers.append("Arşiv araştırma kullanım hakkı beyanı yok.")
         elif market=="SOLANA":

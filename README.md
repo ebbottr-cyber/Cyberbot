@@ -127,3 +127,5 @@ Gözlem DB yedek/kurtarma: CYBERBOT_PILOT_BACKUP_RIGHTS_CONFIRMED=1 gerekli. Tek
 Binance USD-M: `python -m tools.binance_observed` tek seferlik public veri probe; `--apply` ayrıca pilot izinleriyle. Varsayılan kapalı, API anahtarı veya gerçek emir yok. docs/ROADMAP.md.
 
 Solana: `python -m tools.solana_observed` salt okunur kotasyon tanılaması, varsayılan kapalı. USDC bazlı iki yönlü kotasyon ve RPC mint bilgisi; henüz pilot dolumu yok. docs/ROADMAP.md.
+
+Hisse kotasyon köprüsü: python -m tools.equity_observed --market BIST --quote <json> --schedule <json> (varsayılan yalnız doğrulama; --apply ayrı izinli). IEX AAPL tanılama: --iex-probe, XNAS dolumu yok. Gerçek zamanlı lisanslı üç piyasa kaynağı henüz bağlı değil.
