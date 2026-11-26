@@ -3,7 +3,7 @@ import os,sys,time,tempfile,subprocess,socket
 from pathlib import Path
 from urllib.request import urlopen
 from playwright.sync_api import sync_playwright,expect
-PAGES=("/", "/data", "/analysis", "/strategies", "/learning", "/models", "/development", "/futures", "/health", "/knowledge", "/news", "/stress", "/traders")
+PAGES=("/", "/data", "/analysis", "/strategies", "/learning", "/models", "/development", "/futures", "/health", "/knowledge", "/news", "/stress", "/traders", "/alerts")
 def main():
     with tempfile.TemporaryDirectory(prefix="cyberbot-panel-") as tmp:
         root=Path(tmp)
@@ -61,6 +61,11 @@ def main():
                                 expect(page.locator("#timelineHeading")).to_have_text("Araştırma gelişim geçmişi")
                                 expect(page.locator("#timelineChart")).to_be_hidden()
                                 expect(page.locator("#timelineMetric")).to_be_visible()
+                            if path=="/alerts":
+                                expect(page.locator("#status")).to_contain_text("Yerel kontrol")
+                                expect(page.locator("#items article")).not_to_have_count(0)
+                                page.locator("#severity").select_option("critical")
+                                expect(page.locator("#items")).to_contain_text("Bu filtrede uyarı yok.")
                             if path=="/models":
                                 expect(page.locator("#summary")).to_be_disabled()
                                 expect(page.locator("#chronosRun")).to_be_disabled()
