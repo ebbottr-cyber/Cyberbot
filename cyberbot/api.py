@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from .engine import Ledger, PaperError
 from .lab import experiment
 from .market import INDEX
+from .access import authorize
 
 app=FastAPI(title="Cyberbot Obsidian",docs_url=None,redoc_url=None,openapi_url=None)
 
@@ -16,16 +17,9 @@ def ledger():
 
 @app.middleware("http")
 async def local_guard(request:Request, call_next):
-    host=request.headers.get("host","").split(":")[0]
-    client=request.client.host if request.client else ""
-    if host not in ("localhost","127.0.0.1") or client not in ("127.0.0.1","::1"):
-        return JSONResponse({"detail":"Yalnız yerel erişim."},status_code=403)
-    if request.method not in ("GET","HEAD"):
-        origin=request.headers.get("origin")
-        if origin and origin != "http://"+request.headers.get("host",""):
-            return JSONResponse({"detail":"Kaynak reddedildi."},status_code=403)
-        if request.headers.get("x-cyberbot-paper")!="1":
-            return JSONResponse({"detail":"Sanal işlem başlığı gerekli."},status_code=403)
+    denial=authorize(request)
+    if denial:
+        return JSONResponse({"detail":denial},status_code=403,headers={"Cache-Control":"no-store"})
     response=await call_next(request)
     response.headers["Cache-Control"]="no-store"
     response.headers["X-Content-Type-Options"]="nosniff"

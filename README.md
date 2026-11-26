@@ -43,3 +43,6 @@ Ayrı `requirements-chronos.txt` bağımlılık dosyası; standart Cyberbot kuru
 
 ## Obsidian PWA
 Mobil manifest, Apple Touch ikonu ve ağ bağlantısı olmadığında yalnız uyarı gösteren service worker hazır. Safari üzerinden Paylaş → Ana Ekrana Ekle, ancak iPhone'un Cyberbot sunucusuna güvenli HTTPS erişimi yapılandırılmalıdır. Şu anda uygulama sadece localhost kabul eder; PC'nin LAN adresini açmak veya portu internete yönlendirmek çözüm değildir. API yanıtları ve işlem verileri önbelleğe alınmaz, çevrimdışı işlem kuyruğu yoktur. Gerçek iPhone testi ve güvenli uzaktan erişim henüz tamamlanmamıştır.
+
+## Özel mobil erişim
+[Windows / Tailscale Serve kurulum talimatları](docs/REMOTE_ACCESS_TR.md). Uzaktan erişim varsayılan kapalı; yalnız yetkili Tailscale kimliği ve tam HTTPS adresi kabul edilir. Gerçek cihaz kurulumu henüz yapılmadı.

@@ -29,3 +29,6 @@ Manifest, özgün PNG ikonları, iOS ana ekran bağlantısı, güvenli bağlamda
 
 ## Obsidian referans tasarımı
 Mobil ana panel kullanıcı görselindeki 2 sütunlu dört özet kartı, turkuaz performans grafiği ve modül kutuları ile yeniden düzenlendi. Grafik yalnız yeni kayıt edilen sanal portföy gözlemlerini gösterir (son 200); 7 günlük geçmiş uydurulmaz. Mevcut veritabanı korunur ve ilk yeni kayıtla başlar. Günlük K/Z UTC gün başlangıcı referanslı, maksimum düşüş yeni kayıtların gözlenen maksimumudur. Masaüstü dört sütun; PWA ve erişim sınırları korunur. Fiziksel cihaz görsel testi yapılmadı.
+
+## Özel uzaktan erişim
+Varsayılan loopback korunur; isteğe bağlı Tailscale Serve modu, tam HTTPS host/port ve kullanıcı kimliği doğrulaması, salt okunur varsayılan, yazma için açık onay ve Origin kontrolü. Fiziksel PC/iPhone kurulumu henüz yoktur. Funnel ve genel internet erişimi kullanılmaz.
