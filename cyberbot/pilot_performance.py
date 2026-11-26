@@ -44,7 +44,7 @@ def summarize(m,events):
         recent.append(row)
     return {"closed":closed,"wins":wins,"losses":losses,"flat":closed-wins-losses,"win_pct":money(D(wins)*100/closed) if closed else None,"realized_pnl":money(net),"nominal_fees":money(fees),"unitemized_liquidation_fees":fee_unknown,"net_applied_funding":money(funding) if m=="FUTURES" else None,"liquidations":liqs,"open_event_exists":opened is not None},recent[-20:][::-1]
 def snapshot(*,clock=stocks.utc):
-    now=clock();result={"mode":"operator_observed_unverified","as_of":now.isoformat(),"markets":[base(m) for m in MARKETS],"real_orders":False,"live_data_verified":False,"profitability_verified":False,"combined_equity":None,"limits":["Sentetik kasalar dahil değil. Para birimleri ayrı; toplam üretilmez.","Komisyonlar modeldeki nominal ücretlerdir; kayma fiyatlara dahildir. Likidasyonda ayrıştırılamayan ücret olabilir.","Gerçekleşen K/Z model kapanış kayıtlarından, fonlama uygulanan olaylardan. Günlük K/Z UTC gününe ait ilk gözleme göredir; tam günlük veri değil.","Geçerli fiyat, derinlik veya fonlama yoksa güncel K/Z ve düşüş gösterilmez. En fazla 5000 olay/piyasa; aşımda istatistik gösterilmez."]}
+    now=clock();result={"mode":"operator_observed_unverified","as_of":now.isoformat(),"markets":[base(m) for m in MARKETS],"real_orders":False,"live_data_verified":False,"profitability_verified":False,"combined_equity":None,"limits":["Sentetik kasalar dahil değil. Para birimleri ayrı; toplam üretilmez.","Komisyonlar modeldeki nominal ücretlerdir; kayma fiyatlara dahildir. Likidasyonda ayrıştırılamayan ücret olabilir.","Gerçekleşen K/Z model kapanış kayıtlarından, fonlama uygulanan olaylardan. Günlük K/Z UTC gününe ait ilk gözleme göredir; tam günlük veri değil.","Geçerli fiyat, derinlik veya fonlama yoksa güncel K/Z ve düşüş gösterilmez. En fazla 5000 muhasebe olayı/piyasa (dolum ve uygulanan fonlama); aşımda istatistik gösterilmez."]}
     p=stocks.path()
     if not stocks.permitted():return result
     with closing(sqlite3.connect(p.as_uri()+"?mode=ro",uri=True,timeout=3)) if p.is_file() else closing(sqlite3.connect(":memory:")) as db:
@@ -81,8 +81,14 @@ def snapshot(*,clock=stocks.utc):
                 item.update(status="recorded" if valid else "valuation_unavailable",cash=money(D(s["cash"])),equity=money(value) if valid else None,position_open=bool(pos),pending=s["pending"],current_drawdown_pct=money((1-value/D(s["peak"]))*100) if valid else None,daily_pnl=money(value-D(s["day_equity"])) if valid and s["day"]==now.date().isoformat() else None,risk_gate=bool(gate and not halted(db) and not pos and not s["pending"]) if valid and s["day"]==now.date().isoformat() else None)
                 count=db.execute("SELECT count(*) FROM observed_events WHERE market=?",(m,)).fetchone()[0]
                 item["event_count"]=count
-                if count>MAX_EVENTS:item["history_status"]="scope_limit";continue
-                events=db.execute("SELECT at,event,payload FROM observed_events WHERE market=? ORDER BY id",(m,)).fetchall()
+                # Price-only observations and shadow decisions must not consume the
+                # accounting limit. Include all fills and applied funding, in order.
+                relevant="market=? AND (event IN ('buy_fill','sell_fill','open_fill','close_fill','model_liquidation')"
+                if m=="FUTURES":relevant+=" OR json_array_length(payload,'$.funding_applied')>0"
+                relevant+=")"
+                events=db.execute("SELECT at,event,payload FROM observed_events WHERE "+relevant+" ORDER BY id LIMIT ?",(m,MAX_EVENTS+1)).fetchall()
+                item["accounting_event_count"]=len(events)
+                if len(events)>MAX_EVENTS:item["history_status"]="scope_limit";continue
                 stats,recent=summarize(m,events)
                 if bool(pos)!=stats.pop("open_event_exists"):raise PilotError("Pozisyon ve olay geçmişi tutarsız.")
                 if not pos and abs(D(s["cash"])-D(item["initial_capital"])-D(stats["realized_pnl"]))>D(".000002"):raise PilotError("Kasa ve kapanış kayıtları tutarsız.")

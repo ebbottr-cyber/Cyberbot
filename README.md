@@ -141,3 +141,5 @@ Windows gözlem gözetmeni: `scripts/pilot-supervisor-windows.ps1` (tek döngü;
 Otomatik giriş denetimi: `python -m tools.pilot_authorization` salt okunur, aynı kapsam ileri ölçüm/kill switch/izinler; doğrulanmamış veri ve yürütme nedeniyle otomatik giriş kapalı.
 
 Windows pilot başlangıç denetimi: `powershell -NoProfile -File .\\scripts\\prepare-pilot-windows.ps1` salt okunur; `-Prepare` yalnız bağımlılık kurulumu ve izole testler. Sağlık panelinde başlangıç denetimi. Görev veya veri sağlayıcısı başlatılmaz.
+
+Beş piyasa entegrasyon regresyonu: `python -m unittest discover -s tests -p test_pilot_end_to_end.py -v`. İzole sentetik fixture; gerçek veri, otomatik giriş veya PC çalışma doğrulaması değildir.
