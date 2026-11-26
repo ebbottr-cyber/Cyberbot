@@ -1,0 +1,108 @@
+name: BIST Xetra historical 5m collection
+on:
+  push:
+    branches: [research/bist-xetra-5m-20261127]
+    paths: ['.github/workflows/bist-xetra-yahoo-archive.yml']
+permissions:
+  contents: read
+concurrency:
+  group: cyberbot-yahoo-retry
+  cancel-in-progress: false
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'yfinance>=0.2.65,<2' 'pandas>=2,<3'
+      - run: |
+          git fetch --depth=1 origin refs/heads/archive/daily-equities-20261126
+          git show FETCH_HEAD:data/snapshots/2026-11-26/Cyberbot_3_Piyasa_Gunluk.zip > /tmp/daily.zip
+          python tools/bist_xetra_yahoo_archive.py plan --input /tmp/daily.zip --output inventory
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bist-xetra-inventory
+          path: inventory/
+          retention-days: 30
+          if-no-files-found: error
+  collect:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        include:
+          - market: BIST
+            shard: 0
+          - market: BIST
+            shard: 1
+          - market: BIST
+            shard: 2
+          - market: BIST
+            shard: 3
+          - market: BIST
+            shard: 4
+          - market: XETRA
+            shard: 0
+          - market: XETRA
+            shard: 1
+          - market: XETRA
+            shard: 2
+          - market: XETRA
+            shard: 3
+          - market: XETRA
+            shard: 4
+          - market: XETRA
+            shard: 5
+          - market: XETRA
+            shard: 6
+          - market: XETRA
+            shard: 7
+          - market: XETRA
+            shard: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'yfinance>=0.2.65,<2' 'pandas>=2,<3'
+      - uses: actions/download-artifact@v4
+        with:
+          name: bist-xetra-inventory
+          path: inventory
+      - run: python tools/bist_xetra_yahoo_archive.py collect --input inventory/inventory.json --output result --market ${{ matrix.market }} --shard ${{ matrix.shard }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bist-xetra-${{ matrix.market }}-${{ matrix.shard }}
+          path: result/
+          retention-days: 30
+          if-no-files-found: warn
+  summary:
+    needs: [plan,collect]
+    if: ${{ always() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'yfinance>=0.2.65,<2' 'pandas>=2,<3'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bist-xetra-*
+          path: archives
+      - run: python tools/bist_xetra_yahoo_archive.py summary --input archives --output summary
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bist-xetra-final-coverage
+          path: summary/
+          retention-days: 30
+          if-no-files-found: warn
