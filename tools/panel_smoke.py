@@ -52,7 +52,11 @@ def main():
                             if path=="/models":
                                 expect(page.locator("#summary")).to_be_disabled()
                                 expect(page.locator("#chronosRun")).to_be_disabled()
-                            if path=="/data":expect(page.locator("#scan")).to_be_disabled()
+                            if path=="/data":
+                                expect(page.locator("#scan")).to_be_disabled()
+                                expect(page.locator("#intradayCards .intradayCard")).to_have_count(3)
+                                expect(page.locator("#intradayCards")).to_contain_text("Rapor bağlı değil.")
+                                expect(page.locator("#missingInfo")).to_contain_text("henüz")
                         if size["width"]==390:
                             page.goto(origin+"/",wait_until="networkidle")
                             context.set_offline(True)
