@@ -43,3 +43,50 @@ def robustness(mode:str="synthetic",market:str="BIST",symbol:str="THYAO.IS",limi
     except (DataError,ValueError,ArithmeticError) as e:
         raise HTTPException(422,str(e)) from None
     finally:_robust_lock.release()
+
+from .tournament import tournament,TournamentJournal
+from .capital import CAPITAL,account_paths
+from .stress import universe
+
+def tournament_store():
+    from .learning_api import store
+    path=Path(os.getenv("CYBERBOT_LEARNING_DB","var/learning.sqlite3")).expanduser().resolve()
+    forbidden=set(account_paths().values())
+    forbidden.add(Path(os.getenv("CYBERBOT_DB","var/paper.sqlite3")).expanduser().resolve())
+    if os.getenv("CYBERBOT_EBBOT_DB"):forbidden.add(Path(os.environ["CYBERBOT_EBBOT_DB"]).expanduser().resolve())
+    if path in forbidden:raise ValueError("Araştırma veritabanı ayrı olmalı.")
+    # Initialize the existing learning schema; tournament records use a separate table.
+    store()
+    return TournamentJournal(path)
+
+@router.post("/api/strategies/tournament")
+def compete(mode:str="synthetic",market:str="BIST",symbol:str="THYAO.IS",limit:int=Query(360,ge=240,le=1000)):
+    if not _robust_lock.acquire(blocking=False):raise HTTPException(429,"Bir araştırma deneyi çalışıyor.")
+    try:
+        if market not in CAPITAL:raise ValueError("Geçersiz piyasa.")
+        if mode=="synthetic":
+            series=next(v.prices for v in universe("gap",360).values() if v.market==market)
+            rows=[{"open":str(series[max(0,i-1)]),"close":str(p)} for i,p in enumerate(series)]
+            symbol="DEMO-TOURNAMENT-"+market
+        elif mode=="historical_unverified":
+            if market=="SOLANA":raise ValueError("Solana tarihsel arşivi bağlı değil.")
+            rows=history(os.getenv("CYBERBOT_EBBOT_DB"),market,symbol,limit)["bars"]
+        else:raise ValueError("Geçersiz veri modu.")
+        result=tournament(rows,mode=mode,market=market,symbol=symbol)
+        journal=tournament_store()
+        return {"new":journal.save(result),"result":result}
+    except (DataError,ValueError,ArithmeticError) as e:raise HTTPException(422,str(e)) from None
+    finally:_robust_lock.release()
+
+@router.get("/api/strategies/tournament/history")
+def tournament_history(market:str="BIST",mode:str="synthetic"):
+    if market not in CAPITAL or mode not in ("synthetic","historical_unverified"):raise HTTPException(422,"Geçersiz filtre.")
+    try:return {"recent":tournament_store().recent(market,mode),"promotion_enabled":False}
+    except ValueError as e:raise HTTPException(422,str(e)) from None
+
+@router.get("/api/strategies/tournament/result/{key}")
+def tournament_result(key:str):
+    try:result=tournament_store().get(key)
+    except ValueError as e:raise HTTPException(422,str(e)) from None
+    if result is None:raise HTTPException(404,"Turnuva bulunamadı.")
+    return result

@@ -63,3 +63,6 @@ Ana panel `/api/portfolio/status`: BIST 45000 TRY, NASDAQ/XETRA/Solana 1000 USD 
 
 ## Strateji dayanıklılığı
 Strateji Laboratuvarı'nda manuel dayanıklılık deneyi: 1000 blok-bootstrap yolu, 60 gözlem ufku, maliyet duyarlılığı ve deneysel güvenilirlik puanı. BIST 45000 TRY, diğer sentetik piyasa hesapları 1000 USD; yalnız yerel bakiye tahmini, FX getiri modeli yok. Puanlar kalibre edilmiş olasılık değildir; yetersiz örneklem veya referans stratejiler puanlanmaz. Araştırma tam sermaye varsayımıyla yapılır, gerçek risk motoru performansı değildir. Yeni veri indirme ve otomatik terfi yok.
+
+## Strateji turnuvası
+Strateji Lab. altında piyasa/sembol bazlı keşif ve ayrılmış son 60 gözlem testi. En az 240 gözlem gerekir. BIST/NASDAQ/XETRA yerel arşiv veya dört piyasa için sentetik senaryo; gerçek Solana tarihsel arşivi bağlı değil. Araştırma şampiyonu yalnız deney kapsamındadır, ana motora geçirilmez. Turnuva sonuçları öğrenme SQLite dosyasında ayrı tabloda saklanır. Tekrarlanan veri yeni kayıt değildir; örtüşen veri bağımsız doğrulama sayılmaz.

@@ -50,3 +50,6 @@ BIST 45.000 TRY; NASDAQ, XETRA, Solana ayrı 1.000 USD. Ana panel yeni piyasa de
 
 ## Strateji dayanıklılığı
 60 gözlem kayan eğitim bağlamı ve 20 gözlem örtüşmeyen ileri test; pencere yalnız eğitimde seçilir. Aynı pencereyle 2x ücret/kayma testi. İleri test net getirilerinin 5 gözlem bloklu, 1000 yol, 60 gözlem ufuklu sabit tohumlu bootstrap analizi. P05/50/95 getiri ve yerel sermaye, P95 düşüş, zarar yolu oranı. Deneysel 0–100 puan: tutarlılık 25, düşüş 25, maliyet 20, bootstrap risk 20, örneklem 10. En az 6 bölüm ve 20 işlem yoksa puan yok; referanslar sıralanmaz. Gerçek başarı olasılığı veya emir yetkisi değildir.
+
+## Strateji turnuvası
+Piyasa ve sembol bazında, son 60 gözlem keşiften tamamen ayrılır. Dayanıklılık adayında en az 65 puan ve varsa ikinci uygun adaya 5 puan fark; yalnız seçilen aday, keşifte sabitlenmiş pencereyle final testinde değerlendirilir. Finalde en az 5 kapanmış işlem, pozitif net ve iki kat maliyet getirisi, her iki düşüş en fazla %10. Başarısızsa şampiyon yok; finalist değişmez. Sentetik ve tarihsel kayıtlar ayrı, aynı veri SHA-256 ile tekilleştirilir; SQLite öğrenme dosyasında ayrı turnuva tablosu. Tek sembol şampiyonu piyasa geneli kanıtı değildir; otomatik terfi yok.
