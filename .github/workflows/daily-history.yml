@@ -1,0 +1,83 @@
+name: EBBot yontemi - gunluk fiyat arsivi
+on:
+  workflow_dispatch:
+    inputs:
+      rights_confirmed:
+        description: "Otomatik veri erisimi, saklama ve GitHub artifact haklari kontrol edildi"
+        type: boolean
+        default: false
+      full:
+        description: "Tum adaylar (kapali ise 15 hisse pilot)"
+        type: boolean
+        default: false
+      inventory_run:
+        description: "Envanter Actions run ID"
+        required: true
+        default: "45860991983"
+      start:
+        description: "Baslangic (YYYY-MM-DD)"
+        required: true
+        default: "2025-11-26"
+      end:
+        description: "Bitis haric (YYYY-MM-DD)"
+        required: true
+        default: "2026-11-26"
+      resume_run:
+        description: "Istege bagli onceki fiyat run ID (ayni tarih/envanter)"
+        required: false
+        default: ""
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: cyberbot-history
+  cancel-in-progress: false
+jobs:
+  collect:
+    if: inputs.rights_confirmed
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        shard: ${{ fromJSON(inputs.full && '[0,1,2,3,4,5,6,7,8,9,10,11]' || '[0]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.inventory_run }}
+          name: public-inventory-and-solana-observations
+          path: var/inventory
+      - uses: actions/download-artifact@v4
+        if: inputs.resume_run != ''
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.resume_run }}
+          name: daily-shard-${{ matrix.shard }}
+          path: var/history
+      - run: python -m pip install -r requirements-history.txt
+      - name: Collect bounded historical batches
+        env:
+          START: ${{ inputs.start }}
+          END: ${{ inputs.end }}
+          FULL: ${{ inputs.full }}
+          INDEX: ${{ matrix.shard }}
+        run: |
+          args=()
+          shards=1
+          if [ "$FULL" = "true" ]; then args+=(--full); shards=12; fi
+          python -m tools.cloud_daily --universe var/inventory/universe.csv --output var/history --start "$START" --end "$END" --shards "$shards" --index "$INDEX" --allow-network "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: daily-shard-${{ matrix.shard }}
+          path: |
+            var/history/daily.sqlite3
+            var/history/coverage.json
+          retention-days: 7
+          if-no-files-found: warn

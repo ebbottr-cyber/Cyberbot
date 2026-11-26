@@ -57,3 +57,9 @@ def scan():
         except (MarketDataError,ValueError,TypeError,OverflowError) as e:
             log.warning("Solana tarama hatası: %s",type(e).__name__)
             raise HTTPException(503,"Veri sağlayıcısı yanıt vermedi veya veri geçersiz.") from None
+
+from .providers.coverage import coverage
+
+@router.get("/api/data/coverage")
+def coverage_status():
+    return coverage(os.getenv("CYBERBOT_COVERAGE_REPORT"))
