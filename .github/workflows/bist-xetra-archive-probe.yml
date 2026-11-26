@@ -1,0 +1,29 @@
+name: BIST Xetra historical archive coverage
+on:
+  push:
+    branches: [research/bist-xetra-5m-20261127]
+    paths: ['.github/workflows/bist-xetra-archive-probe.yml']
+permissions:
+  contents: read
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Recover existing Cyberbot universe
+        run: |
+          git fetch --depth=1 origin refs/heads/archive/daily-equities-20261126
+          git show FETCH_HEAD:data/snapshots/2026-11-26/Cyberbot_3_Piyasa_Gunluk.zip > /tmp/daily.zip
+      - name: Verify archive coverage and try noncommercial Xetra sample
+        run: python tools/bist_xetra_archive_probe.py /tmp/daily.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bist-xetra-archive-probe
+          path: probe/
+          retention-days: 30
+          if-no-files-found: warn
