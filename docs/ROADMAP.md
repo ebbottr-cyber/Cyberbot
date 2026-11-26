@@ -77,3 +77,6 @@ Ayrı LONG/SHORT tek gözlemli sentetik araştırma simülatörü, 1000 USDT ve 
 
 ## Bot Gelişimi Merkezi
 Obsidian salt okunur SQLite araştırma özeti, beş piyasa, sentetik/tarihsel filtre, son 10 sembol kaydı/piyasa ve son 30 deney; puan, gölge, rejim, turnuva, kalıcı karantina ve temel model ölçümleri. Güncel hafıza karantinası eski aday önerisini bloke eder. Kayıt sayısı bağımsız kanıt değildir; model yapılandırması gerçek çıkarım değildir. İşlem yetkisi yok.
+
+## Kur entegrasyonu
+İzinli ve açıkça etkinleştirilen Twelve Data exchange_rate adaptörü, yalnız USD/TRY ve USDT/USD. Her kaynak zamanı ayrı, 300 saniye yaş sınırı, 240 saniye sorgu aralığı, yerel kalıcı 720 kredi/gün; iki geçerli yanıtla atomik JSON. Ağ başarısızlığında önceki zaman damgası değişmez. API anahtarı ve gösterim hakkı operatöre ait; ücretsiz plan non-display kısıtı nedeniyle izin varsayılmaz. Varsayılan kapalı, hiçbir fiyat arşivi indirme yok. Mock testleri, gerçek sağlayıcı erişimi henüz doğrulanmadı.

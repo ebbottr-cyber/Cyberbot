@@ -22,26 +22,36 @@ def valid_usdt(value):
     except (InvalidOperation,ValueError,TypeError):return None
 
 def fx_quote(path=None,now=None):
-    path=path or os.getenv("CYBERBOT_FX_FILE")
+    path=path or os.getenv("CYBERBOT_FX_FILE") or (str(Path("var/fx-provider.json")) if os.getenv("CYBERBOT_FX_PROVIDER_ENABLED")=="1" and os.getenv("CYBERBOT_FX_RIGHTS_CONFIRMED")=="1" else None)
     missing={"status":"unavailable","usdtry":None,"observed_at":None,"source":None}
     if not path:return missing
     try:
         with Path(path).open("rb") as f:raw=f.read(8193)
         if len(raw)>8192:return missing
         x=json.loads(raw);rate=D(str(x["usdtry"]))
-        stamp=datetime.fromisoformat(x["observed_at"].replace("Z","+00:00"))
+        stamp=datetime.fromisoformat(x.get("usdtry_observed_at",x["observed_at"]).replace("Z","+00:00"))
         source=x["source"]
         if not rate.is_finite() or not D(".01")<=rate<=D("1000000") or stamp.tzinfo is None or not isinstance(source,str) or not 1<=len(source)<=100:return missing
         age=((now or datetime.now(timezone.utc))-stamp).total_seconds()
         if age< -5 or age>MAX_FX_AGE:return {**missing,"status":"stale","observed_at":stamp.isoformat(),"source":source}
-        return {"status":"fresh_input","usdtry":str(rate),"observed_at":stamp.isoformat(),"source":source,"age_seconds":max(0,int(age)),"provider_verified":False,"usdtusd":valid_usdt(x.get("usdtusd"))}
+        usdt=valid_usdt(x.get("usdtusd"));usdt_stamp=None;usdt_status="unavailable"
+        if usdt is not None:
+            try:
+                other=datetime.fromisoformat(x.get("usdtusd_observed_at",x["observed_at"]).replace("Z","+00:00"))
+                if other.tzinfo is None:raise ValueError()
+                usdt_stamp=other.isoformat()
+                usdt_age=((now or datetime.now(timezone.utc))-other).total_seconds()
+                usdt_status="fresh_input" if -5<=usdt_age<=MAX_FX_AGE else "stale"
+            except (ValueError,TypeError,AttributeError,OverflowError):usdt_status="unavailable"
+        return {"status":"fresh_input","usdtry":str(rate),"observed_at":stamp.isoformat(),"source":source,"age_seconds":max(0,int(age)),"provider_verified":False,
+                "usdtusd":usdt if usdt_status=="fresh_input" else None,"usdtusd_status":usdt_status,"usdtusd_observed_at":usdt_stamp}
     except (OSError,ValueError,TypeError,KeyError,InvalidOperation,AttributeError,OverflowError):return missing
 
 def usd_total(accounts,quote,field="equity"):
     if quote.get("status") not in ("fresh_input","synthetic_reference"):return None
     rate=D(quote["usdtry"])
     if not rate.is_finite() or rate<=0:return None
-    if any(a["currency"]=="USDT" for a in accounts) and not quote.get("usdtusd"):return None
+    if any(a["currency"]=="USDT" for a in accounts) and valid_usdt(quote.get("usdtusd")) is None:return None
     return str(sum((D(a[field])/rate if a["currency"]=="TRY" else D(a[field])*D(quote["usdtusd"]) if a["currency"]=="USDT" else D(a[field]) for a in accounts),D(0)).quantize(D(".01")))
 
 class Portfolio:
