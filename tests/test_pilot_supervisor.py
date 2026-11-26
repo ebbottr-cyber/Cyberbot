@@ -17,7 +17,12 @@ class PilotSupervisorTests(unittest.TestCase):
                 delays=[];results=iter(["timeout","child_failed","ok","timeout","timeout","timeout"])
                 self.assertEqual(supervise(cycles=6,runner=lambda:next(results),sleep=delays.append),1)
                 self.assertEqual(delays,[60,60,20,60,60])
-                code="from cyberbot.pilot_supervisor import single_instance; import sys; exec('with single_instance():\\n print(\'locked\',flush=True)\\n sys.stdin.read()')"
+                code="""from cyberbot.pilot_supervisor import single_instance
+import sys
+with single_instance():
+    print('locked',flush=True)
+    sys.stdin.read()
+"""
                 proc=subprocess.Popen([sys.executable,"-c",code],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
                 try:
                     self.assertEqual(proc.stdout.readline().strip(),"locked")
