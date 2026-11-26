@@ -135,3 +135,5 @@ Gölge kararlar: `python -m tools.pilot_decisions --market BIST` (beş piyasa), 
 Gözlem döngüsü: `python -m tools.pilot_loop --status` (salt okunur), açık izinle `--cycles 1 --interval 20` yerel ön plan. Varsayılan kapalı; docs/ROADMAP.md. Otomatik giriş/gerçek emir yok, sürekli servis kurulmadı.
 
 Giriş freni: `python -m tools.pilot_control halt` / `resume` / `status`; `outcomes` ileri kotasyon tanılaması. Otomatik sanal giriş yetkisi kapalı; çıkışlar korunur. docs/ROADMAP.md.
+
+Windows gözlem gözetmeni: `scripts/pilot-supervisor-windows.ps1` (tek döngü; -Continuous açıkça seçilir). `scripts/register-pilot-windows.ps1` önizleme; -Register yeni devre dışı görev oluşturur, başlatmaz. İzinler önceden ayarlanmalı. docs/ROADMAP.md.
