@@ -73,3 +73,9 @@ def pilot_control():
 def pilot_outcomes():
     try:return pilot_outcomes_snapshot()
     except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Gölge ölçümler okunamadı."},status_code=503)
+
+from .pilot_authorization import snapshot as pilot_authorization_snapshot
+@router.get("/api/pilot/authorization")
+def pilot_authorization():
+    try:return pilot_authorization_snapshot()
+    except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"authorization":"blocked","detail":"Yetki denetimi okunamadı."},status_code=503)

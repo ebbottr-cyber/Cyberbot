@@ -6,7 +6,7 @@ from datetime import timedelta
 from . import observed_pilot as p,solana_pilot as sol,futures_pilot as fut,pilot_decisions as dec
 from .pilot_control import halted
 from .observed_pilot import ts,PilotError
-VERSION="shadow-outcome-1"
+VERSION="shadow-outcome-2"
 HORIZON=300
 WINDOW=360
 MAX_ROWS=500
@@ -18,7 +18,7 @@ def prices(m,q,direction,cost):
     return D(q["ask"])*(1+slip*cost)*(1+fee*cost)*p.rate(q,"ask"),D(q["bid"])*(1-slip*cost)*(1-fee*cost)*p.rate(q,"bid")
 def measurement(db,m,d,now):
     start=ts(d["as_of"]);end=start+timedelta(seconds=WINDOW)
-    out={"version":VERSION,"decision_id":d["id"],"decision_at":d["as_of"],"covered_until":end.isoformat(),"market":m,"symbol":d["symbol"],"source":d.get("source"),"direction":d["hypothetical_action"],"status":"unmeasurable","reason":"missing_or_invalid_observations","net_pct":None,"double_cost_pct":None,"execution_verified":False}
+    out={"version":VERSION,"decision_id":d["id"],"decision_at":d["as_of"],"covered_until":end.isoformat(),"market":m,"symbol":d["symbol"],"source":d.get("source"),"direction":d["hypothetical_action"],"scope":d.get("scope"),"candidate":d.get("candidate"),"regime":(d.get("regime") or {}).get("id"),"decision_version":d.get("version"),"status":"unmeasurable","reason":"missing_or_invalid_observations","net_pct":None,"double_cost_pct":None,"execution_verified":False}
     rows=db.execute("SELECT at,payload FROM observed_events WHERE market=? AND at>? AND at<=? AND event NOT IN ('shadow_decision','shadow_outcome','request') ORDER BY id LIMIT ?",(m,start.isoformat(),end.isoformat(),MAX_ROWS+1)).fetchall()
     if len(rows)>MAX_ROWS:return {**out,"reason":"scope_limit"}
     seq=[]
@@ -58,7 +58,7 @@ def record(m,*,clock=p.utc):
         now=clock();prior=db.execute("SELECT payload FROM observed_events WHERE market=? AND event='shadow_outcome' ORDER BY id DESC LIMIT 1",(m,)).fetchone()
         last=json.loads(prior[0]) if prior else None
         after=last["covered_until"] if last else ""
-        rows=db.execute("SELECT payload FROM observed_events WHERE market=? AND event='shadow_decision' AND at>=? AND at<=? ORDER BY id LIMIT 300",(m,after,(now-timedelta(seconds=WINDOW)).isoformat())).fetchall()
+        rows=db.execute("SELECT payload FROM observed_events WHERE market=? AND event='shadow_decision' AND json_extract(payload,'$.hypothetical_action') IN ('BUY','LONG','SHORT') AND at>=? AND at<=? ORDER BY id LIMIT 1",(m,after,(now-timedelta(seconds=WINDOW)).isoformat())).fetchall()
         for (payload,) in rows:
             d=json.loads(payload)
             if d.get("hypothetical_action") not in ("BUY","LONG","SHORT"):continue

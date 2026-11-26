@@ -11,7 +11,7 @@ from .strategy_memory import VERSION as MEMORY_VERSION
 from .observed_pilot import PilotError,ts
 from .pilot_control import halted
 
-VERSION="pilot-shadow-1"
+VERSION="pilot-shadow-2"
 MARKETS=("BIST","NASDAQ","XETRA","SOLANA","FUTURES")
 WINDOW=10
 MINUTES=21
@@ -68,6 +68,8 @@ def evaluate(db,m,now):
     s,sym=state(db,m);d["symbol"]=sym
     if not s:return d
     q=s["quote"];pos=s["position"];d["source"]=q["source"]
+    d["scope"]={"policy":VERSION,"market":m,"symbol":sym,"source":q["source"],"venue":q.get("venue"),"fx_source":q.get("fx",{}).get("source"),"pool":s.get("pool")}
+    d["quote_at"]=q["source_at"]
     if m=="SOLANA":fresh=sol.fresh(q,now);gate=sol.risk_ok(s) and sol.entry_gate(q,now)
     elif m=="FUTURES":
         fresh=fut.fresh(q,now) and not(pos and int(now.timestamp()//fut.FUNDING_PERIOD)>int(ts(q["source_at"]).timestamp()//fut.FUNDING_PERIOD))
@@ -88,7 +90,7 @@ def evaluate(db,m,now):
     if not gate:d["blockers"].append("risk_or_market_gate")
     if s["pending"] or pos:d["blockers"].append("position_or_pending")
     if candidate!="cash" and gate and not pos and not s["pending"]:d["hypothetical_action"]="LONG" if m=="FUTURES" else "BUY"
-    elif m=="FUTURES" and regime["id"]=="bear" and not d["signals"]["trend"] and not d["signals"]["momentum"] and gate and not pos and not s["pending"] and not any("trend" in row["quarantined"] for row in d["research_context"]):d["hypothetical_action"]="SHORT"
+    elif m=="FUTURES" and regime["id"]=="bear" and not d["signals"]["trend"] and not d["signals"]["momentum"] and gate and not pos and not s["pending"] and not any("trend" in row["quarantined"] for row in d["research_context"]):d["hypothetical_action"]="SHORT";d["candidate"]="trend"
     return d
 def record(m,*,clock=stocks.utc):
     if m not in MARKETS or not market_enabled(m):raise PilotError("Gölge karar izni kapalı.")

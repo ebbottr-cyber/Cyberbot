@@ -4,6 +4,7 @@ from contextlib import closing
 from decimal import Decimal as D
 from . import observed_pilot as stocks,solana_pilot as sol,futures_pilot as fut
 from .observed_pilot import PilotError
+from .pilot_control import halted
 
 MARKETS=("BIST","NASDAQ","XETRA","SOLANA","FUTURES")
 MAX_EVENTS=5000
@@ -77,7 +78,7 @@ def snapshot(*,clock=stocks.utc):
                     valid=fut.fresh(q,now) and depth and not due;value=fut.equity(s);gate=fut.risk_ok(s) and fut.entry_gate(q)
                 else:
                     valid=stocks.fresh(q,now,m) and (not pos or "bid_size" not in q or D(pos["quantity"])<=D(q["bid_size"]));value=stocks.equity(s);gate=not stocks.blocked(s)
-                item.update(status="recorded" if valid else "valuation_unavailable",cash=money(D(s["cash"])),equity=money(value) if valid else None,position_open=bool(pos),pending=s["pending"],current_drawdown_pct=money((1-value/D(s["peak"]))*100) if valid else None,daily_pnl=money(value-D(s["day_equity"])) if valid and s["day"]==now.date().isoformat() else None,risk_gate=bool(gate and not pos and not s["pending"]) if valid and s["day"]==now.date().isoformat() else None)
+                item.update(status="recorded" if valid else "valuation_unavailable",cash=money(D(s["cash"])),equity=money(value) if valid else None,position_open=bool(pos),pending=s["pending"],current_drawdown_pct=money((1-value/D(s["peak"]))*100) if valid else None,daily_pnl=money(value-D(s["day_equity"])) if valid and s["day"]==now.date().isoformat() else None,risk_gate=bool(gate and not halted(db) and not pos and not s["pending"]) if valid and s["day"]==now.date().isoformat() else None)
                 count=db.execute("SELECT count(*) FROM observed_events WHERE market=?",(m,)).fetchone()[0]
                 item["event_count"]=count
                 if count>MAX_EVENTS:item["history_status"]="scope_limit";continue
