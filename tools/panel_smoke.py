@@ -49,6 +49,10 @@ def main():
                                 else:expect(dock).to_be_hidden()
                                 page.locator("#chartMarket").select_option("FUTURES")
                                 expect(page.locator("#chartNote")).to_contain_text("USDT")
+                            if path=="/development":
+                                expect(page.locator("#timelineHeading")).to_have_text("Araştırma gelişim geçmişi")
+                                expect(page.locator("#timelineChart")).to_be_hidden()
+                                expect(page.locator("#timelineMetric")).to_be_visible()
                             if path=="/models":
                                 expect(page.locator("#summary")).to_be_disabled()
                                 expect(page.locator("#chronosRun")).to_be_disabled()
