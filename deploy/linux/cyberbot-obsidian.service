@@ -1,0 +1,39 @@
+[Unit]
+Description=Cyberbot Obsidian private paper research panel
+After=network.target
+
+[Service]
+Type=exec
+User=cyberbot
+Group=cyberbot
+WorkingDirectory=/var/lib/cyberbot
+StateDirectory=cyberbot
+StateDirectoryMode=0700
+UMask=0077
+Environment=PYTHONPATH=/opt/cyberbot
+Environment=PYTHONDONTWRITEBYTECODE=1
+EnvironmentFile=/etc/cyberbot/obsidian.env
+ExecStartPre=/opt/cyberbot/.venv/bin/python -m tools.deploy_preflight
+ExecStart=/opt/cyberbot/.venv/bin/python -m uvicorn cyberbot.api:app --app-dir /opt/cyberbot --host 127.0.0.1 --port 8765 --no-proxy-headers --no-access-log
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# Defense in depth where supported by systemd/cgroup BPF; only loopback networking.
+IPAddressDeny=any
+IPAddressAllow=localhost
+
+[Install]
+WantedBy=multi-user.target

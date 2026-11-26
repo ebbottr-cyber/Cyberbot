@@ -1,5 +1,6 @@
 """Read-only dashboard of persisted research, not a live trading or training process."""
 import json
+import math
 import sqlite3
 from contextlib import closing
 from .capital import CAPITAL
@@ -10,11 +11,40 @@ from .strategy_memory import VERSION as MEMORY_VERSION
 MARKETS={**{k:(v[0],str(v[1])) for k,v in CAPITAL.items()},"FUTURES":("USDT",str(START))}
 MODES=("synthetic","historical_unverified")
 
+def metric(value):
+    if isinstance(value,bool) or not isinstance(value,(int,float,str)):return None
+    try:n=float(value)
+    except (ValueError,OverflowError):return None
+    return n if math.isfinite(n) else None
+
+def timeline(db,mode,market,symbol):
+    rows=db.execute("""SELECT id,created_at,payload FROM research_pipeline
+        WHERE mode=? AND market=? AND symbol=?
+        ORDER BY created_at DESC,id DESC LIMIT 20""",(mode,market,symbol)).fetchall()
+    points=[]
+    for key,created,payload in reversed(rows):
+        d=json.loads(payload)
+        if (d.get("market"),d.get("mode"),d.get("symbol"),d.get("id"))!=(market,mode,symbol,key):
+            raise ValueError("Araştırma kaydı uyumsuz.")
+        a=d.get("adaptive") or {};summary=d.get("summary") or {}
+        shadow=a.get("shadow") or {};stress=a.get("double_cost_shadow") or {}
+        models={}
+        for m in (d.get("models") or {}).get("models",[]):
+            if m.get("id") in ("zero","mean","ar1"):
+                models[m["id"]]={"mae_pct":metric(m.get("mae_pct")),"direction_accuracy_pct":metric(m.get("direction_accuracy_pct"))}
+        points.append({"id":key,"created_at":created,"version":d.get("version"),
+            "return_pct":metric(shadow.get("return_pct",summary.get("shadow_return_pct"))),
+            "drawdown_pct":metric(shadow.get("drawdown_pct",summary.get("shadow_drawdown_pct"))),
+            "double_cost_return_pct":metric(stress.get("return_pct")),
+            "models":models})
+    return points
+
 def overview(mode):
     if mode not in MODES:raise ValueError("Geçersiz veri modu.")
-    result={"mode":mode,"status":"empty","markets":[{"market":m,"currency":c,"initial_capital":v,"experiments":0,"latest":[]} for m,(c,v) in MARKETS.items()],
+    result={"mode":mode,"status":"empty","markets":[{"market":m,"currency":c,"initial_capital":v,"experiments":0,"distinct_symbols":0,"latest":[]} for m,(c,v) in MARKETS.items()],
             "recent":[],"total_experiments":0,"real_orders":False,"promotion_enabled":False,"profitability_verified":False,
             "limitations":["Kayıt sayısı bağımsız kanıt veya öğrenme başarısı değildir.",
+                           "Geçmiş deneyler farklı veri aralıkları veya sürümler içerebilir; çizilen seri kümülatif getiri veya karşılaştırılabilir öğrenme eğrisi değildir.",
                            "Sonuçlar tek sembol ve deney kapsamındadır. Piyasalar arasında puan sıralaması yapılmaz.",
                            "Gölge bakiyeleri ana sanal kasadan ayrıdır; birleştirilmez.",
                            "Tahmin hataları geçmiş deneylere aittir; canlı Chronos 2 ve LLM doğrulaması bu kayıtlardan çıkarılamaz."]}
@@ -29,6 +59,7 @@ def overview(mode):
             market=m["market"]
             m["experiments"]=db.execute("SELECT count(*) FROM research_pipeline WHERE mode=? AND market=?",(mode,market)).fetchone()[0]
             result["total_experiments"]+=m["experiments"]
+            m["distinct_symbols"]=db.execute("SELECT count(DISTINCT symbol) FROM research_pipeline WHERE mode=? AND market=?",(mode,market)).fetchone()[0]
             # Latest experiment for each symbol; at most ten symbols per market.
             records=db.execute("""SELECT id,created_at,symbol,payload FROM (
                 SELECT id,created_at,symbol,payload,ROW_NUMBER() OVER(PARTITION BY symbol ORDER BY created_at DESC,id DESC) AS rn
@@ -56,6 +87,7 @@ def overview(mode):
                     "regime":s.get("regime"),"research_champion":s.get("research_champion"),"candidate_at_experiment":s.get("next_candidate"),
                     "candidate_after_quarantine":candidate,"shadow":a.get("shadow"),"double_cost_shadow":a.get("double_cost_shadow"),
                     "strategies":strategies,"memory":states,"models":d.get("models",{}).get("models",[]),
+                    "timeline":timeline(db,mode,market,symbol),
                     "chronos_runtime_verified":False,"llm_runtime_verified":False})
         result["recent"]=[dict(zip(("id","created_at","market","symbol"),row)) for row in db.execute("SELECT id,created_at,market,symbol FROM research_pipeline WHERE mode=? ORDER BY created_at DESC,id DESC LIMIT 30",(mode,))]
     result["status"]="recorded" if result["total_experiments"] else "empty"

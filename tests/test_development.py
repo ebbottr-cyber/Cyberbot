@@ -28,3 +28,23 @@ class DevelopmentTests(unittest.TestCase):
                 self.assertEqual(overview("historical_unverified")["total_experiments"],1)
                 self.assertEqual(db.read_bytes(),before)
                 self.assertFalse((p/"paper.sqlite3").exists())
+
+    def test_timeline_same_scope_and_limit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p=Path(tmp); db=p/"learn.sqlite3"
+            with patch.dict(os.environ,{"CYBERBOT_LEARNING_DB":str(db),"CYBERBOT_DB":str(p/"paper.sqlite3"),"CYBERBOT_WORKER_DB":str(p/"worker.sqlite3"),"CYBERBOT_EBBOT_DB":""}):
+                j=PipelineJournal(db)
+                for i in range(25):
+                    j.save({"id":str(i),"mode":"synthetic","market":"BIST","symbol":"DEMO","version":"v1","summary":{"shadow_return_pct":i},"models":{"models":[{"id":"ar1","mae_pct":0.2,"direction_accuracy_pct":50}]}})
+                j.save({"id":"other","mode":"historical_unverified","market":"BIST","symbol":"DEMO","summary":{"shadow_return_pct":999}})
+                before=db.read_bytes()
+                m=next(x for x in overview("synthetic")["markets"] if x["market"]=="BIST")
+                self.assertEqual(m["experiments"],25)
+                self.assertEqual(m["distinct_symbols"],1)
+                series=m["latest"][0]["timeline"]
+                self.assertEqual(len(series),20)
+                self.assertEqual(series[-1]["return_pct"],24)
+                self.assertEqual(series[-1]["models"]["ar1"]["mae_pct"],0.2)
+                self.assertIsNone(series[-1]["drawdown_pct"])
+                self.assertNotIn("other",[x["id"] for x in series])
+                self.assertEqual(db.read_bytes(),before)

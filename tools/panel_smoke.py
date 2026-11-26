@@ -3,7 +3,7 @@ import os,sys,time,tempfile,subprocess,socket
 from pathlib import Path
 from urllib.request import urlopen
 from playwright.sync_api import sync_playwright,expect
-PAGES=("/", "/data", "/analysis", "/strategies", "/learning", "/models", "/development", "/futures", "/health", "/knowledge", "/news", "/stress", "/traders", "/pilot")
+PAGES=("/", "/data", "/analysis", "/strategies", "/learning", "/models", "/development", "/futures", "/health", "/knowledge", "/news", "/stress", "/traders", "/pilot", "/alerts")
 def main():
     with tempfile.TemporaryDirectory(prefix="cyberbot-panel-") as tmp:
         root=Path(tmp)
@@ -39,20 +39,54 @@ def main():
                             assert not failed,(path,failed)
                             if path=="/":
                                 expect(page.locator("#marketCards .card")).to_have_count(5)
+                                expect(page.locator("#connectionStatus")).to_have_text("Portföy sunucusu yanıt verdi.")
+                                expect(page.locator("#lastPortfolioRead")).to_contain_text("Fiyat zamanı değildir.")
+                                dock=page.get_by_role("navigation",name="Mobil hızlı erişim")
+                                if size["width"]<=600:
+                                    expect(dock).to_be_visible()
+                                    expect(dock.get_by_role("link",name="Bot gelişimi")).to_have_attribute("href","/development")
+                                    assert dock.evaluate("(el)=>el.getBoundingClientRect().bottom <= innerHeight + 1")
+                                else:expect(dock).to_be_hidden()
                                 page.locator("#chartMarket").select_option("FUTURES")
                                 expect(page.locator("#chartNote")).to_contain_text("USDT")
+                                expect(page.locator("#portfolioMetrics .portfolioStat")).to_have_count(5)
+                                page.locator("#tradeMarket").select_option("FUTURES")
+                                expect(page.locator("#portfolioMetrics .portfolioStat")).to_have_count(1)
+                                expect(page.locator("#portfolioMetrics")).to_contain_text("USDT")
+                                page.locator("#tradeState").select_option("CLOSED")
+                                expect(page.locator("#tradeSummary")).to_contain_text("eşleşen işlem")
+                                page.locator("#tradeMarket").select_option("ALL")
+                                page.locator("#tradeState").select_option("ALL")
+                            if path=="/development":
+                                expect(page.locator("#timelineHeading")).to_have_text("Araştırma gelişim geçmişi")
+                                expect(page.locator("#timelineChart")).to_be_hidden()
+                                expect(page.locator("#timelineMetric")).to_be_visible()
+                            if path=="/alerts":
+                                expect(page.locator("#status")).to_contain_text("Yerel kontrol")
+                                expect(page.locator("#items article")).not_to_have_count(0)
+                                page.locator("#severity").select_option("critical")
+                                expect(page.locator("#items")).to_contain_text("Bu filtrede uyarı yok.")
                             if path=="/models":
                                 expect(page.locator("#summary")).to_be_disabled()
                                 expect(page.locator("#chronosRun")).to_be_disabled()
-                            if path=="/data":expect(page.locator("#scan")).to_be_disabled()
+                            if path=="/data":
+                                expect(page.locator("#scan")).to_be_disabled()
+                                expect(page.locator("#intradayCards .intradayCard")).to_have_count(3)
+                                expect(page.locator("#intradayCards")).to_contain_text("Rapor bağlı değil.")
+                                expect(page.locator("#missingInfo")).to_contain_text("henüz")
                         if size["width"]==390:
                             page.goto(origin+"/",wait_until="networkidle")
                             context.set_offline(True)
                             expect(page.locator("#equity")).to_have_text("—")
                             expect(page.locator("#marketCards .card")).to_have_count(0)
                             expect(page.locator("#newsOverviewStatus")).to_contain_text("Bağlantı yok")
+                            expect(page.locator("#connectionStatus")).to_have_text("Bağlantı yok.")
+                            expect(page.locator("#portfolioMetrics .portfolioStat")).to_have_count(0)
+                            expect(page.locator("#mobileRefresh")).to_be_disabled()
                             context.set_offline(False)
                             expect(page.locator("#marketCards .card")).to_have_count(5,timeout=10000)
+                            expect(page.locator("#connectionStatus")).to_have_text("Portföy sunucusu yanıt verdi.")
+                            expect(page.locator("#mobileRefresh")).to_be_enabled()
                             assert not errors,errors
                         print("PASS",size,len(PAGES),"pages",flush=True)
                         context.close()

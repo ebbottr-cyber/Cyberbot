@@ -63,3 +63,10 @@ from .providers.coverage import coverage
 @router.get("/api/data/coverage")
 def coverage_status():
     return coverage(os.getenv("CYBERBOT_COVERAGE_REPORT"))
+
+
+from .providers.intraday_coverage import coverage_5m
+
+@router.get("/api/data/coverage/5m")
+def intraday_coverage_status():
+    return coverage_5m(os.getenv("CYBERBOT_NASDAQ_5M_REPORT"),os.getenv("CYBERBOT_BIST_XETRA_5M_REPORT"))

@@ -50,3 +50,15 @@ def pilot_panel():return (Path(__file__).parent/"web"/"pilot.html").read_text(en
 def pilot_performance():
     try:return pilot_performance_snapshot()
     except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Pilot performansı okunamadı."},status_code=503)
+
+from .alerts import snapshot as alerts_snapshot
+
+@router.get("/alerts",response_class=HTMLResponse)
+def alerts_panel():
+    return (Path(__file__).parent/"web"/"alerts.html").read_text(encoding="utf-8")
+
+@router.get("/api/alerts")
+def alerts():
+    try:return alerts_snapshot()
+    except (OSError,ValueError,sqlite3.Error,KeyError,TypeError,ArithmeticError):
+        return JSONResponse({"detail":"Uyarı kayıtları okunamadı."},status_code=503)
