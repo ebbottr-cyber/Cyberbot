@@ -23,3 +23,6 @@ Yerel Ollama için sabit loopback bağlantısı, isteğe bağlı ve varsayılan 
 
 ## Chronos 2 araştırma adaptörü
 İsteğe bağlı yerel CPU modeli, yalnız operatörün sağladığı safetensors dizini; otomatik model indirme yok. Ortak 60 getiri bağlamı ve 8–32 ileri testte AR(1), kayan ortalama, sıfır getiri ve Chronos 2 karşılaştırılır; çapraz seri öğrenmesi kapalı. P10/P50/P90, aralık kapsaması, MAE ve yön doğruluğu. CI sahte modelle sözleşme testleri yapar; gerçek ağırlıklarla çıkarım doğrulanmamıştır. Modelin gerçek veya sanal işlem yetkisi yoktur.
+
+## PWA ilk sürüm
+Manifest, özgün PNG ikonları, iOS ana ekran bağlantısı, güvenli bağlamda service worker ve bağlantı kesilince yalnız statik uyarı. İşlem verileri, API yanıtları veya istekler çevrimdışı saklanmaz; arka plan senkronizasyonu yok. Loopback erişim sınırı korunur. Fiziksel iPhone testi ve kimlik doğrulamalı HTTPS uzaktan erişim henüz yoktur.

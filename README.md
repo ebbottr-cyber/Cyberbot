@@ -40,3 +40,6 @@ Tüm fiyatlar **sentetik ve USD cinsindendir**; gerçek piyasa performansı değ
 
 ### İsteğe bağlı Chronos 2
 Ayrı `requirements-chronos.txt` bağımlılık dosyası; standart Cyberbot kurulumuna dahil değildir. Önceden edinilmiş, güvenilir ve kullanım hakkı kontrol edilmiş yerel Chronos 2 ağırlık dizinini `CYBERBOT_CHRONOS_PATH` ile belirtin, `CYBERBOT_CHRONOS_ENABLED=1` ile etkinleştirin. Model Merkezi üzerinden manuel kıyaslama. Otomatik ağırlık ve piyasa verisi indirme yoktur. Referans: https://huggingface.co/amazon/chronos-2 ve https://github.com/amazon-science/chronos-forecasting. Gerçek çıkarım testi henüz yapılmadı.
+
+## Obsidian PWA
+Mobil manifest, Apple Touch ikonu ve ağ bağlantısı olmadığında yalnız uyarı gösteren service worker hazır. Safari üzerinden Paylaş → Ana Ekrana Ekle, ancak iPhone'un Cyberbot sunucusuna güvenli HTTPS erişimi yapılandırılmalıdır. Şu anda uygulama sadece localhost kabul eder; PC'nin LAN adresini açmak veya portu internete yönlendirmek çözüm değildir. API yanıtları ve işlem verileri önbelleğe alınmaz, çevrimdışı işlem kuyruğu yoktur. Gerçek iPhone testi ve güvenli uzaktan erişim henüz tamamlanmamıştır.
