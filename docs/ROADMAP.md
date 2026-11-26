@@ -65,3 +65,6 @@ Adaptif replay içinde yalnız tamamlanmış bloklardan karantina durumu güncel
 
 ## Ortak araştırma döngüsü
 Windows worker --full-research ile 15 dakika aralığında dört sentetik piyasa, veya CLI'da açıkça seçilmiş tek yerel arşiv sembolü. Teknik/kural tabanlı analiz, walk-forward, Monte Carlo/dayanıklılık, turnuva, rejim, adaptif/karantina ve temel tahmin kıyaslaması aynı veri girdisinde. Sürüm/piyasa/sembol/mod/fiyat/tarih parmak izi ile tamamlanmış deney tekrar hesaplanmaz; hatalı aşama yeniden denenebilir, kayıtlar tekilleştirilir. Öğrenme DB'de ayrı pipeline tablosu, sağlık panelinde özet. Yerel LLM/Chronos, canlı sağlayıcı, toplu fiyat indirme, gerçek ve paper emir çağrısı yok. Sentetik veri değişmedikçe yeni öğrenme oluşmaz. Fiziksel Windows zamanlayıcı kurulumu yapılmadı.
+
+## Bağımsız Futures merkezi
+ETRE v3 (ismailkaraabc/etre-trading-office, 532968b7) Hyperliquid perps ve Solana spot kopya araştırmasıdır; GPL-3.0 kodu taşınmadı. Cyberbot bağımsız USDT-M tarzı sentetik Futures hesabı: 1000 USDT, BTC/ETH örnek seri, LONG/SHORT, sabit 2x, en çok bir pozisyon, varsayımsal ücret/kayma/fonlama/bakım teminatı. Gerçek Binance mark fiyatı, fonlama, sembol evreni ve likidasyon doğrulanmadı; hiçbir ağ/emir/anahtar yok. Genel USD değerleme için ayrı USDT/USD girdisi gerekli. Futures araştırma ve otomatik pipeline henüz ayrı entegrasyon gerektirir.

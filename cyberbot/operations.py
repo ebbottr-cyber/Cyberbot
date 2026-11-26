@@ -16,9 +16,13 @@ def sources():
     result={k:Path(os.getenv(env,default)).expanduser().resolve() for k,(env,default,_) in DATABASES.items()}
     from .capital import account_paths
     result.update({"paper_"+m.lower():p for m,p in account_paths().items() if p.is_file()})
+    from .futures import path_for
+    p=path_for()
+    if p.is_file():result["futures"]=p
     return result
 
 def required(name):
+    if name=="futures":return {"futures_state"}
     return DATABASES["paper"][2] if name.startswith("paper_") else DATABASES[name][2]
 
 def inspect_db(path,required):

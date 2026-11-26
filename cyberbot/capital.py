@@ -15,6 +15,12 @@ def account_paths(base=None):
     root=base.parent/(base.stem+"-markets")
     return {m:root/(m.lower()+".sqlite3") for m in CAPITAL}
 
+def valid_usdt(value):
+    try:
+        v=D(str(value))
+        return str(v) if v.is_finite() and D(".01")<=v<=D("100") else None
+    except (InvalidOperation,ValueError,TypeError):return None
+
 def fx_quote(path=None,now=None):
     path=path or os.getenv("CYBERBOT_FX_FILE")
     missing={"status":"unavailable","usdtry":None,"observed_at":None,"source":None}
@@ -28,20 +34,23 @@ def fx_quote(path=None,now=None):
         if not rate.is_finite() or not D(".01")<=rate<=D("1000000") or stamp.tzinfo is None or not isinstance(source,str) or not 1<=len(source)<=100:return missing
         age=((now or datetime.now(timezone.utc))-stamp).total_seconds()
         if age< -5 or age>MAX_FX_AGE:return {**missing,"status":"stale","observed_at":stamp.isoformat(),"source":source}
-        return {"status":"fresh_input","usdtry":str(rate),"observed_at":stamp.isoformat(),"source":source,"age_seconds":max(0,int(age)),"provider_verified":False}
+        return {"status":"fresh_input","usdtry":str(rate),"observed_at":stamp.isoformat(),"source":source,"age_seconds":max(0,int(age)),"provider_verified":False,"usdtusd":valid_usdt(x.get("usdtusd"))}
     except (OSError,ValueError,TypeError,KeyError,InvalidOperation,AttributeError,OverflowError):return missing
 
 def usd_total(accounts,quote,field="equity"):
     if quote.get("status") not in ("fresh_input","synthetic_reference"):return None
     rate=D(quote["usdtry"])
     if not rate.is_finite() or rate<=0:return None
-    return str(sum((D(a[field])/(rate if a["currency"]=="TRY" else D(1)) for a in accounts),D(0)).quantize(D(".01")))
+    if any(a["currency"]=="USDT" for a in accounts) and not quote.get("usdtusd"):return None
+    return str(sum((D(a[field])/rate if a["currency"]=="TRY" else D(a[field])*D(quote["usdtusd"]) if a["currency"]=="USDT" else D(a[field]) for a in accounts),D(0)).quantize(D(".01")))
 
 class Portfolio:
     def __init__(self,base=None):
         paths=account_paths(base)
         archive=os.getenv("CYBERBOT_EBBOT_DB")
         if archive and Path(archive).expanduser().resolve() in paths.values():raise ValueError("Archive path collision.")
+        from .futures import Futures,path_for
+        self.futures=Futures(path_for(base))
         self.ledgers={m:Ledger(paths[m],instruments={k:v for k,v in INDEX.items() if v.market==m},start=amount,currency=cur) for m,(cur,amount) in CAPITAL.items()}
     def snapshot(self):
         accounts=[]
@@ -49,10 +58,12 @@ class Portfolio:
             s=ledger.snapshot()
             accounts.append({"market":m,"initial_equity":str(CAPITAL[m][1]),**s})
         fx=fx_quote()
-        total=usd_total(accounts,fx)
-        return {"accounts":accounts,"fx":fx,"currency":"USD","equity":total,"cash":usd_total(accounts,fx,"cash"),
-                "daily_pnl":usd_total(accounts,fx,"daily_pnl"),"pnl":usd_total(accounts,fx,"pnl"),
-                "initial_equity_at_current_fx":usd_total(accounts,fx,"initial_equity"),
+        futures=self.futures.snapshot()
+        combined=accounts+[futures]
+        total=usd_total(combined,fx)
+        return {"accounts":accounts,"futures":futures,"four_market_equity_usd":usd_total(accounts,fx),"fx":fx,"currency":"USD","equity":total,"cash":usd_total(combined,fx,"cash"),
+                "daily_pnl":usd_total(combined,fx,"daily_pnl"),"pnl":usd_total(combined,fx,"pnl"),
+                "initial_equity_at_current_fx":usd_total(combined,fx,"initial_equity"),
                 "pnl_basis":"native_trading_pnl_converted_at_current_rate_excludes_fx_gain",
-                "open_count":sum(a["open_count"] for a in accounts),"open_markets":sum(a["open_count"]>0 for a in accounts),
+                "open_count":sum(a["open_count"] for a in combined),"open_markets":sum(a["open_count"]>0 for a in combined),
                 "real_orders":False,"mode":"synthetic_paper","fx_gain_measured":False}

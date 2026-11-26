@@ -78,3 +78,6 @@ Adaptif gölge araştırması sonucu, aynı öğrenme SQLite dosyasında ayrı s
 
 ## Ortak araştırma döngüsü
 Windows araştırma başlatıcısı artık `--full-research` kullanır; CLI: `python -m tools.worker --full-research --loop --interval 900`. Dört sentetik piyasa için 7 araştırma aşaması; açıkça seçilen `--market` ve `--symbol` ile yalnız o yerel arşiv sembolü (240+ gözlem). Aynı tamamlanmış veri/parmak izi tekrar hesaplanmaz. Sonuçlar öğrenme DB'de, özetler Sistem Sağlığı ekranında. Kural tabanlı analiz ve temel tahmin kıyaslaması kullanılır; gerçek LLM/Chronos çalıştırılmaz. Ağ, ana sanal işlem defteri ve EBBot arşivine yazma yok. PC'de henüz başlatılmadı.
+
+## Kripto Futures
+Obsidian /futures: bağımsız 1000 USDT sentetik hesap, BTCUSDT/ETHUSDT, LONG/SHORT, 2x, izole teminat ve varsayımsal fonlama/likidasyon. Gerçek Binance API bağlantısı yok; ETRE Hyperliquid kaynak kodu kullanılmadı. Genel kasa için FX JSON içindeki usdtusd alanı (1 USDT başına USD, aynı zaman damgası) gereklidir. Futures henüz araştırma zamanlayıcısına bağlı değil. Toplu veri indirme kapalıdır.

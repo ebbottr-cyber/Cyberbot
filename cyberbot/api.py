@@ -92,3 +92,6 @@ app.include_router(stress_router)
 
 from .capital_api import router as capital_router
 app.include_router(capital_router)
+
+from .futures_api import router as futures_router
+app.include_router(futures_router)

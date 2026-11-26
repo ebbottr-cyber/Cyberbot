@@ -22,6 +22,8 @@ VERSION="pipeline-1"
 def research_path():
     p=Path(os.getenv("CYBERBOT_LEARNING_DB","var/learning.sqlite3")).expanduser().resolve()
     forbidden=set(account_paths().values())
+    base=Path(os.getenv("CYBERBOT_DB","var/paper.sqlite3")).expanduser().resolve()
+    forbidden.add((base.parent/(base.stem+"-markets")/"futures.sqlite3").resolve())
     forbidden.add(Path(os.getenv("CYBERBOT_DB","var/paper.sqlite3")).expanduser().resolve())
     forbidden.add(Path(os.getenv("CYBERBOT_WORKER_DB","var/worker.sqlite3")).expanduser().resolve())
     if os.getenv("CYBERBOT_EBBOT_DB"):forbidden.add(Path(os.environ["CYBERBOT_EBBOT_DB"]).expanduser().resolve())
