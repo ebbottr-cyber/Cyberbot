@@ -22,13 +22,32 @@ PATTERNS={"BIST":r"[A-Z0-9]{1,12}\.IS","NASDAQ":r"[A-Z][A-Z0-9.-]{0,14}","XETRA"
 def identity(*parts):
     return hashlib.sha256(json.dumps(parts,ensure_ascii=False,separators=(",",":")).encode()).hexdigest()
 
-def rows(market="ALL"):
+def rows(market="ALL",*,news_only=False):
     if market!="ALL" and market not in MARKETS:raise ValueError("Geçersiz piyasa.")
     # Preserve provenance of both record types, with namespaced IDs.
     out=[]
-    for origin,items in (("manual",list_refs(market)["items"]),("rss",read_rss(market)["items"])):
+    for origin,items in (("manual",list_refs(market,event_type="news" if news_only else None)["items"]),("rss",read_rss(market)["items"])):
         out.extend({**x,"record_key":origin+":"+x["id"],"origin":origin} for x in items)
     return sorted(out,key=lambda x:(x["event_at"],x["record_key"]),reverse=True)[:100]
+
+def find_record(record_key):
+    # Resolve exact records across each supported scope; never bypass RSS permissions.
+    if not re.fullmatch(r"(manual|rss):[0-9a-f]{64}",record_key):return None
+    origin,key=record_key.split(":",1)
+    if origin=="rss":
+        # RSS visibility remains controlled by its approved-source and retention filters.
+        from .news_feed import read
+        for m in sorted(MARKETS):
+            for x in read(m)["items"]:
+                if x["id"]==key:return {**x,"record_key":record_key,"origin":"rss"}
+        return None
+    p=research_path()
+    if not p.is_file():return None
+    with closing(sqlite3.connect(p.as_uri()+"?mode=ro",uri=True,timeout=3)) as db:
+        db.execute("PRAGMA query_only=ON")
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='news_refs'").fetchone():return None
+        row=db.execute("SELECT payload FROM news_refs WHERE id=?",(key,)).fetchone()
+    return {**json.loads(row[0]),"record_key":record_key,"origin":"manual"} if row else None
 
 def asset_link(record_key,market,symbol,evidence_url):
     if market not in PATTERNS or not re.fullmatch(PATTERNS[market],symbol):raise ValueError("Sembol biçimi geçersiz.")
@@ -36,7 +55,7 @@ def asset_link(record_key,market,symbol,evidence_url):
     if not re.fullmatch(r"(manual|rss):[0-9a-f]{64}",record_key):raise ValueError("Haber kimliği geçersiz.")
     # A mapping is an operator assertion, not proof of issuer identity, listing, or exposure.
     # Only visible current records are linkable; disabled feeds cannot be used.
-    if not any(x["record_key"]==record_key for x in rows()):raise ValueError("Haber bulunamadı veya görünür değil.")
+    if find_record(record_key) is None:raise ValueError("Haber bulunamadı veya görünür değil.")
     url=normalize_url(evidence_url)
     data={"record_key":record_key,"market":market,"symbol":symbol,"evidence_url":url,
           "status":"operator_asserted","verified":False,"created_at":datetime.now(timezone.utc).isoformat()}

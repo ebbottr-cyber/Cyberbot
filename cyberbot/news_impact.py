@@ -4,7 +4,7 @@ from contextlib import closing
 from datetime import datetime,timezone,timedelta
 from decimal import Decimal as D,InvalidOperation
 from pathlib import Path
-from .news_graph import rows,links_for,PATTERNS
+from .news_graph import rows,find_record,links_for,PATTERNS
 from .research_pipeline import research_path
 
 VERSION="event-window-1"
@@ -68,8 +68,8 @@ def run_local(path,record_key,market,symbol):
     if data.get("timestamp_convention")!="bar_close":raise ValueError("Kapanış zaman damgası sözleşmesi gerekli.")
     source=data.get("source")
     if not isinstance(source,str) or not 1<=len(source)<=120:raise ValueError("Veri kaynağı gerekli.")
-    event=next((x for x in rows() if x["record_key"]==record_key and x["event_type"]=="news"),None)
-    if event is None:raise ValueError("Görünür haber kaydı bulunamadı.")
+    event=find_record(record_key)
+    if event is None or event["event_type"]!="news":raise ValueError("Görünür haber kaydı bulunamadı.")
     if not any(x["market"]==market and x["symbol"]==symbol for x in links_for([record_key])):raise ValueError("Operatör varlık eşleşmesi gerekli.")
     result=measure(event["event_at"],event["recorded_at"],data["prices"],data["interval_minutes"],now=datetime.now(timezone.utc))
     result.update(mode="local_unverified",record_key=record_key,market=market,symbol=symbol,source=source,asset_verified=False,license_independently_verified=False,price_verified=False)
@@ -87,7 +87,7 @@ def run_local(path,record_key,market,symbol):
 
 def recent():
     if os.getenv("CYBERBOT_NEWS_PRICE_RIGHTS_CONFIRMED")!="1":return []
-    keys=[x["record_key"] for x in rows()]
+    keys=[x["record_key"] for x in rows(news_only=True)]
     if not keys:return []
     p=research_path()
     if not p.is_file():return []

@@ -96,7 +96,7 @@ def overview(market="ALL"):
     if market not in ("ALL","BIST","NASDAQ","XETRA","FUTURES","SOLANA"):raise ValueError("Geçersiz varlık piyasası.")
     if os.getenv("CYBERBOT_NEWS_PRICE_RIGHTS_CONFIRMED")!="1":
         return {**summarize([],[]),"status":"permission_required","truncated":False}
-    events=rows()
+    events=rows(news_only=True)
     keys=[e["record_key"] for e in events if e.get("event_type")=="news"]
     reports=[];p=research_path()
     if keys and p.is_file():

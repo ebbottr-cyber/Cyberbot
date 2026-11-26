@@ -31,9 +31,9 @@ def assemble(manual,calendar,rss,memory,*,now,model_configured=False):
             age=(now-stamp(feed["last_success"])).total_seconds()
         if not feed["enabled"]:status="disabled"
         elif feed["status"]=="failed":status="failed"
+        elif feed["status"]=="attempted":status="refresh_pending"
         elif age is None:status="not_started"
         elif age<0 or age>STALE_SECONDS:status="stale"
-        elif feed["status"]=="attempted":status="refresh_pending"
         elif feed["status"]=="ok":status="recent_success"
         else:status="unknown"
         feeds.append({**feed,"dashboard_status":status,"age_seconds":int(age) if age is not None and age>=0 else None})

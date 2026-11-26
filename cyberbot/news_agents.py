@@ -2,7 +2,7 @@
 import json,os,re
 from datetime import datetime,timezone
 import httpx
-from .news_graph import rows,links_for,TOPICS,NAMES
+from .news_graph import find_record,links_for,TOPICS,NAMES
 from .news_feed import FEEDS
 from .news_impact import stamp
 from .news_memory import overview
@@ -46,7 +46,7 @@ def assess(event,links,memory,*,now):
 
 def review(record_key):
     if not re.fullmatch(r"(manual|rss):[0-9a-f]{64}",record_key):raise AgentError("Haber kimliği geçersiz.")
-    event=next((e for e in rows() if e["record_key"]==record_key),None)
+    event=find_record(record_key)
     if event is None:raise AgentError("Görünür haber kaydı bulunamadı.")
     return assess(event,links_for([record_key]),overview(),now=datetime.now(timezone.utc))
 

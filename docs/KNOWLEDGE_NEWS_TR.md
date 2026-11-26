@@ -32,3 +32,6 @@ Yedi kural tabanlı rol: kaynak, inceleme önceliği, varlık kapsamı, zaman, b
 
 ## Ana panel haber özeti
 /api/news/overview: son 7 günlük sınırlı manuel ve izinli RSS haberleri, ayrı sorguyla önümüzdeki 7 günün en yakın manuel takvim kayıtları, 24 saat etiketi, kategori temelli inceleme önceliği, son başarılı kaynak sorgusu (30 dk eski sınırı), veri izni ve yeterli betimsel grup durumu. Salt okunur; ağ çağrısı veya model çalıştırma yok. Ana panel 60 sn aralıkla yerel API'yi okur; çevrimdışı/hata halinde eski özeti temizler. Canlılık, takvim gerçekleşmesi veya piyasa etkisi doğrulanmaz. Uyarılar panel içi; push/bildirim gönderimi yok.
+
+## Haber entegrasyon denetimi
+Tam kimlik ile haber çözümleme, takvim kayıtlarının haber ölçüm hafızasını doldurmasını engelleyen ayrı haber sorgusu, URL kullanıcı bilgisi ve belirsiz alan adı reddi, ilk RSS yenileme durumu ve panel ajan sonuçlarının seçim yenilenince temizlenmesi. Uçtan uca çevrimdışı API testi: yetkisiz yazma/Origin, haber/varlık/ajan/özet/Vault, RSS ve model varsayılan kapalı, araştırma ve işlem dosyası izolasyonu. Gerçek tarayıcı ve canlı kaynak doğrulaması değildir.
