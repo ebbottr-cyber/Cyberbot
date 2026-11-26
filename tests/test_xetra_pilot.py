@@ -1,4 +1,5 @@
 import os,tempfile,unittest,sqlite3,json
+from contextlib import closing
 from datetime import datetime,timezone,timedelta
 from pathlib import Path
 from decimal import Decimal as D
@@ -13,7 +14,7 @@ class XetraPilotTests(unittest.TestCase):
             def quote(at,fx_at=None,bid="1.10",ask="1.101"):
                 return {"market":"XETRA","symbol":"SAP.DE","currency":"EUR","source":"fixture","session_open":True,"source_at":at.isoformat(),"bid":"100","ask":"100.1","fx":{"pair":"EUR/USD","source":"fixture_fx","source_at":(fx_at or at).isoformat(),"bid":bid,"ask":ask}}
             def state():
-                with sqlite3.connect(p/"pilot.sqlite3") as db:return json.loads(db.execute("SELECT payload FROM observed_accounts WHERE market='XETRA'").fetchone()[0])
+                with closing(sqlite3.connect(p/"pilot.sqlite3")) as db:return json.loads(db.execute("SELECT payload FROM observed_accounts WHERE market='XETRA'").fetchone()[0])
             def status():return next(x for x in snapshot(clock=lambda:t)["accounts"] if x["market"]=="XETRA")
             with patch.dict(os.environ,env):
                 with patch.dict(os.environ,{"CYBERBOT_OBSERVED_FX_RIGHTS_CONFIRMED":"0"}):
