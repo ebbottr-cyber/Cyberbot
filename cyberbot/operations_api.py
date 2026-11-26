@@ -19,3 +19,7 @@ from .worker import status as worker_status
 @router.get('/api/worker/status')
 def worker():
     return worker_status()
+
+from .readiness import snapshot as readiness_snapshot
+@router.get("/api/readiness")
+def readiness():return readiness_snapshot()

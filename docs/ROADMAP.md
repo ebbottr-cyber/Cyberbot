@@ -92,3 +92,6 @@ Futures kasa gözlemleri aynı işlem transaction'ında kaydedilir; eski defter 
 
 ## Panel denetimi
 13 HTML sayfasının inline JavaScript sözdizimi ve sabit DOM kimlikleri kaynak incelemesinde kontrol edildi. Ortak mobil CSS, çevrimdışı portföy/Futures temizliği, kapalı model/Solana düğmeleri ve bilgi hafızası yarış kontrolü. CI Chromium smoke testi: 1280,390,320 px ekranlarda 13 sayfa, API hatası, yatay taşma, kapalı düğmeler ve ana panel çevrimdışı geçişi. Tarayıcı yalnız yerel izole sunucuya erişir. Fiziksel iPhone/Safari doğrulaması değildir.
+
+## Canlı sanal test hazırlık kapısı
+Salt okunur /api/readiness ve Sistem Sağlığı bölümü: beş kasa dosyası, veri kapsamı, yapılandırma, FX ve worker kaydı; arşiv örnek sorgusu yalnız CYBERBOT_EQUITY_RESEARCH_RIGHTS_CONFIRMED=1 beyanıyla. BIST THYAO.IS, NASDAQ AAPL, XETRA SAP.DE günlük örnekleri tüm evreni temsil etmez. Canlı yürütme motoru henüz olmadığı için sonuç her zaman blocked; gerçek emir ve toplu indirme kapalı. Herhangi bir sağlayıcı veya görev başlatılmaz.

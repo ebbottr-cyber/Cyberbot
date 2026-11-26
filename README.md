@@ -109,3 +109,5 @@ AI Haber Analiz Merkezi: 7 kural tabanlı rol ve isteğe bağlı, kısıtlı yer
 Ana Obsidian panelinde haber, ekonomik takvim ve araştırma uyarı özeti; yerel API 60 saniyede okunur, gerçek veri akışı başlatılmaz. Bildirimler panel içidir.
 
 Futures grafiği: son 200 kayıt, gerçek geçmiş uydurulmaz. Yedek kurtarma: `python -m tools.ops recover --source <yedek-klasörü> --output var/recovery` doğrulanmış yeni kopya üretir; aktif kasalar ve ayarlar değişmez. Worker dahil değildir; otomatik geçiş yok.
+
+Canlı sanal test hazırlığı: `/api/readiness` ve Sistem Sağlığı ekranı beş piyasanın yerel durumunu salt okunur inceler; canlı fiyatla işlem başlatmaz. Mevcut kasalar sentetiktir.
