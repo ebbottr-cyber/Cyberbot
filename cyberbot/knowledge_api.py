@@ -88,3 +88,21 @@ def memory(market:str="ALL"):
     try:return news_memory(market)
     except ValueError as e:raise HTTPException(422,str(e)) from None
     except (OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):raise HTTPException(503,"Haber performans hafızası okunamadı.") from None
+
+from .news_agents import review as agent_review,local_checklist,AgentError
+from .models_api import _lock as model_lock
+import os
+@router.get("/api/news/agents/{record_key}")
+def agents(record_key:str):
+    try:return agent_review(record_key)
+    except AgentError as e:raise HTTPException(422,str(e)) from None
+    except (OSError,sqlite3.Error,ValueError,KeyError,TypeError,ArithmeticError):raise HTTPException(503,"Haber ajanları çalıştırılamadı.") from None
+@router.post("/api/news/agents/{record_key}/checklist")
+def agents_model(record_key:str):
+    model=os.getenv("CYBERBOT_OLLAMA_MODEL")
+    if os.getenv("CYBERBOT_LOCAL_LLM_ENABLED")!="1" or os.getenv("CYBERBOT_NEWS_LLM_ENABLED")!="1" or not model:raise HTTPException(403,"Yerel haber modeli kapalı.")
+    if not model_lock.acquire(blocking=False):raise HTTPException(429,"Model meşgul.")
+    try:return local_checklist(agent_review(record_key),model)
+    except AgentError as e:raise HTTPException(422,str(e)) from None
+    except (OSError,sqlite3.Error,ValueError,KeyError,TypeError,ArithmeticError):raise HTTPException(503,"Haber modeli kullanılamadı.") from None
+    finally:model_lock.release()
