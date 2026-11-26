@@ -110,6 +110,7 @@ def regimes(mode:str="synthetic",market:str="BIST",symbol:str="THYAO.IS",limit:i
     finally:_robust_lock.release()
 
 from .adaptive import evaluate as adaptive_evaluate
+from .strategy_memory import StrategyMemory,filter_choice
 
 @router.post("/api/strategies/adaptive")
 def adaptive(mode:str="synthetic",market:str="BIST",symbol:str="THYAO.IS",limit:int=Query(360,ge=240,le=1000)):
@@ -123,6 +124,19 @@ def adaptive(mode:str="synthetic",market:str="BIST",symbol:str="THYAO.IS",limit:
             if market=="SOLANA":raise ValueError("Solana tarihsel arşivi bağlı değil.")
             rows=history(os.getenv("CYBERBOT_EBBOT_DB"),market,symbol,limit)["bars"]
         else:raise ValueError("Geçersiz veri modu.")
-        return adaptive_evaluate(rows,mode=mode,market=market,symbol=symbol)
+        result=adaptive_evaluate(rows,mode=mode,market=market,symbol=symbol)
+        memory=StrategyMemory(tournament_store().path)
+        saved=memory.record(result)
+        result["memory"]=saved
+        result["next_research_candidate"]=filter_choice(result["next_research_candidate"],saved["states"])
+        return result
     except (DataError,ValueError,ArithmeticError) as e:raise HTTPException(422,str(e)) from None
     finally:_robust_lock.release()
+
+@router.get("/api/strategies/memory")
+def strategy_memory(mode:str="synthetic",market:str="BIST",symbol:str="THYAO.IS"):
+    if market not in CAPITAL or mode not in ("synthetic","historical_unverified"):
+        raise HTTPException(422,"Geçersiz filtre.")
+    if mode=="synthetic":symbol="DEMO-ADAPTIVE-"+market
+    try:return StrategyMemory(tournament_store().path).read(mode,market,symbol)
+    except ValueError as e:raise HTTPException(422,str(e)) from None

@@ -59,3 +59,6 @@ Tek sembolde 20 geçmiş kapanış getirisi, ±%3 trend ve gözlem başına %2,5
 
 ## Adaptif gölge araştırması
 Her 20 gözlemli blok başlamadan rejim ve aday yalnız önceki kapanışlar/tamamlanmış bloklardan seçilir; geçmiş eğitimle pencere sabitlenir. Rejim başına 40 gözlem, geçmiş toplam 20 kapanış, ortalama net %0,02 ve çift maliyette pozitif, son 6 blok pozitif ve düşüş ≤%10. Uygun aday yoksa nakit. Tamamlanmış blok sonrası kanıt güncellenir; ana portföy değiştirilmez. Tarihsel gölge replay, canlı gölge veya otomatik strateji terfisi değildir. Karşılaştırmalar nakit, al-tut, sabit strateji ve 2x maliyet. Eşikler deneysel.
+
+## Strateji hafızası ve karantina
+Adaptif replay içinde yalnız tamamlanmış bloklardan karantina durumu güncellenir; iki ardışık aktif zararlı blok veya baz/2x maliyet düşüşü %10 üzeri ise karantina. Üç ardışık aktif, net ve 2x maliyette pozitif, düşüş sınırında yeni blok ile yeniden izleme; emir yetkisi yok. Adaptif API kanıtları öğrenme DB ayrı tablolarında piyasa/sembol/veri modu ve protokol bazında saklar. Yalnız önceki son bitişten sonra başlayan blok kabul edilir; tekrar/örtüşen dönem sayılmaz. Kalıcı karantina sonraki araştırma önerisini de filtreler, geçmiş replay'i geriye dönük değiştirmez. Canlı kanıt ve otomatik zamanlayıcı bağlantısı yok.

@@ -72,3 +72,6 @@ Strateji Laboratuvarı'nda turnuva piyasası için nedensel 20 gözlemli rejim e
 
 ## Adaptif gölge araştırması
 Strateji Lab. içindeki adaptif deney, 20 gözlemli bloklar için geçmiş kanıta dayalı araştırma adayı veya nakit seçer. Karar sonraki blokta test edilir; ana portföye emir yok. Sentetik veya izinli mevcut arşiv, 240–1000 gözlem. Geçmiş replay sonuçları canlı performans kanıtı değildir; otomatik zamanlayıcıya bağlı değildir.
+
+## Strateji hafızası
+Adaptif gölge araştırması sonucu, aynı öğrenme SQLite dosyasında ayrı strateji hafızası ve kanıt tablolarına kaydedilir. İki aktif zararlı blok veya %10 üzeri düşüş karantina; üç yeni olumlu aktif blok yeniden izleme. Örtüşen ve eski dönemler yeni kanıt değildir. Sentetik ve tarihsel hafıza ayrıdır. Karantina yalnız araştırma önerilerini filtreler, gerçek ve ana sanal emirleri yönetmez. Eşikler deneysel; canlı ileri test henüz yok.

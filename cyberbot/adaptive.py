@@ -8,6 +8,7 @@ from .learning import TRAIN,TEST,WINDOWS
 from .strategy_lab import simulate,STRATEGIES
 from .regimes import classify,REGIMES
 from .robustness import metrics,returns_from
+from .strategy_memory import initial,update,filter_choice
 
 CANDIDATES=("trend","momentum","reversion")
 MIN_REGIME_OBSERVATIONS=40
@@ -54,12 +55,13 @@ def evaluate(raw,*,mode,market,symbol):
         bars.append((o,c))
     closes=[x[1] for x in bars]
     evidence={name:[] for name in CANDIDATES}
+    quarantine={name:initial() for name in CANDIDATES};evidence_blocks=[]
     decisions=[];shadow=[];stress=[];benchmark=[];fixed={name:[] for name in CANDIDATES}
     for start in range(TRAIN,len(bars)-TEST+1,TEST):
         end=start+TEST
         # Select only from completed folds. Freeze the regime and policy for the next block.
         regime=classify(closes[:start])["id"]
-        choice=decide(regime,evidence)
+        choice=filter_choice(decide(regime,evidence),quarantine)
         selected=choice["strategy"]
         windows={name:max(WINDOWS,key=lambda w:simulate(bars,name,w,start-TRAIN+20,start)["return"]) for name in CANDIDATES}
         results={}
@@ -82,23 +84,30 @@ def evaluate(raw,*,mode,market,symbol):
         # regime, matching the regime used when selecting policy for a whole block.
         for name,(b,c) in results.items():
             evidence[name].append({"closed":b["closed"],"observations":[(regime,r,s) for r,s in zip(returns_from(b),returns_from(c))]})
+            block={"strategy":name,"regime":regime,
+                   "start_key":raw[start]["session"] if mode=="historical_unverified" else f"{start:06d}",
+                   "end_key":raw[end-1]["session"] if mode=="historical_unverified" else f"{end-1:06d}",
+                   "return_pct":float(b["return"]*100),"double_cost_return_pct":float(c["return"]*100),
+                   "drawdown_pct":float(b["drawdown"]*100),"double_cost_drawdown_pct":float(c["drawdown"]*100),"closed_trades":b["closed"]}
+            evidence_blocks.append(block)
+            quarantine[name]=update(quarantine[name],block)
     currency,capital=CAPITAL[market]
     def summary(rets):
         net,dd=metrics(rets)
         return {"return_pct":round(net*100,5),"drawdown_pct":round(dd*100,5),
                 "ending_capital":str((capital*(1+D(str(net)))).quantize(D(".01")))}
     next_regime=classify(closes)
-    next_choice=decide(next_regime["id"],evidence)
+    next_choice=filter_choice(decide(next_regime["id"],evidence),quarantine)
     curve=[];wealth=1.
     for i,ret in enumerate(shadow,TRAIN):
         wealth*=1+ret
         curve.append({"observation":i,"equity":str((capital*D(str(wealth))).quantize(D(".01")))})
     counts=Counter(x["selected"] for x in decisions)
-    return {"version":"adaptive-shadow-1","mode":mode,"market":market,"symbol":symbol,"currency":currency,"initial_capital":str(capital),
+    return {"version":"adaptive-shadow-2","mode":mode,"market":market,"symbol":symbol,"currency":currency,"initial_capital":str(capital),
             "observations":len(bars),"completed_blocks":len(decisions),"shadow":summary(shadow),"double_cost_shadow":summary(stress),
             "buy_hold_reference":summary(benchmark),"cash_reference":summary([0.]*len(shadow)),
             "fixed_strategy_references":{k:summary(v) for k,v in fixed.items()},
-            "decisions":decisions,"selection_counts":{k:counts[k] for k in (*CANDIDATES,"cash")},"curve":curve,
+            "evidence_blocks":evidence_blocks,"replay_quarantine":quarantine,"decisions":decisions,"selection_counts":{k:counts[k] for k in (*CANDIDATES,"cash")},"curve":curve,
             "next_regime":next_regime,"next_research_candidate":next_choice,
             "real_orders":False,"paper_orders":False,"promotion_enabled":False,"profitability_verified":False,
             "limits":["Gölge geçmiş testi, canlı ileri test değildir. Ana portföye emir göndermez.",
