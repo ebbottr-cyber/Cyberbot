@@ -125,3 +125,5 @@ Gözlem Performansı (/pilot): beş pilotun ayrı para birimlerinde kapanış K/
 Gözlem DB yedek/kurtarma: CYBERBOT_PILOT_BACKUP_RIGHTS_CONFIRMED=1 gerekli. Tek yerel gözlem giriş sözleşmesi: `python -m tools.pilot_ingress --file <quote.json>`; varsayılan kapalı, kaynak izin listesi ve motor doğrulaması. Ağ sağlayıcısı henüz bağlı değil.
 
 Binance USD-M: `python -m tools.binance_observed` tek seferlik public veri probe; `--apply` ayrıca pilot izinleriyle. Varsayılan kapalı, API anahtarı veya gerçek emir yok. docs/ROADMAP.md.
+
+Solana: `python -m tools.solana_observed` salt okunur kotasyon tanılaması, varsayılan kapalı. USDC bazlı iki yönlü kotasyon ve RPC mint bilgisi; henüz pilot dolumu yok. docs/ROADMAP.md.

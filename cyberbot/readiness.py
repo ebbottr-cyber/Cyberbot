@@ -39,8 +39,9 @@ def snapshot():
             if market=="XETRA":blockers.append("EUR/USD bid/ask dönüşüm pilotu mevcut; gerçek kur kaynağı doğrulanmadı.")
             if not rights:blockers.append("Arşiv araştırma kullanım hakkı beyanı yok.")
         elif market=="SOLANA":
-            data["status"]="read_only_configured" if os.getenv("CYBERBOT_SOLANA_READ_ENABLED")=="1" else "read_only_disabled"
-            blockers.append("Tek mint/havuz manuel gözlem pilotu mevcut; gerçek likidite ve token güvenliği doğrulanmadı.")
+            from .providers.solana_observed import configured
+            data["status"]="quote_diagnostic_configured" if configured() else "quote_diagnostic_disabled"
+            blockers.append("Jupiter V2/DEX/RPC kotasyon tanılaması mevcut; USD dönüşümü, kaynak zamanı, derinlik ve cüzdan yoğunlaşması doğrulanmadığı için otomatik pilot girişi yok.")
         else:
             from .providers.binance_observed import configured
             data["status"]="public_adapter_configured" if configured() else "public_adapter_disabled"
