@@ -22,6 +22,15 @@ class Futures:
         with self.tx() as db:
             db.execute("CREATE TABLE IF NOT EXISTS futures_state(id INTEGER PRIMARY KEY CHECK(id=1),payload TEXT NOT NULL)")
             db.execute("INSERT OR IGNORE INTO futures_state VALUES(1,?)",(json.dumps({"cash":str(START),"tick":0,"peak":str(START),"max_dd":"0","day":self.day_clock(),"day_equity":str(START),"trades":[]}),))
+            db.execute("CREATE TABLE IF NOT EXISTS futures_equity_history(id INTEGER PRIMARY KEY,at TEXT NOT NULL,tick INTEGER NOT NULL,equity TEXT NOT NULL,drawdown TEXT NOT NULL,event TEXT NOT NULL)")
+            if not db.execute("SELECT 1 FROM futures_equity_history LIMIT 1").fetchone():
+                s=self.load(db);self.record_equity(db,s,"initial_observation")
+
+    def record_equity(self,db,s,event):
+        e=self.equity(s)
+        db.execute("INSERT INTO futures_equity_history(at,tick,equity,drawdown,event) VALUES(?,?,?,?,?)",
+                   (datetime.now(timezone.utc).isoformat(),s["tick"],str(e),str((1-e/D(s["peak"]))*100),event))
+
     @contextmanager
     def tx(self):
         db=sqlite3.connect(self.path,timeout=10,isolation_level=None)
@@ -62,7 +71,7 @@ class Futures:
             margin=q*entry/LEVERAGE;fee=q*entry*FEE
             s["cash"]=str(D(s["cash"])-margin-fee)
             s["trades"].append({"id":len(s["trades"])+1,"symbol":symbol,"side":side,"entry":str(entry),"quantity":str(q),"margin":str(margin),"entry_fee":str(fee),"funding":"0","opened_tick":s["tick"],"exit":None,"pnl":None,"reason":None})
-            self.refresh(s);self.save(db,s)
+            self.refresh(s);self.save(db,s);self.record_equity(db,s,"open")
     def settle(self,s,t,reason):
         sign=D(1) if t["side"]=="LONG" else D(-1)
         p=self.price(s,t)*(1-sign*SLIP)
@@ -73,7 +82,7 @@ class Futures:
         with self.tx() as db:
             s=self.load(db);self.refresh(s);t=self.position(s)
             if t is None or t["id"]!=trade_id:raise PaperError("Açık pozisyon bulunamadı.")
-            self.settle(s,t,"manual");self.refresh(s);self.save(db,s)
+            self.settle(s,t,"manual");self.refresh(s);self.save(db,s);self.record_equity(db,s,"close")
     def advance(self):
         with self.tx() as db:
             s=self.load(db);self.refresh(s)
@@ -86,8 +95,9 @@ class Futures:
                 if self.residual(s,t)<=D(t["quantity"])*p*MMR:self.settle(s,t,"synthetic_liquidation")
                 elif move<=-D(".05"):self.settle(s,t,"stop")
                 elif move>=D(".10"):self.settle(s,t,"target")
-            self.refresh(s);self.save(db,s)
+            self.refresh(s);self.save(db,s);self.record_equity(db,s,"advance")
     def snapshot(self):
         with self.tx() as db:
             s=self.load(db);e=self.refresh(s);self.save(db,s);t=self.position(s)
-            return {"market":"FUTURES","mode":"synthetic_futures","currency":"USDT","initial_equity":str(START),"cash":fmt(s["cash"]),"equity":fmt(e),"pnl":fmt(e-START),"daily_pnl":fmt(e-D(s["day_equity"])),"max_recorded_drawdown_pct":fmt(D(s["max_dd"])*100),"drawdown_pct":fmt((1-e/D(s["peak"]))*100),"day_start_equity":fmt(s["day_equity"]),"open_count":int(t is not None),"tick":s["tick"],"last_tick":len(self.series["BTCUSDT"])-1,"trades":s["trades"],"quotes":[{"symbol":k,"price":str(v[s["tick"]])} for k,v in self.series.items()],"leverage":2,"real_orders":False,"exchange_execution_verified":False,"funding_model":"hypothetical_every_3_observations","liquidation_model":"simplified_isolated_margin"}
+            history=db.execute("SELECT at,tick,equity,drawdown,event FROM futures_equity_history ORDER BY id DESC LIMIT 200").fetchall()
+            return {"equity_history":[{"at":at,"tick":tick,"equity":fmt(equity),"drawdown_pct":fmt(dd),"event":event} for at,tick,equity,dd,event in reversed(history)],"history_limit":200,"market":"FUTURES","mode":"synthetic_futures","currency":"USDT","initial_equity":str(START),"cash":fmt(s["cash"]),"equity":fmt(e),"pnl":fmt(e-START),"daily_pnl":fmt(e-D(s["day_equity"])),"max_recorded_drawdown_pct":fmt(D(s["max_dd"])*100),"drawdown_pct":fmt((1-e/D(s["peak"]))*100),"day_start_equity":fmt(s["day_equity"]),"open_count":int(t is not None),"tick":s["tick"],"last_tick":len(self.series["BTCUSDT"])-1,"trades":s["trades"],"quotes":[{"symbol":k,"price":str(v[s["tick"]])} for k,v in self.series.items()],"leverage":2,"real_orders":False,"exchange_execution_verified":False,"funding_model":"hypothetical_every_3_observations","liquidation_model":"simplified_isolated_margin"}

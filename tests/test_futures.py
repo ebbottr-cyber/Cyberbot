@@ -27,3 +27,14 @@ class FuturesTests(unittest.TestCase):
             self.assertEqual(d["trades"][0]["reason"],"synthetic_liquidation")
             self.assertGreater(D(d["cash"]),0)
             self.assertEqual(d["open_count"],0)
+
+    def test_equity_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p=Path(tmp)/"history.sqlite3";f=Futures(p)
+            first=f.snapshot()["equity_history"]
+            self.assertEqual(len(first),1)
+            self.assertEqual(f.snapshot()["equity_history"],first)
+            f.open("BTCUSDT","LONG");f.advance();f.close(1)
+            s=Futures(p).snapshot()
+            self.assertEqual([x["event"] for x in s["equity_history"]],["initial_observation","open","advance","close"])
+            self.assertEqual(s["equity_history"][-1]["equity"],s["equity"])

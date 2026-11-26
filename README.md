@@ -107,3 +107,5 @@ Haber performans hafızası: görünür, izinli yerel olay ölçümlerinden çak
 AI Haber Analiz Merkezi: 7 kural tabanlı rol ve isteğe bağlı, kısıtlı yerel Ollama kontrol listesi sıralaması. Haber yönü, güvenilirlik olasılığı veya işlem tavsiyesi üretmez. Varsayılan model kapalı.
 
 Ana Obsidian panelinde haber, ekonomik takvim ve araştırma uyarı özeti; yerel API 60 saniyede okunur, gerçek veri akışı başlatılmaz. Bildirimler panel içidir.
+
+Futures grafiği: son 200 kayıt, gerçek geçmiş uydurulmaz. Yedek kurtarma: `python -m tools.ops recover --source <yedek-klasörü> --output var/recovery` doğrulanmış yeni kopya üretir; aktif kasalar ve ayarlar değişmez. Worker dahil değildir; otomatik geçiş yok.

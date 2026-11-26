@@ -86,3 +86,6 @@ Obsidian salt okunur SQLite araştırma özeti, beş piyasa, sentetik/tarihsel f
 
 ## Genel denetim düzeltmeleri
 Yapılandırılmış DB yolları ortak kontrol, symlink/hardlink çakışmaları ve EBBot arşivi koruması; önbellekli API girişinde tekrar kontrol. Futures sentetik stres (4 senaryo, beşinci hesap), bağımsız günlük/düşüş risk kontrolü, çift maliyet likidasyonu aday dışı, stres ekranı JS yeniden yazıldı. Gerçek cihaz/işlem doğrulaması değil. Yerel süreçlerin dosyaları eşzamanlı değiştirmesi güven sınırı dışıdır.
+
+## Futures grafiği ve kurtarma pilotu
+Futures kasa gözlemleri aynı işlem transaction'ında kaydedilir; eski defter ilk açıldığında yalnız mevcut gözlem eklenir. Ana panel ve Futures ekranında son 200 kayıt. Yeni kurtarma CLI yalnız ayrı klasöre doğrulanmış kopya çıkarır; aktif veritabanlarını değiştirmez. Manifest dosya adları, boyut, SHA-256 ve SQLite bütünlüğü kontrol edilir. Worker yedek kapsamı dışında, farklı DB'ler tek atomik anlık görüntü değildir. Fiziksel cihaz ve canlı borsa doğrulanmadı.
