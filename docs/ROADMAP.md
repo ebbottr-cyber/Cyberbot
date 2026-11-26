@@ -38,3 +38,6 @@ Windows/Linux ve Python 3.11/3.12 CI matrisinde panel rotaları, PWA, izole sent
 
 ## Yerel operasyonlar
 Windows kurulum ve ön planda başlatma betikleri, uygulama sağlık paneli, SQLite çevrimiçi yedek API'si ile yerel tutarlı dosya kopyaları, SHA-256 manifesti ve bütünlük kontrolü. EBBot verisi dahil edilmez. İstek erişim logu kapalı, sunucu logu yerel var/logs. Otomatik zamanlama, geri yükleme ve gerçek PC kurulumu henüz yoktur.
+
+## Yerel araştırma zamanlayıcısı
+Ayrı, açıkça başlatılan 15 dakika varsayılan döngü; sağlık kontrolü, sentetik veya açıkça seçilmiş salt okunur arşiv araştırması, tekilleştirilen deney ve son 1000 döngü kaydı. İsteğe bağlı günlük yerel yedek. SQLite ile eşzamanlı döngü engeli. Windows oturum açılış görevi yalnız operatörün -Register komutuyla oluşturulur; fiziksel cihazda denenmedi. Gerçek işlem, paper emir, model indirme ve piyasa ağı yok. Son döngü kaydı canlı süreç kanıtı değildir.

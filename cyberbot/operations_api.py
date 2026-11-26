@@ -13,3 +13,9 @@ def panel():
 def status():
     report=health()
     return JSONResponse(report,status_code=200 if report["status"]=="ok" else 503)
+
+from .worker import status as worker_status
+
+@router.get('/api/worker/status')
+def worker():
+    return worker_status()
