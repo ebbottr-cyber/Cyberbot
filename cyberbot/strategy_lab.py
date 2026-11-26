@@ -15,11 +15,11 @@ def signal(name,past,window):
     if name=="reversion":return past[-1]<avg*D(".98")
     raise ValueError("Bilinmeyen strateji.")
 
-def simulate(bars,name,window,start,end):
+def simulate(bars,name,window,start,end,*,fee=FEE,slip=SLIP):
     cash=D("10000");qty=D(0);cost=D(0);peak=cash;dd=D(0);closed=[];equity=[]
     def sell(price):
         nonlocal cash,qty,cost
-        proceeds=qty*price*(1-SLIP)*(1-FEE)
+        proceeds=qty*price*(1-slip)*(1-fee)
         closed.append(proceeds-cost)
         cash+=proceeds;qty=D(0);cost=D(0)
     for i in range(start,end):
@@ -27,10 +27,10 @@ def simulate(bars,name,window,start,end):
         wanted=signal(name,[x[1] for x in bars[i-window:i]],window)
         if wanted and not qty:
             cost=cash
-            qty=cash/(o*(1+SLIP)*(1+FEE));cash=D(0)
+            qty=cash/(o*(1+slip)*(1+fee));cash=D(0)
         elif not wanted and qty:sell(o)
         if i==end-1 and qty:sell(c)
-        value=cash+qty*c*(1-SLIP)*(1-FEE)
+        value=cash+qty*c*(1-slip)*(1-fee)
         equity.append(value);peak=max(peak,value);dd=max(dd,1-value/peak)
     return {"return":cash/D("10000")-1,"drawdown":dd,"closed":len(closed),"wins":sum(p>0 for p in closed),"equity":equity}
 

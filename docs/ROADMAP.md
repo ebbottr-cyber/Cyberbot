@@ -47,3 +47,6 @@ Gerçek paper motoru ayrı geçici SQLite ve bağımsız enstrüman evreni ile 2
 
 ## Piyasa sermayesi ve kur
 BIST 45.000 TRY; NASDAQ, XETRA, Solana ayrı 1.000 USD. Ana panel yeni piyasa defterlerini kullanır, eski ortak defter korunur. XETRA demo USD bazlıdır, gerçek EUR işlem adaptörü değildir. USD toplamı yalnız en fazla 5 dakika yaşındaki yerel USD/TRY girdisiyle hesaplanır, kaynak doğrulanmış sayılmaz. İşlem K/Z güncel kurla çevrilir; tarihsel kur getirisi ve birleşik tarihsel düşüş henüz hesaplanmaz. Stres kıyaslaması 45 varsayımsal sabit kur kullanır ve varsa güncel kur değerlemesini ayrıca verir. Fiyat indirme kapalıdır.
+
+## Strateji dayanıklılığı
+60 gözlem kayan eğitim bağlamı ve 20 gözlem örtüşmeyen ileri test; pencere yalnız eğitimde seçilir. Aynı pencereyle 2x ücret/kayma testi. İleri test net getirilerinin 5 gözlem bloklu, 1000 yol, 60 gözlem ufuklu sabit tohumlu bootstrap analizi. P05/50/95 getiri ve yerel sermaye, P95 düşüş, zarar yolu oranı. Deneysel 0–100 puan: tutarlılık 25, düşüş 25, maliyet 20, bootstrap risk 20, örneklem 10. En az 6 bölüm ve 20 işlem yoksa puan yok; referanslar sıralanmaz. Gerçek başarı olasılığı veya emir yetkisi değildir.
