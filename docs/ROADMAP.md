@@ -74,3 +74,6 @@ Ayrı LONG/SHORT tek gözlemli sentetik araştırma simülatörü, 1000 USDT ve 
 
 ## Futures adaptif hafıza
 20 gözlemli nedensel replay, mevcut adaptif aday eşikleri ve ayrıca baz/2x maliyet likidasyonu karantinası. Strateji hafızası FUTURES ve sembol kapsamıyla öğrenme DB'de; aynı blok tekrar kanıt olmaz. Üç aktif olumlu, likidasyonsuz blok yeniden izleme. Sonuçlar Futures paneli ve ortak pipeline özeti. Sentetik veri dışında yeni kanıt yok; turnuvayla örtüşen veri bağımsız doğrulama değildir.
+
+## Bot Gelişimi Merkezi
+Obsidian salt okunur SQLite araştırma özeti, beş piyasa, sentetik/tarihsel filtre, son 10 sembol kaydı/piyasa ve son 30 deney; puan, gölge, rejim, turnuva, kalıcı karantina ve temel model ölçümleri. Güncel hafıza karantinası eski aday önerisini bloke eder. Kayıt sayısı bağımsız kanıt değildir; model yapılandırması gerçek çıkarım değildir. İşlem yetkisi yok.

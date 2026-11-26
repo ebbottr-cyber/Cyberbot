@@ -43,11 +43,13 @@ class IntegrationTests(unittest.TestCase):
         return r.json()
     def test_panel_routes(self):
         home=self.c.get("/").text
-        for path in ("/data","/traders","/analysis","/strategies","/learning","/models"):
+        for path in ("/data","/traders","/analysis","/strategies","/learning","/models","/development","/futures"):
             self.assertIn('href="'+path+'"',home)
             r=self.c.get(path)
             self.assertEqual(r.status_code,200)
             self.assertIn("Ana panel",r.text)
+        self.assertEqual(len(self.get("/api/development")["markets"]),5)
+        self.assertEqual(self.c.get("/api/development?mode=invalid").status_code,422)
         self.assertEqual(self.c.get("/manifest.webmanifest").status_code,200)
         self.assertEqual(self.c.get("/sw.js").status_code,200)
     def test_research_paper_isolation(self):

@@ -95,3 +95,6 @@ app.include_router(capital_router)
 
 from .futures_api import router as futures_router
 app.include_router(futures_router)
+
+from .development_api import router as development_router
+app.include_router(development_router)
