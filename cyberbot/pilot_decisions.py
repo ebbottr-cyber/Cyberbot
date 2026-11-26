@@ -9,6 +9,7 @@ from .regimes import classify
 from .research_pipeline import research_path
 from .strategy_memory import VERSION as MEMORY_VERSION
 from .observed_pilot import PilotError,ts
+from .pilot_control import halted
 
 VERSION="pilot-shadow-1"
 MARKETS=("BIST","NASDAQ","XETRA","SOLANA","FUTURES")
@@ -83,6 +84,7 @@ def evaluate(db,m,now):
     candidate="trend" if regime["id"]=="bull" and d["signals"]["trend"] and d["signals"]["momentum"] else "reversion" if regime["id"]=="sideways" and d["signals"]["reversion"] else "cash"
     d["candidate"]=candidate;d["status"]="shadow_evaluated"
     if any(candidate in row["quarantined"] for row in d["research_context"]):d["blockers"].append("research_context_quarantine");candidate="cash"
+    if halted(db):gate=False;d["blockers"].append("kill_switch")
     if not gate:d["blockers"].append("risk_or_market_gate")
     if s["pending"] or pos:d["blockers"].append("position_or_pending")
     if candidate!="cash" and gate and not pos and not s["pending"]:d["hypothetical_action"]="LONG" if m=="FUTURES" else "BUY"

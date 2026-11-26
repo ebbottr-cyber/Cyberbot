@@ -4,6 +4,7 @@ from contextlib import closing
 from datetime import timedelta
 from decimal import Decimal as D,InvalidOperation,ROUND_DOWN
 from .observed_pilot import tx,path,utc,ts,permitted as common_permission,PilotError
+from .pilot_control import halted
 
 VERSION="solana-observed-1"
 START=D("1000")
@@ -89,7 +90,7 @@ def request(side,*,clock=utc):
         if not fresh(q,now):raise PilotError("Taze gözlem gerekli.")
         if s["pending"]:raise PilotError("Bekleyen istek var.")
         refresh(s,now)
-        if side=="buy" and (s["position"] or not risk_ok(s) or not entry_gate(q,now)):raise PilotError("Güvenlik, likidite veya risk kapısı.")
+        if side=="buy" and (halted(db) or s["position"] or not risk_ok(s) or not entry_gate(q,now)):raise PilotError("Güvenlik, likidite veya risk kapısı.")
         if side=="sell" and not s["position"]:raise PilotError("Açık pozisyon yok.")
         s["pending"]=intent(side,now,"manual");save(db,s,now,"request",s["pending"])
         return {"status":"pending","real_orders":False}
@@ -101,7 +102,9 @@ def observe(input_quote,*,clock=utc):
         if old and (q["source"]!=old["source"] or ts(q["source_at"])<=ts(old["source_at"]) or now<ts(old["received_at"])):raise PilotError("Tekrar, sırasız gözlem veya kaynak değişikliği.")
         s["quote"]=q;refresh(s,now)
         order=s["pending"];event="observation";detail={}
-        if order and order["side"]=="buy" and (now>ts(order["expires_at"]) or ts(order["requested_at"]).date()!=now.date()):
+        if order and order["side"]=="buy" and halted(db):
+            s["pending"]=None;event="entry_cancelled"
+        elif order and order["side"]=="buy" and (now>ts(order["expires_at"]) or ts(order["requested_at"]).date()!=now.date()):
             s["pending"]=None;event="expired"
         elif order and ts(q["source_at"])>ts(order["requested_at"]):
             if order["side"]=="buy":

@@ -3,7 +3,7 @@ import os,json,sqlite3
 from contextlib import closing
 from datetime import timedelta
 from pathlib import Path
-from . import observed_pilot as stocks,pilot_decisions as decisions
+from . import observed_pilot as stocks,pilot_decisions as decisions,pilot_outcomes as outcomes
 from .providers import equity_observed as equity,binance_observed as binance
 from .pilot_ingress import ingest
 from .worker import worker_path
@@ -96,6 +96,7 @@ def run_cycle(*,clock=stocks.utc):
                         if item["applied"]:
                             d=decisions.record(m,clock=clock)
                             item["decision"]={"status":d["status"],"recorded":d.get("recorded",False),"actual_action":"HOLD"}
+                            item["outcome"]=outcomes.record(m,clock=clock)["status"]
                         if item["status"] in ("provider_blocked","awaiting_new_quote"):report["status"]="degraded"
                         next_state={"failures":0,"retry_at":None}
                     except Exception as exc:

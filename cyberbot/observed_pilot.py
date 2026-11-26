@@ -4,6 +4,7 @@ from contextlib import closing,contextmanager
 from datetime import datetime,timezone,timedelta
 from decimal import Decimal as D,InvalidOperation,ROUND_DOWN
 from .db_paths import checked,pilot_path
+from .pilot_control import halted
 from .engine import FEE,SLIP,RISK,STOP,TARGET,MAX_NOTIONAL,DAILY_LOSS,MAX_DRAWDOWN
 
 VERSION="observed-pilot-1"
@@ -110,7 +111,7 @@ def request(m,side,*,clock=utc):
         if not fresh(s["quote"],now,m):raise PilotError("Taze alış/satış fiyatı gerekli.")
         if s["pending"]:raise PilotError("Bekleyen istek var.")
         refresh(s,now)
-        if side=="buy" and (s["position"] or blocked(s)):raise PilotError("Pozisyon veya risk sınırı.")
+        if side=="buy" and (halted(db) or s["position"] or blocked(s)):raise PilotError("Pozisyon veya risk sınırı.")
         if side=="sell" and not s["position"]:raise PilotError("Açık pozisyon yok.")
         s["pending"]={"side":side,"requested_at":now.isoformat(),"reason":"manual","expires_at":(now+timedelta(seconds=ORDER_TTL)).isoformat()}
         save(db,s,now,"request",s["pending"])
@@ -127,7 +128,9 @@ def observe(m,input_quote,*,clock=utc):
         s["quote"]=q;refresh(s,now)
         pending=s["pending"];event="observation";detail={}
         if pending:
-            if pending["side"]=="buy" and (now>ts(pending["expires_at"]) or ts(pending["requested_at"]).date()!=now.date()):
+            if pending["side"]=="buy" and halted(db):
+                s["pending"]=None;event="entry_cancelled"
+            elif pending["side"]=="buy" and (now>ts(pending["expires_at"]) or ts(pending["requested_at"]).date()!=now.date()):
                 s["pending"]=None;event="expired"
             elif ts(q["source_at"])>ts(pending["requested_at"]) and (m!="XETRA" or ts(q["fx"]["source_at"])>ts(pending["requested_at"])):
                 s["pending"]=None

@@ -62,3 +62,14 @@ from .pilot_loop import snapshot as pilot_loop_snapshot
 def pilot_loop():
     try:return pilot_loop_snapshot()
     except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Pilot döngüsü okunamadı."},status_code=503)
+
+from .pilot_control import snapshot as pilot_control_snapshot
+from .pilot_outcomes import snapshot as pilot_outcomes_snapshot
+@router.get("/api/pilot/control")
+def pilot_control():
+    try:return pilot_control_snapshot()
+    except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Giriş kontrolü okunamadı."},status_code=503)
+@router.get("/api/pilot/outcomes")
+def pilot_outcomes():
+    try:return pilot_outcomes_snapshot()
+    except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Gölge ölçümler okunamadı."},status_code=503)

@@ -5,6 +5,7 @@ from datetime import datetime,timezone,timedelta
 from decimal import Decimal as D,ROUND_DOWN,InvalidOperation
 from .observed_pilot import tx,path,utc,ts,dec,permitted as common_permission,PilotError
 from .futures import START,FEE,SLIP,LEVERAGE,MMR
+from .pilot_control import halted
 
 VERSION="futures-observed-1"
 FUNDING_PERIOD=8*3600
@@ -93,7 +94,7 @@ def request(side,*,clock=utc):
         refresh(s,now)
         if side=="CLOSE":
             if not s["position"]:raise PilotError("Pozisyon yok.")
-        elif s["position"] or not risk_ok(s) or not entry_gate(q):raise PilotError("Giriş/risk kapısı kapalı.")
+        elif halted(db) or s["position"] or not risk_ok(s) or not entry_gate(q):raise PilotError("Giriş/risk kapısı kapalı.")
         s["pending"]=intent(side,now,"manual");save(db,s,now,"request",s["pending"])
         return {"status":"pending","real_orders":False}
 def settle(s,reason,price,*,liquidated=False):
@@ -126,7 +127,9 @@ def observe(input_quote,*,clock=utc):
             detail=settle(s,"mark_liquidation",D(q["mark"]),liquidated=True);event="model_liquidation"
         refresh(s,now)
         order=s["pending"]
-        if order and order["side"]!="CLOSE" and (now>ts(order["expires_at"]) or ts(order["requested_at"]).date()!=now.date()):
+        if order and order["side"]!="CLOSE" and halted(db):
+            s["pending"]=None;event="entry_cancelled"
+        elif order and order["side"]!="CLOSE" and (now>ts(order["expires_at"]) or ts(order["requested_at"]).date()!=now.date()):
             s["pending"]=None;event="expired"
         elif order and ts(q["source_at"])>ts(order["requested_at"]):
             if order["side"]=="CLOSE":
