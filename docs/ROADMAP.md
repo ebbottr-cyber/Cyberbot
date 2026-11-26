@@ -35,3 +35,6 @@ Varsayılan loopback korunur; isteğe bağlı Tailscale Serve modu, tam HTTPS ho
 
 ## Bütünleşik doğrulama
 Windows/Linux ve Python 3.11/3.12 CI matrisinde panel rotaları, PWA, izole sentetik işlem defteri, salt okunur arşiv, AI/strateji/model deneyleri, deney kalıcılığı ve kapalı ağ sağlayıcıları birlikte sınanır. Fiziksel cihaz, gerçek model ağırlıkları ve lisanslı piyasa verisi doğrulanmış değildir. Eski toplu indirme çalışmasını durdurmak için aynı concurrency grubuna iptal işi eklenmiştir.
+
+## Yerel operasyonlar
+Windows kurulum ve ön planda başlatma betikleri, uygulama sağlık paneli, SQLite çevrimiçi yedek API'si ile yerel tutarlı dosya kopyaları, SHA-256 manifesti ve bütünlük kontrolü. EBBot verisi dahil edilmez. İstek erişim logu kapalı, sunucu logu yerel var/logs. Otomatik zamanlama, geri yükleme ve gerçek PC kurulumu henüz yoktur.

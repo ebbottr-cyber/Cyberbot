@@ -48,3 +48,6 @@ Mobil manifest, Apple Touch ikonu ve ağ bağlantısı olmadığında yalnız uy
 [Windows / Tailscale Serve kurulum talimatları](docs/REMOTE_ACCESS_TR.md). Uzaktan erişim varsayılan kapalı; yalnız yetkili Tailscale kimliği ve tam HTTPS adresi kabul edilir. Gerçek cihaz kurulumu henüz yapılmadı.
 
 Toplu tarihsel fiyat indirme kapatılmıştır; ağ indirme komutları da engellenmiştir. Eski artifact dosyaları kullanım hakkı doğrulanmadan kullanılmamalıdır.
+
+## Windows kolay kurulum ve bakım
+Cyberbot'un ayrı checkout klasöründe PowerShell: ` .\\scripts\\setup-windows.ps1 ` (Python 3.11/3.12 gerekir; bağımlılık kurar ve testleri çalıştırır). Ardından ` .\\scripts\\start-windows.ps1 ` ile yerel panel http://127.0.0.1:8765 . Bu başlatıcı dış sağlayıcıları ve uzaktan erişimi kapalı tutar, EBBot'a dokunmaz. Sunucu logları var/logs dizininde; erişim logu kapalıdır. Sağlık: /health veya `.venv\\Scripts\\python.exe -m tools.ops health`. Yedek: `.venv\\Scripts\\python.exe -m tools.ops backup` (yalnız Cyberbot SQLite dosyaları, var/backups; aynı veri dizininde çalıştırın). Yedekler ayrı zaman damgalı klasörlerde, bütünlük ve SHA-256 manifesti ile saklanır. Otomatik silme veya geri yükleme yapılmaz. Yedekler dosya bazında tutarlıdır, iki DB arasında ortak anlık görüntü garanti edilmez. Gerçek Windows PC kurulumu denenmedi.

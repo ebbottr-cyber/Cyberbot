@@ -83,3 +83,6 @@ app.include_router(models_router)
 
 from .pwa import router as pwa_router
 app.include_router(pwa_router)
+
+from .operations_api import router as operations_router
+app.include_router(operations_router)
