@@ -42,8 +42,9 @@ def snapshot():
             data["status"]="read_only_configured" if os.getenv("CYBERBOT_SOLANA_READ_ENABLED")=="1" else "read_only_disabled"
             blockers.append("Tek mint/havuz manuel gözlem pilotu mevcut; gerçek likidite ve token güvenliği doğrulanmadı.")
         else:
-            data["status"]="observed_pilot_available"
-            blockers.append("Futures yerel gözlem pilotu mevcut; gerçek mark fiyatı, fonlama takvimi ve likidasyon doğrulanmadı.")
+            from .providers.binance_observed import configured
+            data["status"]="public_adapter_configured" if configured() else "public_adapter_disabled"
+            blockers.append("Binance public adaptör kodu mevcut; gerçek bağlantı, fonlama takvimi ve likidasyon doğrulanmadı.")
         blockers.append("Canlı veriyle ileri test doğrulaması yok; Beş piyasanın manuel gözlem pilotları mevcut.")
         markets.append({"market":market,"currency":currency,"initial_capital":str(amount),"database":db,"data":data,"status":"blocked","blockers":blockers,"live_data_verified":False,"paper_execution_verified":False})
     worker=worker_status()

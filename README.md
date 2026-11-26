@@ -123,3 +123,5 @@ Futures gözlem pilotu: `python -m tools.futures_pilot status`, varsayılan kapa
 Gözlem Performansı (/pilot): beş pilotun ayrı para birimlerinde kapanış K/Z, model ücretleri, fonlama ve güncel risk görünümü. Salt okunur; gerçek veri, kârlılık veya yürütme doğrulaması değildir.
 
 Gözlem DB yedek/kurtarma: CYBERBOT_PILOT_BACKUP_RIGHTS_CONFIRMED=1 gerekli. Tek yerel gözlem giriş sözleşmesi: `python -m tools.pilot_ingress --file <quote.json>`; varsayılan kapalı, kaynak izin listesi ve motor doğrulaması. Ağ sağlayıcısı henüz bağlı değil.
+
+Binance USD-M: `python -m tools.binance_observed` tek seferlik public veri probe; `--apply` ayrıca pilot izinleriyle. Varsayılan kapalı, API anahtarı veya gerçek emir yok. docs/ROADMAP.md.
