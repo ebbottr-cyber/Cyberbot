@@ -39,6 +39,14 @@ def main():
                             assert not failed,(path,failed)
                             if path=="/":
                                 expect(page.locator("#marketCards .card")).to_have_count(5)
+                                expect(page.locator("#connectionStatus")).to_have_text("Portföy sunucusu yanıt verdi.")
+                                expect(page.locator("#lastPortfolioRead")).to_contain_text("Fiyat zamanı değildir.")
+                                dock=page.get_by_role("navigation",name="Mobil hızlı erişim")
+                                if size["width"]<=600:
+                                    expect(dock).to_be_visible()
+                                    expect(dock.get_by_role("link",name="Bot gelişimi")).to_have_attribute("href","/development")
+                                    assert dock.evaluate("(el)=>el.getBoundingClientRect().bottom <= innerHeight + 1")
+                                else:expect(dock).to_be_hidden()
                                 page.locator("#chartMarket").select_option("FUTURES")
                                 expect(page.locator("#chartNote")).to_contain_text("USDT")
                             if path=="/models":
@@ -51,8 +59,12 @@ def main():
                             expect(page.locator("#equity")).to_have_text("—")
                             expect(page.locator("#marketCards .card")).to_have_count(0)
                             expect(page.locator("#newsOverviewStatus")).to_contain_text("Bağlantı yok")
+                            expect(page.locator("#connectionStatus")).to_have_text("Bağlantı yok.")
+                            expect(page.locator("#mobileRefresh")).to_be_disabled()
                             context.set_offline(False)
                             expect(page.locator("#marketCards .card")).to_have_count(5,timeout=10000)
+                            expect(page.locator("#connectionStatus")).to_have_text("Portföy sunucusu yanıt verdi.")
+                            expect(page.locator("#mobileRefresh")).to_be_enabled()
                             assert not errors,errors
                         print("PASS",size,len(PAGES),"pages",flush=True)
                         context.close()
