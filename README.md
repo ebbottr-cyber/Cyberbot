@@ -31,3 +31,6 @@ Tüm fiyatlar **sentetik ve USD cinsindendir**; gerçek piyasa performansı değ
 
 ## Trader Merkezi
 `/traders`: açık Solana adresi için son kesinleşmiş işlem imzalarını salt okunur RPC ile gösterir. Ağ erişimi varsayılan kapalıdır. `CYBERBOT_SOLANA_READ_ENABLED=1` gereklidir. İmzalar takas, gerçekleşmiş getiri veya kopyalanabilirlik kanıtı değildir. Manuel gölge araştırması için `CYBERBOT_SHADOW_FILE` yerel JSON dosyası tanımlanabilir. Her satır: wallet,event,signal_at,entry_at,exit_at,entry_price,exit_price,fee_bps,slippage_bps; fiyat ve maliyet alanları ondalık metin, tarihler ISO-8601 zaman dilimli. Dosya yoksa sentetik demo. Otomatik takas sınıflandırması, Jupiter teklifleri, sürekli izleme ve zincirden P&L çıkarma henüz yoktur. ETRE yaklaşımından esinlenildi; GPL kaynak kodu taşınmadı.
+
+## Toplu veri toplama
+[EBBot veri toplama talimatları](docs/DATA_COLLECTION_TR.md). GitHub envanter işi fiyat arşivi yerine aday listesi ve sınırlı Solana gözlemi üretir.
