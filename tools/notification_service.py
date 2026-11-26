@@ -1,5 +1,6 @@
 """Explicit service cycle; no automatic startup or trading integration."""
 from datetime import datetime, timezone
+from contextlib import closing
 from tools.notification_news_sources import poll_source
 from tools.notification_calendar import emit_reminders
 from tools.notification_policy import route
@@ -26,7 +27,11 @@ def run_cycle(store, push_store, queue, *, events=(), sources=(), user_agent=Non
         for notification in store.list(limit=500, unread=True):
             if route(notification, now, push_enabled=True, quiet_start=settings.get("quiet_start", "12:30"), quiet_end=settings.get("quiet_end", "08:00"), muted=settings.get("muted", ())) == "immediate":
                 queue.enqueue(notification["id"], subscriptions)
-        result["delivery"] = queue.drain(push_store, sender, enabled=True)
+        def eligible(nid):
+            with closing(store.connect()) as db:
+                row = db.execute("SELECT * FROM notifications WHERE id=?", (nid,)).fetchone()
+            return row is not None and route(dict(row), datetime.now(timezone.utc), push_enabled=True, quiet_start=settings.get("quiet_start", "12:30"), quiet_end=settings.get("quiet_end", "08:00"), muted=settings.get("muted", ())) == "immediate"
+        result["delivery"] = queue.drain(push_store, sender, enabled=True, eligible=eligible)
     else:
         result["delivery"] = {"status": "disabled"}
     return result
