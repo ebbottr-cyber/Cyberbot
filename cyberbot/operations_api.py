@@ -42,3 +42,11 @@ from .futures_pilot import snapshot as futures_pilot_snapshot
 def futures_pilot():
     try:return futures_pilot_snapshot()
     except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Futures pilotu okunamadı."},status_code=503)
+
+from .pilot_performance import snapshot as pilot_performance_snapshot
+@router.get("/pilot",response_class=HTMLResponse)
+def pilot_panel():return (Path(__file__).parent/"web"/"pilot.html").read_text(encoding="utf-8")
+@router.get("/api/pilot/performance")
+def pilot_performance():
+    try:return pilot_performance_snapshot()
+    except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Pilot performansı okunamadı."},status_code=503)

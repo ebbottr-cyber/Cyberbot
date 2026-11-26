@@ -119,3 +119,5 @@ XETRA SAP.DE gözlem pilotu: EUR hisse fiyatı / USD kasa, ayrı taze EUR/USD al
 Solana Meme gözlem pilotu: `python -m tools.solana_pilot status`, varsayılan kapalı. Tek mint/havuz, operatörün izinli fiyat/derinlik/güvenlik beyanı; gerçek swap veya güvenlik doğrulaması yok. docs/ROADMAP.md.
 
 Futures gözlem pilotu: `python -m tools.futures_pilot status`, varsayılan kapalı. 2x izole model, ayrı mark/bid/ask, beyanlı derinlik, 8 saatlik varsayımsal fonlama ve eksik olay engeli; gerçek borsa takvimi/likidasyon doğrulanmadı.
+
+Gözlem Performansı (/pilot): beş pilotun ayrı para birimlerinde kapanış K/Z, model ücretleri, fonlama ve güncel risk görünümü. Salt okunur; gerçek veri, kârlılık veya yürütme doğrulaması değildir.

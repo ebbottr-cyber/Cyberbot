@@ -3,7 +3,7 @@ import os,sys,time,tempfile,subprocess,socket
 from pathlib import Path
 from urllib.request import urlopen
 from playwright.sync_api import sync_playwright,expect
-PAGES=("/", "/data", "/analysis", "/strategies", "/learning", "/models", "/development", "/futures", "/health", "/knowledge", "/news", "/stress", "/traders")
+PAGES=("/", "/data", "/analysis", "/strategies", "/learning", "/models", "/development", "/futures", "/health", "/knowledge", "/news", "/stress", "/traders", "/pilot")
 def main():
     with tempfile.TemporaryDirectory(prefix="cyberbot-panel-") as tmp:
         root=Path(tmp)
