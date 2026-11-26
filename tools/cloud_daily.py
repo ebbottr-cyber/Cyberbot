@@ -45,24 +45,8 @@ def normalize(raw,start,end):
     return [result[k] for k in sorted(result) if k not in bad]
 
 def yahoo(symbols,start,end):
-    import yfinance as yf
-    import pandas as pd
-    frame=yf.download(" ".join(symbols),start=str(start),end=str(end),auto_adjust=True,group_by="ticker",threads=False,progress=False,timeout=15)
-    output={}
-    for s in symbols:
-        if isinstance(frame.columns,pd.MultiIndex):
-            sub=None
-            for level in range(frame.columns.nlevels):
-                if s in frame.columns.get_level_values(level):
-                    sub=frame.xs(s,axis=1,level=level)
-                    break
-            if sub is None:continue
-        elif len(symbols)==1:sub=frame
-        else:continue
-        columns=["Open","High","Low","Close","Volume"]
-        if not set(columns)<=set(sub.columns):continue
-        output[s]=[(i,*v) for i,v in zip(sub.index,sub[columns].itertuples(index=False,name=None))]
-    return output
+    raise RuntimeError("Toplu fiyat indirme kullanıcı kararıyla kapatıldı.")
+
 
 def collect(path,out,start,end,*,shards=1,index=0,pilot=True,download=None,spacing=2):
     if not start<end<=date.today() or (end-start).days>7300:raise ValueError("Geçersiz tarih aralığı.")
@@ -134,4 +118,5 @@ if __name__=="__main__":
     p.add_argument("--full",action="store_true")
     p.add_argument("--allow-network",action="store_true")
     a=p.parse_args()
+    if a.allow_network:p.error("Toplu fiyat indirme kapalı.")
     collect(a.universe,a.output,date.fromisoformat(a.start),date.fromisoformat(a.end),shards=a.shards,index=a.index,pilot=not a.full,download=yahoo if a.allow_network else None)

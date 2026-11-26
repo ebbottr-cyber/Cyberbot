@@ -32,3 +32,6 @@ Mobil ana panel kullanıcı görselindeki 2 sütunlu dört özet kartı, turkuaz
 
 ## Özel uzaktan erişim
 Varsayılan loopback korunur; isteğe bağlı Tailscale Serve modu, tam HTTPS host/port ve kullanıcı kimliği doğrulaması, salt okunur varsayılan, yazma için açık onay ve Origin kontrolü. Fiziksel PC/iPhone kurulumu henüz yoktur. Funnel ve genel internet erişimi kullanılmaz.
+
+## Bütünleşik doğrulama
+Windows/Linux ve Python 3.11/3.12 CI matrisinde panel rotaları, PWA, izole sentetik işlem defteri, salt okunur arşiv, AI/strateji/model deneyleri, deney kalıcılığı ve kapalı ağ sağlayıcıları birlikte sınanır. Fiziksel cihaz, gerçek model ağırlıkları ve lisanslı piyasa verisi doğrulanmış değildir. Eski toplu indirme çalışmasını durdurmak için aynı concurrency grubuna iptal işi eklenmiştir.

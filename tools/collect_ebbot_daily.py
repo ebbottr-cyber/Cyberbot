@@ -44,6 +44,7 @@ def cached(path,key,start,end):
     except (sqlite3.Error,ValueError,TypeError,AttributeError):return []
 
 def run(args):
+    if args.allow_network:raise ValueError("Toplu fiyat indirme kapalı.")
     start,end=map(date.fromisoformat,(args.start,args.end))
     if not start<end<=date.today():raise ValueError("Geçerli geçmiş tarih aralığı gerekli.")
     output=Path(args.output).resolve()

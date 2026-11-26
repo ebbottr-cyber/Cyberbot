@@ -1,0 +1,16 @@
+name: Stop retired bulk price collection
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/stop-bulk-history.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cyberbot-history
+  cancel-in-progress: true
+jobs:
+  stopped:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Bulk price collection is disabled. No provider requests."

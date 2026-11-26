@@ -1,6 +1,6 @@
 # Cyberbot — Obsidian
 
-Bağımsız Türkçe piyasa araştırması ve yalnızca sanal işlem platformu. EBBot veya Daily Stock Analysis kaynak kodu kullanılmamıştır.
+Bağımsız Türkçe piyasa araştırması ve yalnızca sanal işlem platformu. EBBot'un yalnız veri modülleri ve veri adaptörleri lisans bildirimleri korunarak kullanılmıştır; eski işlem motoru ve paneli taşınmamıştır.
 
 ## Sürüm 0.1
 - FastAPI, SQLite, mobil uyumlu Türkçe web paneli.
@@ -8,7 +8,7 @@ Bağımsız Türkçe piyasa araştırması ve yalnızca sanal işlem platformu. 
 - Uzun pozisyon sanal defteri: ücret, fiyat kayması, işlem riski, pozisyon limiti, günlük kayıp ve düşüş sınırı.
 - Basit hareketli ortalama geçmiş veri deneyi.
 - Gerçek emir, cüzdan imzalama, özel anahtar veya borsa işlem API'si yoktur.
-- Canlı veri, cüzdan analizi, AI ajanları, gelişmiş laboratuvar ve PWA kurulumu henüz hazır değildir.
+- AI araştırma, laboratuvar, öğrenme, model ve PWA modüllerinin ilk sürümleri mevcuttur; gerçek veri/model ve cihaz doğrulaması ayrıca gereklidir.
 
 ## Yerel çalıştırma (Python 3.11/3.12)
 ```sh
@@ -46,3 +46,5 @@ Mobil manifest, Apple Touch ikonu ve ağ bağlantısı olmadığında yalnız uy
 
 ## Özel mobil erişim
 [Windows / Tailscale Serve kurulum talimatları](docs/REMOTE_ACCESS_TR.md). Uzaktan erişim varsayılan kapalı; yalnız yetkili Tailscale kimliği ve tam HTTPS adresi kabul edilir. Gerçek cihaz kurulumu henüz yapılmadı.
+
+Toplu tarihsel fiyat indirme kapatılmıştır; ağ indirme komutları da engellenmiştir. Eski artifact dosyaları kullanım hakkı doğrulanmadan kullanılmamalıdır.
