@@ -19,7 +19,7 @@ class PushQueue:
                 db.execute("INSERT OR IGNORE INTO push_queue(notification_id,endpoint,due) VALUES (?,?,?)",
                            (notification_id, sub["endpoint"], time.time()))
 
-    def drain(self, store, sender, *, enabled=False, limit=20):
+    def drain(self, store, sender, *, enabled=False, limit=20, eligible=None):
         if not enabled:
             return {"status": "disabled"}
         if not 1 <= limit <= 100:
@@ -29,6 +29,8 @@ class PushQueue:
         with closing(sqlite3.connect(self.path)) as db:
             rows = db.execute("SELECT notification_id,endpoint,attempts FROM push_queue WHERE state='pending' AND due<=? ORDER BY due LIMIT ?", (time.time(), limit)).fetchall()
             for nid, endpoint, attempts in rows:
+                if eligible is not None and not eligible(nid):
+                    continue
                 # Atomic lease prevents concurrent workers claiming the same row.
                 with db:
                     claimed = db.execute("UPDATE push_queue SET due=?,attempts=attempts+1 WHERE notification_id=? AND endpoint=? AND state='pending' AND due<=? AND attempts=?", (time.time()+300,nid,endpoint,time.time(),attempts)).rowcount
