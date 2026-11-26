@@ -11,6 +11,8 @@ class PwaTests(unittest.TestCase):
         self.assertEqual(r.status_code,200)
         self.assertIn("application/manifest+json",r.headers["content-type"])
         self.assertEqual(r.json()["display"],"standalone")
+        self.assertTrue(any(i["purpose"]=="maskable" for i in r.json()["icons"]))
+        self.assertEqual(self.client.get("/pwa/icon-180.png").status_code,200)
         for icon in r.json()["icons"]:
             p=self.client.get(icon["src"])
             self.assertEqual(p.content[:8],b"\x89PNG\r\n\x1a\n")
@@ -25,6 +27,10 @@ class PwaTests(unittest.TestCase):
         self.assertNotIn("caches.open",r.text)
         self.assertIn("worker-src 'self'",self.client.get("/").headers["content-security-policy"])
         self.assertIn("manifest.webmanifest",self.client.get("/").text)
+        self.assertIn("pwaInstall",self.client.get("/").text)
+        self.assertIn("updateViaCache",self.client.get("/").text)
+        self.assertIn("url.pathname===\'/api\'",r.text)
+        self.assertIn("application/javascript",r.headers["content-type"])
     def test_remote_still_denied(self):
         with TestClient(app,base_url="http://127.0.0.1",client=("192.0.2.10",12345)) as remote:
             self.assertEqual(remote.get("/").status_code,403)

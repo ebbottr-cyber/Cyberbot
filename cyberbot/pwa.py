@@ -31,7 +31,7 @@ def icon_png(size):
 def manifest():
     return JSONResponse({"id":"/","name":"Cyberbot Obsidian","short_name":"Obsidian","lang":"tr",
         "start_url":"/","scope":"/","display":"standalone","background_color":"#0b1018","theme_color":"#0b1018",
-        "icons":[{"src":f"/pwa/icon-{n}.png","sizes":f"{n}x{n}","type":"image/png","purpose":"any"} for n in (192,512)]},
+        "icons":[{"src":f"/pwa/icon-{n}.png","sizes":f"{n}x{n}","type":"image/png","purpose":"any"} for n in (192,512)]+[{"src":"/pwa/icon-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}]},
         media_type="application/manifest+json")
 
 @router.get("/pwa/icon-{size}.png")

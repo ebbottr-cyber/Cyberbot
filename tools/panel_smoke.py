@@ -56,6 +56,26 @@ def main():
                             assert not errors,errors
                         print("PASS",size,len(PAGES),"pages",flush=True)
                         context.close()
+                    # Exercise the actual service worker, unlike layout-only contexts.
+                    context=browser.new_context(viewport={"width":390,"height":844},service_workers="allow")
+                    page=context.new_page()
+                    page.goto(origin+"/",wait_until="networkidle")
+                    page.wait_for_function("navigator.serviceWorker.controller !== null")
+                    expect(page.locator("#pwaStatus")).not_to_contain_text("hazırlanıyor")
+                    assert page.evaluate("caches.keys().then(keys => keys.length)") == 0
+                    context.set_offline(True)
+                    expect(page.locator("#equity")).to_have_text("—")
+                    expect(page.locator("#pwaStatus")).to_contain_text("Bağlantı yok")
+                    assert page.evaluate("fetch('/api/portfolio/status').then(()=>false,()=>true)")
+                    response=page.goto(origin+"/development")
+                    assert response.status==503
+                    expect(page.locator("h1")).to_have_text("Bağlantı yok")
+                    assert page.evaluate("caches.keys().then(keys => keys.length)") == 0
+                    context.set_offline(False)
+                    page.get_by_role("link",name="Tekrar dene").click()
+                    expect(page.locator("#marketCards .card")).to_have_count(5)
+                    context.close()
+                    print("PASS PWA worker offline isolation and recovery",flush=True)
                     browser.close()
             except BaseException:
                 log.flush();log.seek(0);print(log.read()[-12000:]);raise
