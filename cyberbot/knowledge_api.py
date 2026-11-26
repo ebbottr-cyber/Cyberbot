@@ -81,3 +81,10 @@ from .news_impact import demo as impact_demo,recent as impact_recent
 def impact():
     try:return {"demo":impact_demo(),"records":impact_recent(),"real_orders":False}
     except (OSError,sqlite3.Error,ValueError):raise HTTPException(503,"Olay araştırması okunamadı.") from None
+
+from .news_memory import overview as news_memory
+@router.get("/api/news/memory")
+def memory(market:str="ALL"):
+    try:return news_memory(market)
+    except ValueError as e:raise HTTPException(422,str(e)) from None
+    except (OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):raise HTTPException(503,"Haber performans hafızası okunamadı.") from None

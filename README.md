@@ -101,3 +101,5 @@ Twelve Data exchange_rate, USD/TRY ve USDT/USD (iki ayrı kaynak zaman damgası)
 Haber bilgi ağı `/api/news/graph`: kaynak, piyasa, kategori, strateji hipotezi ve operatör kanıt bağlantısı. Vault Haberler.canvas yalnız kayıt kapsamı özetini taşır; fiyat etkisi doğrulanmaz.
 
 Haber olay penceresi araştırması: 5/15/60/1440 dk, yayın ve ilk kayıt zamanı ayrı; yalnız izinli yerel 1/5 dk kapanış dosyasıyla, eksik pencereler ölçülmez. Sentetik örnek ayrıdır. docs/KNOWLEDGE_NEWS_TR.md.
+
+Haber performans hafızası: görünür, izinli yerel olay ölçümlerinden çakışma/tekrar denetimli betimsel istatistik; 20 olay altı sonuç yok. /news ve /api/news/memory. Tahmin eğitimi veya strateji terfisi değildir.
