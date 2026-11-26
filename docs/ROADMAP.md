@@ -11,3 +11,6 @@ Başka depolara dokunulmaz. Gerçek alım-satım hiçbir aşamada hedef değildi
 
 ## AI analiz merkezi başlangıcı
 TradingAgents yaklaşımından esinlenen bağımsız araştırma rolleri eklendi. İlk sürüm kural tabanlıdır; LLM sağlayıcısı, finansal tablo/haber/makro veri bağlantıları ve gerçek çoklu ajan tartışması henüz yoktur. Sentetik ve yerel tarihsel veri ayrıdır. Toplu fiyat indirme durduruldu; AI hiçbir emir yetkisine sahip değildir.
+
+## Strateji laboratuvarı ilk sürüm
+Vibe-Trading araştırma yaklaşımından esinlenilmiş bağımsız beş strateji karşılaştırması. %70 eğitim bölümü, %30 ileri dönem; pencere yalnız eğitimde seçilir; kapanış sinyali sonraki açılışta uygulanır. Ücret/kayma, azami düşüş, kapanan işlem ve kazanma oranı. Sentetik demo ve yerel arşiv; hiçbir fiyat indirme veya emir yok. Tam walk-forward, Monte Carlo, çoklu varlık portföyü ve otomatik terfi henüz yoktur.
