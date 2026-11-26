@@ -24,7 +24,7 @@ async def local_guard(request:Request, call_next):
     response.headers["Cache-Control"]="no-store"
     response.headers["X-Content-Type-Options"]="nosniff"
     response.headers["X-Frame-Options"]="DENY"
-    response.headers["Content-Security-Policy"]="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; manifest-src 'self'; img-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    response.headers["Content-Security-Policy"]="default-src 'none'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; manifest-src 'self'; img-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
     return response
 
 @app.exception_handler(PaperError)
@@ -98,3 +98,6 @@ app.include_router(futures_router)
 
 from .development_api import router as development_router
 app.include_router(development_router)
+
+from .knowledge_api import router as knowledge_router
+app.include_router(knowledge_router)

@@ -80,3 +80,6 @@ Obsidian salt okunur SQLite araştırma özeti, beş piyasa, sentetik/tarihsel f
 
 ## Kur entegrasyonu
 İzinli ve açıkça etkinleştirilen Twelve Data exchange_rate adaptörü, yalnız USD/TRY ve USDT/USD. Her kaynak zamanı ayrı, 300 saniye yaş sınırı, 240 saniye sorgu aralığı, yerel kalıcı 720 kredi/gün; iki geçerli yanıtla atomik JSON. Ağ başarısızlığında önceki zaman damgası değişmez. API anahtarı ve gösterim hakkı operatöre ait; ücretsiz plan non-display kısıtı nedeniyle izin varsayılmaz. Varsayılan kapalı, hiçbir fiyat arşivi indirme yok. Mock testleri, gerçek sağlayıcı erişimi henüz doğrulanmadı.
+
+## Bilgi ve haber merkezi
+İlk sürüm: bağımsız Vault ZIP, Canvas/Bases, ajan beceri dosyası, ortak panel CSS ve manuel haber/takvim kayıtları. İleri araçlar ve RSS pilotu docs/KNOWLEDGE_NEWS_TR.md içinde; izin doğrulaması olmadan ağ erişimi yok.

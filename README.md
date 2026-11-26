@@ -92,3 +92,6 @@ Futures adaptif gölge araştırması: BTC/ETH için ayrı geçmiş blok kanıt�
 
 ## İsteğe bağlı kur adaptörü
 Twelve Data exchange_rate, USD/TRY ve USDT/USD (iki ayrı kaynak zaman damgası). Varsayılan kapalı; kullanım ve kişisel panel gösterim hakkı doğrulanmadan etkinleştirmeyin. Yerel ortam: CYBERBOT_FX_PROVIDER_ENABLED=1, CYBERBOT_FX_RIGHTS_CONFIRMED=1, CYBERBOT_TWELVEDATA_KEY (gizli; commit etmeyin). Ayrı terminalde `python -m tools.fx --loop`, aynı iki etkinleştirme değişkeniyle paneli başlatın. Varsayılan var/fx-provider.json; mevcut CYBERBOT_FX_FILE önceliklidir. 240 saniye aralık, yerel kalıcı günlük 720 kredi sınırı (diğer uygulamaların tüketimi dahil değildir). Her iki kur geçerliyse atomik yayın; eksik/eski kurda toplam yok. Hafta sonu eski FX saklanmaz gibi gösterilmez. Ücretli abonelik yok, API anahtarı/erişim ve veri gösterim hakları doğrulanmadı. Kaynak: https://twelvedata.com/docs/ai/ai-data-assistant ve https://twelvedata.com/pricing .
+
+## Bilgi ve haber merkezi
+`/knowledge` salt okunur araştırma haritası ve Obsidian uyumlu ZIP dışa aktarımı; `/news` manuel haber ve takvim referansları. Ayrıntılar: [Bilgi ve haber planı](docs/KNOWLEDGE_NEWS_TR.md). Canlı haber akışı ve otomatik haber etkisi ölçümü henüz yok.

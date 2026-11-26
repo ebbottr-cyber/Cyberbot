@@ -11,3 +11,5 @@ EBBot / daily_stock_analysis — MIT, Copyright (c) 2026 ZhuLinsen.
 - `vendor/ebbot/seed.csv`: EBBot başlangıç hisse adayları, blob `1a71811012b86ac9f7637751c5fb17c61cc300fb`.
 
 - `tools/cloud_daily.py`: EBBot Yahoo gruplu veri indirme yaklaşımının bağımsız uyarlaması; `data_provider/yfinance_fetcher.py` kaynak referansı. Eski motorun tamamı veya paneli taşınmadı.
+
+Bilgi merkezi: kepano/kepano-obsidian, obsidianmd/obsidian-skills ve kepano/obsidian-minimal (MIT) tasarım referansları; kod, tema veya vault kopyalanmadı. JSON Canvas 1.0 açık formatı bağımsız üretildi (https://github.com/obsidianmd/jsoncanvas). Dış araçlar yalnız geliştirme planında.
