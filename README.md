@@ -24,3 +24,7 @@ Test: `python -m unittest discover -s tests -v`.
 Veri dosyası: `var/paper.sqlite3` (CYBERBOT_DB ile değiştirilebilir).
 Uygulama yalnız yerel istemciler için tasarlanmıştır. İnternete açmayın; uzaktan erişim için ayrı kimlik doğrulama, TLS ve güvenlik incelemesi gerekir.
 Tüm fiyatlar **sentetik ve USD cinsindendir**; gerçek piyasa performansı değildir.
+
+## EBBot veri bağlantısı (yalnız veri)
+`CYBERBOT_EBBOT_DB` değişkeni, kullanım hakkı olan ve `stock_daily` tablosu içeren mevcut SQLite dosyasının yoluna ayarlanır. Kaynak veritabanı salt okunur açılır, kopyalanmaz veya değiştirilmez. Beş dakikalık arşivin farklı şeması ayrıca doğrulanmalıdır. BIST/NASDAQ/XETRA etiketleri araştırma seçeneğidir; borsa üyeliği ve canlı fiyat doğrulanmaz.
+`CYBERBOT_SOLANA_READ_ENABLED=1` ile isteğe bağlı salt okunur GeckoTerminal/DEX Screener taraması açılabilir. Varsayılan kapalıdır; manuel tarama dışında ağ isteği yoktur. Panel: /data. Gerçek gözlemler sentetik işlem motorundan ayrıdır. Veri hakları operatörce doğrulanmalıdır. Kaynak lisansları THIRD_PARTY_NOTICES.md içindedir.

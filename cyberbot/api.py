@@ -68,3 +68,6 @@ def lab(symbol:str):
     if symbol not in INDEX:
         raise HTTPException(404,"Bilinmeyen sembol.")
     return experiment(symbol)
+
+from .data_api import router as data_router
+app.include_router(data_router)
