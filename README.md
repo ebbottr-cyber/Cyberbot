@@ -75,3 +75,6 @@ Strateji Lab. içindeki adaptif deney, 20 gözlemli bloklar için geçmiş kanı
 
 ## Strateji hafızası
 Adaptif gölge araştırması sonucu, aynı öğrenme SQLite dosyasında ayrı strateji hafızası ve kanıt tablolarına kaydedilir. İki aktif zararlı blok veya %10 üzeri düşüş karantina; üç yeni olumlu aktif blok yeniden izleme. Örtüşen ve eski dönemler yeni kanıt değildir. Sentetik ve tarihsel hafıza ayrıdır. Karantina yalnız araştırma önerilerini filtreler, gerçek ve ana sanal emirleri yönetmez. Eşikler deneysel; canlı ileri test henüz yok.
+
+## Ortak araştırma döngüsü
+Windows araştırma başlatıcısı artık `--full-research` kullanır; CLI: `python -m tools.worker --full-research --loop --interval 900`. Dört sentetik piyasa için 7 araştırma aşaması; açıkça seçilen `--market` ve `--symbol` ile yalnız o yerel arşiv sembolü (240+ gözlem). Aynı tamamlanmış veri/parmak izi tekrar hesaplanmaz. Sonuçlar öğrenme DB'de, özetler Sistem Sağlığı ekranında. Kural tabanlı analiz ve temel tahmin kıyaslaması kullanılır; gerçek LLM/Chronos çalıştırılmaz. Ağ, ana sanal işlem defteri ve EBBot arşivine yazma yok. PC'de henüz başlatılmadı.

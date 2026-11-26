@@ -11,12 +11,13 @@ def main():
     p.add_argument("--market",choices=["BIST","NASDAQ","XETRA"])
     p.add_argument("--symbol")
     p.add_argument("--daily-backup",action="store_true")
+    p.add_argument("--full-research",action="store_true",help="Run all offline research stages; default demo covers four markets.")
     a=p.parse_args()
     if not 900<=a.interval<=86400:p.error("Interval must be 900–86400 seconds.")
     if bool(a.market)!=bool(a.symbol):p.error("Supply market and symbol together.")
     try:
         while True:
-            result=run_cycle(market=a.market,symbol=a.symbol,backup_daily=a.daily_backup)
+            result=run_cycle(market=a.market,symbol=a.symbol,backup_daily=a.daily_backup,full_research=a.full_research)
             print(json.dumps(result,ensure_ascii=True),flush=True)
             if not a.loop:return 0 if result["status"]=="ok" else 1
             time.sleep(a.interval)

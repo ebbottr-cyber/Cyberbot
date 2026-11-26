@@ -33,8 +33,10 @@ def status():
     except (OSError,sqlite3.Error,ValueError,TypeError):
         return {**empty,"status":"unavailable"}
 
-def run_cycle(*,market=None,symbol=None,backup_daily=False):
+def run_cycle(*,market=None,symbol=None,backup_daily=False,full_research=False):
     if bool(market)!=bool(symbol):raise ValueError("Market and symbol must be supplied together.")
+    from .research_pipeline import research_path
+    research_path()
     p=worker_path()
     p.parent.mkdir(parents=True,exist_ok=True)
     with closing(sqlite3.connect(p,timeout=1,isolation_level=None)) as db:
@@ -61,6 +63,20 @@ def run_cycle(*,market=None,symbol=None,backup_daily=False):
                 journal=Journal(sources()["learning"])
                 report["experiment"]="new" if journal.save(result) else "duplicate"
                 report["experiment_id"]=result["id"]
+                if full_research:
+                    from .research_pipeline import run,demo_jobs
+                    report["research_pipeline"]=[]
+                    if market:
+                        jobs=[(market,symbol,data["bars"])]
+                    else:
+                        jobs=demo_jobs()
+                    for mk,sy,rows in jobs:
+                        try:
+                            item=run(rows,mode=report["mode"],market=mk,symbol=sy)
+                        except Exception as e:
+                            item={"market":mk,"symbol":sy,"status":"failed","error_type":type(e).__name__}
+                            report["status"]="degraded"
+                        report["research_pipeline"].append(item)
                 if backup_daily:
                     key=started[:10]
                     prior=db.execute("SELECT value FROM settings WHERE key='backup_day'").fetchone()

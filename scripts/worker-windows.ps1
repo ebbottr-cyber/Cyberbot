@@ -11,6 +11,6 @@ try {
     $env:CYBERBOT_SOLANA_READ_ENABLED = '0'
     $env:CYBERBOT_LOCAL_LLM_ENABLED = '0'
     $env:CYBERBOT_CHRONOS_ENABLED = '0'
-    & $python -m tools.worker --loop --interval 900
+    & $python -m tools.worker --loop --interval 900 --full-research
     if ($LASTEXITCODE -ne 0) { throw 'Research worker exited.' }
 } finally { Pop-Location }
