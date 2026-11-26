@@ -26,3 +26,6 @@ Yerel Ollama için sabit loopback bağlantısı, isteğe bağlı ve varsayılan 
 
 ## PWA ilk sürüm
 Manifest, özgün PNG ikonları, iOS ana ekran bağlantısı, güvenli bağlamda service worker ve bağlantı kesilince yalnız statik uyarı. İşlem verileri, API yanıtları veya istekler çevrimdışı saklanmaz; arka plan senkronizasyonu yok. Loopback erişim sınırı korunur. Fiziksel iPhone testi ve kimlik doğrulamalı HTTPS uzaktan erişim henüz yoktur.
+
+## Obsidian referans tasarımı
+Mobil ana panel kullanıcı görselindeki 2 sütunlu dört özet kartı, turkuaz performans grafiği ve modül kutuları ile yeniden düzenlendi. Grafik yalnız yeni kayıt edilen sanal portföy gözlemlerini gösterir (son 200); 7 günlük geçmiş uydurulmaz. Mevcut veritabanı korunur ve ilk yeni kayıtla başlar. Günlük K/Z UTC gün başlangıcı referanslı, maksimum düşüş yeni kayıtların gözlenen maksimumudur. Masaüstü dört sütun; PWA ve erişim sınırları korunur. Fiziksel cihaz görsel testi yapılmadı.

@@ -33,6 +33,15 @@ class Ledger:
             c.execute("CREATE TABLE IF NOT EXISTS trades (id INTEGER PRIMARY KEY, symbol TEXT NOT NULL, quantity TEXT NOT NULL, entry TEXT NOT NULL, cost TEXT NOT NULL, stop TEXT NOT NULL, target TEXT NOT NULL, opened_tick INTEGER NOT NULL, exit TEXT, pnl TEXT, closed_tick INTEGER, reason TEXT)")
             c.execute("INSERT OR IGNORE INTO state VALUES (1, ?, 0, ?, ?, ?)", (str(START),str(START),day(),str(START)))
 
+            c.execute("CREATE TABLE IF NOT EXISTS equity_history (id INTEGER PRIMARY KEY, at TEXT NOT NULL, tick INTEGER NOT NULL, equity TEXT NOT NULL, drawdown TEXT NOT NULL)")
+            if not c.execute("SELECT 1 FROM equity_history LIMIT 1").fetchone():
+                self._record(c)
+
+    def _record(self,c):
+        s,equity=self._refresh(c)
+        dd=(1-equity/D(s["peak"]))*100
+        c.execute("INSERT INTO equity_history(at,tick,equity,drawdown) VALUES (?,?,?,?)",(datetime.now(timezone.utc).isoformat(),s["tick"],str(equity),str(dd)))
+
     @contextmanager
     def tx(self):
         c = sqlite3.connect(self.path, timeout=10, isolation_level=None)
@@ -85,6 +94,7 @@ class Ledger:
             cost=qty*price*(1+FEE)
             c.execute("INSERT INTO trades(symbol,quantity,entry,cost,stop,target,opened_tick) VALUES(?,?,?,?,?,?,?)",(symbol,str(qty),str(price),str(cost),str(stop),str(price*(1+TARGET)),s["tick"]))
             c.execute("UPDATE state SET cash=? WHERE id=1",(str(D(s["cash"])-cost),))
+            self._record(c)
 
     def _sell(self,c,t,reason):
         s=self._state(c)
@@ -99,7 +109,7 @@ class Ledger:
             if t is None:
                 raise PaperError("Açık işlem bulunamadı.")
             self._sell(c,t,"manuel")
-            self._refresh(c)
+            self._record(c)
 
     def advance(self):
         with self.tx() as c:
@@ -114,11 +124,14 @@ class Ledger:
                     self._sell(c,t,"stop")
                 elif p>=D(t["target"]):
                     self._sell(c,t,"hedef")
-            self._refresh(c)
+            self._record(c)
 
     def snapshot(self):
         with self.tx() as c:
             s,equity=self._refresh(c)
             peak=D(s["peak"])
             trades=[dict(t) for t in c.execute("SELECT * FROM trades ORDER BY id DESC")]
-            return {"mode":"synthetic_paper","real_orders":False,"currency":"USD","cash":str(D(s["cash"]).quantize(D("0.01"))),"equity":str(equity.quantize(D("0.01"))),"pnl":str((equity-START).quantize(D("0.01"))),"drawdown_pct":str(((1-equity/peak)*100).quantize(D("0.01"))),"tick":s["tick"],"open_count":len(self._open(c)),"trades":trades,"markets":[{"market":i.market,"symbol":i.symbol,"price":str(quote(i.symbol,s["tick"]))} for i in INDEX.values()]}
+            points=c.execute("SELECT at,tick,equity,drawdown FROM equity_history ORDER BY id DESC LIMIT 200").fetchall()
+            max_dd=max((D(row[0]) for row in c.execute("SELECT drawdown FROM equity_history")),default=D(0))
+            open_markets=len({INDEX[t["symbol"]].market for t in self._open(c)})
+            return {"daily_pnl":str((equity-D(s["day_equity"])).quantize(D(".01"))),"return_pct":str(((equity/START-1)*100).quantize(D(".01"))),"open_markets":open_markets,"max_recorded_drawdown_pct":str(max_dd.quantize(D(".01"))),"equity_history":[{"at":p["at"],"tick":p["tick"],"equity":str(D(p["equity"]).quantize(D(".01")))} for p in reversed(points)],"history_limit":200,"mode":"synthetic_paper","real_orders":False,"currency":"USD","cash":str(D(s["cash"]).quantize(D("0.01"))),"equity":str(equity.quantize(D("0.01"))),"pnl":str((equity-START).quantize(D("0.01"))),"drawdown_pct":str(((1-equity/peak)*100).quantize(D("0.01"))),"tick":s["tick"],"open_count":len(self._open(c)),"trades":trades,"markets":[{"market":i.market,"symbol":i.symbol,"price":str(quote(i.symbol,s["tick"]))} for i in INDEX.values()]}
