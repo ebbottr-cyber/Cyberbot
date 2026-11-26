@@ -23,3 +23,10 @@ def worker():
 from .readiness import snapshot as readiness_snapshot
 @router.get("/api/readiness")
 def readiness():return readiness_snapshot()
+
+from .observed_pilot import snapshot as observed_snapshot
+import sqlite3
+@router.get("/api/observed-pilot")
+def observed_pilot():
+    try:return observed_snapshot()
+    except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Pilot kayıtları okunamadı."},status_code=503)

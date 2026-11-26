@@ -44,12 +44,12 @@ def snapshot():
         else:
             data["status"]="synthetic_only"
             blockers.append("Gerçek Futures fiyatı, mark fiyatı, fonlama ve likidasyon doğrulaması yok.")
-        blockers.append("Canlı veriyle ayrı sanal yürütme motoru ve ileri test doğrulaması yok.")
+        blockers.append("Canlı veriyle ileri test doğrulaması yok; yalnız BIST/NASDAQ manuel gözlem pilotu mevcut.")
         markets.append({"market":market,"currency":currency,"initial_capital":str(amount),"database":db,"data":data,"status":"blocked","blockers":blockers,"live_data_verified":False,"paper_execution_verified":False})
     worker=worker_status()
     last=worker.get("last_cycle") or {}
     return {"version":VERSION,"as_of":now.isoformat(),"status":"blocked","database_isolation":"checked","markets":markets,
             "fx":{"status":fx["status"],"usdtry_available":fx.get("usdtry") is not None,"usdtusd_available":fx.get("usdtusd") is not None,"provider_verified":False},
             "worker":{"status":worker["status"],"last_finished_at":last.get("finished_at"),"running_verified":False},
-            "blockers":["Sentetik kasalar canlı fiyatla birleştirilmez.","Canlı sanal yürütme henüz uygulanmadı; bu rapor başlatma izni değildir."],
+            "blockers":["Sentetik kasalar canlı fiyatla birleştirilmez.","Yerel gözlem pilotu gerçek canlı yürütme değildir; bu rapor başlatma izni değildir."],
             "live_paper_enabled":False,"real_orders":False,"bulk_price_download_enabled":False,"profitability_verified":False}

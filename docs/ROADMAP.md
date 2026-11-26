@@ -95,3 +95,6 @@ Futures kasa gözlemleri aynı işlem transaction'ında kaydedilir; eski defter 
 
 ## Canlı sanal test hazırlık kapısı
 Salt okunur /api/readiness ve Sistem Sağlığı bölümü: beş kasa dosyası, veri kapsamı, yapılandırma, FX ve worker kaydı; arşiv örnek sorgusu yalnız CYBERBOT_EQUITY_RESEARCH_RIGHTS_CONFIRMED=1 beyanıyla. BIST THYAO.IS, NASDAQ AAPL, XETRA SAP.DE günlük örnekleri tüm evreni temsil etmez. Canlı yürütme motoru henüz olmadığı için sonuç her zaman blocked; gerçek emir ve toplu indirme kapalı. Herhangi bir sağlayıcı veya görev başlatılmaz.
+
+## Bağımsız gözlem pilotu
+BIST THYAO.IS ve NASDAQ AAPL, ayrı SQLite, tek sembol/tek long pozisyon, zaman damgalı bid/ask, kaynak sabitliği, 30 sn tazelik, %2 spread üst sınırı, 60 sn sanal istek süresi, sonraki gözlemde dolum, 1% stop bazlı risk/20% pozisyon, UTC günlük %3 ve zirveden %10 giriş freni. Stop/hedef çıkış isteği sonraki gözlemle dolar; boşluklar ve eksik gözlemler kaybı artırabilir. Seans/açık kaynak operatör beyanıdır; borsa takvimi, likidite ve fiyat doğrulanmadı. CLI varsayılan kapalı, CYBERBOT_OBSERVED_PILOT_ENABLED=1 ve CYBERBOT_OBSERVED_PRICE_RIGHTS_CONFIRMED=1 gerekir. Pilot DB mevcut kasalardan ayrıdır; mevcut backup/recovery kapsamına henüz dahil değil. XETRA/Solana/Futures daha sonra; ağ, otomatik giriş veya gerçek emir yok.

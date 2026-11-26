@@ -111,3 +111,5 @@ Ana Obsidian panelinde haber, ekonomik takvim ve araştırma uyarı özeti; yere
 Futures grafiği: son 200 kayıt, gerçek geçmiş uydurulmaz. Yedek kurtarma: `python -m tools.ops recover --source <yedek-klasörü> --output var/recovery` doğrulanmış yeni kopya üretir; aktif kasalar ve ayarlar değişmez. Worker dahil değildir; otomatik geçiş yok.
 
 Canlı sanal test hazırlığı: `/api/readiness` ve Sistem Sağlığı ekranı beş piyasanın yerel durumunu salt okunur inceler; canlı fiyatla işlem başlatmaz. Mevcut kasalar sentetiktir.
+
+Bağımsız yerel gözlem pilotu: `python -m tools.observed_pilot status`. Varsayılan kapalı. BIST/NASDAQ örnek sembolleri; izinli yerel bid/ask girdileri, sonraki gözlem sanal dolumu. Ayrı DB; otomatik giriş, canlı veri ve gerçek emir yok. Pilot yedeği henüz kapsam dışı.
