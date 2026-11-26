@@ -1,0 +1,69 @@
+name: BIST Xetra Yahoo bounded retry
+on:
+  push:
+    branches: [research/bist-xetra-5m-20261127]
+    paths: ['.github/workflows/bist-xetra-yahoo-retry.yml']
+permissions:
+  contents: read
+concurrency:
+  group: cyberbot-yahoo-retry
+  cancel-in-progress: false
+jobs:
+  pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'yfinance>=0.2.65,<2' 'pandas>=2,<3'
+      - name: Bounded user-approved research retry
+        run: |
+          python - <<'PY'
+          import datetime as dt, json, math, sqlite3, time
+          from pathlib import Path
+          import yfinance as yf
+          from yfinance.exceptions import YFRateLimitError
+          symbols={'THYAO.IS':'BIST','ASELS.IS':'BIST','GARAN.IS':'BIST','SAP.DE':'XETRA','SIE.DE':'XETRA','ALV.DE':'XETRA'}
+          out=Path('retry');out.mkdir()
+          db=sqlite3.connect(out/'pilot.sqlite3')
+          db.execute('CREATE TABLE candles_5m(market TEXT,ticker TEXT,ts_utc TEXT,open REAL,high REAL,low REAL,close REAL,volume REAL,fetched_at_utc TEXT,PRIMARY KEY(market,ticker,ts_utc))')
+          report={'source':'Yahoo Finance via yfinance','interval':'5m','period':'5d','user_retry_approved':True,'provider_rights_independently_verified':False,'research_only':True,'orders':False,'symbols':{},'stopped':False}
+          cutoff=dt.datetime.now(dt.timezone.utc)
+          for ticker,market in symbols.items():
+              try:
+                  frame=yf.Ticker(ticker).history(period='5d',interval='5m',auto_adjust=False,prepost=False,timeout=15,raise_errors=True)
+                  if frame.empty: raise ValueError('Empty response')
+                  if frame.index.tz is None: raise ValueError('Missing timezone')
+                  rows=[]
+                  fetched=dt.datetime.now(dt.timezone.utc).isoformat()
+                  for stamp,r in frame.iterrows():
+                      t=stamp.to_pydatetime().astimezone(dt.timezone.utc)
+                      if t.second or t.microsecond or t.minute%5 or t+dt.timedelta(minutes=5)>cutoff: continue
+                      o,h,l,c,v=(float(r[k]) for k in ('Open','High','Low','Close','Volume'))
+                      if not all(map(math.isfinite,(o,h,l,c,v))) or min(o,h,l,c)<=0 or v<0 or h<max(o,l,c) or l>min(o,h,c): continue
+                      rows.append((market,ticker,t.isoformat(),o,h,l,c,v,fetched))
+                  with db: db.executemany('INSERT INTO candles_5m VALUES (?,?,?,?,?,?,?,?,?)',rows)
+                  report['symbols'][ticker]={'rows':len(rows),'status':'ok' if rows else 'no_valid_rows'}
+              except Exception as exc:
+                  msg=str(exc)
+                  report['symbols'][ticker]={'rows':0,'status':'error','error_type':type(exc).__name__,'error':msg[:500]}
+                  if isinstance(exc,YFRateLimitError) or any(k in msg.lower() for k in ('429','403','401','rate limit','too many requests','unauthorized','forbidden','access denied')):
+                      report['stopped']=True
+                      break
+              time.sleep(3)
+          report['integrity_check']=db.execute('PRAGMA integrity_check').fetchone()[0]
+          report['rows']=db.execute('SELECT count(*) FROM candles_5m').fetchone()[0]
+          db.close()
+          (out/'coverage.json').write_text(json.dumps(report,indent=2))
+          print(json.dumps(report))
+          if report['stopped'] or len(report['symbols'])!=len(symbols) or not all(x['rows'] for x in report['symbols'].values()) or report['integrity_check']!='ok': raise SystemExit('Incomplete pilot; no automatic retry')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bist-xetra-yahoo-retry
+          path: retry/
+          retention-days: 7
+          if-no-files-found: warn
