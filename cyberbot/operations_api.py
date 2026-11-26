@@ -50,3 +50,9 @@ def pilot_panel():return (Path(__file__).parent/"web"/"pilot.html").read_text(en
 def pilot_performance():
     try:return pilot_performance_snapshot()
     except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Pilot performansı okunamadı."},status_code=503)
+
+from .pilot_decisions import snapshot as pilot_decision_snapshot
+@router.get("/api/pilot/decisions")
+def pilot_decisions():
+    try:return pilot_decision_snapshot()
+    except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Gölge kararlar okunamadı."},status_code=503)
