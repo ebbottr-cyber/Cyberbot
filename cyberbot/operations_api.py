@@ -36,3 +36,9 @@ from .solana_pilot import snapshot as solana_pilot_snapshot
 def solana_pilot():
     try:return solana_pilot_snapshot()
     except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Solana pilotu okunamadı."},status_code=503)
+
+from .futures_pilot import snapshot as futures_pilot_snapshot
+@router.get("/api/futures-pilot")
+def futures_pilot():
+    try:return futures_pilot_snapshot()
+    except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Futures pilotu okunamadı."},status_code=503)
