@@ -28,6 +28,8 @@ def vault_zip(mode):
     with zipfile.ZipFile(buf,"w",compression=zipfile.ZIP_DEFLATED) as z:
         z.writestr("Baslangic.md","# Cyberbot Vault\n\nSalt okunur araştırma anlık görüntüsü. SQLite ana kaynaktır.\n\nVeri modu: "+mode+"\n\n"+"\n".join("- [[Piyasalar/"+m["market"]+"]]" for m in d["markets"])+"\n\n![[Arastirmalar.base]]\n")
         z.writestr("Cyberbot.canvas",json.dumps(d["canvas"],ensure_ascii=False,indent=2))
+        from .news_graph import canvas_summary
+        z.writestr("Haberler.canvas",json.dumps(canvas_summary(),ensure_ascii=False,indent=2))
         z.writestr("Arastirmalar.base",'''filters:
   and:
     - 'file.inFolder("Arastirmalar")'

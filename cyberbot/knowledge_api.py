@@ -58,3 +58,20 @@ def analyze_news(market:str="ALL"):
     if market not in ("ALL","BIST","NASDAQ","XETRA","FUTURES","SOLANA","GLOBAL"):raise HTTPException(422,"Geçersiz piyasa.")
     try:return news_analysis(market)
     except (ValueError,OSError,sqlite3.Error):raise HTTPException(503,"Haber analizi okunamadı.") from None
+
+from .news_graph import graph,asset_link
+@router.get("/api/news/graph")
+def news_graph(market:str="ALL"):
+    try:return graph(market)
+    except ValueError as e:raise HTTPException(422,str(e)) from None
+    except (OSError,sqlite3.Error):raise HTTPException(503,"Haber ağı okunamadı.") from None
+class AssetLink(BaseModel):
+    record_key:str=Field(max_length=80)
+    market:str=Field(max_length=16)
+    symbol:str=Field(max_length=44)
+    evidence_url:str=Field(max_length=2048)
+@router.post("/api/news/graph/link")
+def link_asset(body:AssetLink):
+    try:return asset_link(**body.model_dump())
+    except ValueError as e:raise HTTPException(422,str(e)) from None
+    except (OSError,sqlite3.Error):raise HTTPException(503,"Bağlantı kaydedilemedi.") from None
