@@ -106,3 +106,9 @@ def agents_model(record_key:str):
     except AgentError as e:raise HTTPException(422,str(e)) from None
     except (OSError,sqlite3.Error,ValueError,KeyError,TypeError,ArithmeticError):raise HTTPException(503,"Haber modeli kullanılamadı.") from None
     finally:model_lock.release()
+
+from .news_overview import snapshot as news_snapshot
+@router.get("/api/news/overview")
+def overview_news():
+    try:return news_snapshot()
+    except (OSError,sqlite3.Error,ValueError,KeyError,TypeError,ArithmeticError):raise HTTPException(503,"Haber özeti okunamadı.") from None

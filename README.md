@@ -105,3 +105,5 @@ Haber olay penceresi araştırması: 5/15/60/1440 dk, yayın ve ilk kayıt zaman
 Haber performans hafızası: görünür, izinli yerel olay ölçümlerinden çakışma/tekrar denetimli betimsel istatistik; 20 olay altı sonuç yok. /news ve /api/news/memory. Tahmin eğitimi veya strateji terfisi değildir.
 
 AI Haber Analiz Merkezi: 7 kural tabanlı rol ve isteğe bağlı, kısıtlı yerel Ollama kontrol listesi sıralaması. Haber yönü, güvenilirlik olasılığı veya işlem tavsiyesi üretmez. Varsayılan model kapalı.
+
+Ana Obsidian panelinde haber, ekonomik takvim ve araştırma uyarı özeti; yerel API 60 saniyede okunur, gerçek veri akışı başlatılmaz. Bildirimler panel içidir.
