@@ -115,3 +115,5 @@ Canlı sanal test hazırlığı: `/api/readiness` ve Sistem Sağlığı ekranı 
 Bağımsız yerel gözlem pilotu: `python -m tools.observed_pilot status`. Varsayılan kapalı. BIST/NASDAQ örnek sembolleri; izinli yerel bid/ask girdileri, sonraki gözlem sanal dolumu. Ayrı DB; otomatik giriş, canlı veri ve gerçek emir yok. Pilot yedeği henüz kapsam dışı.
 
 XETRA SAP.DE gözlem pilotu: EUR hisse fiyatı / USD kasa, ayrı taze EUR/USD alış-satış girdisi ve açık kur kullanım izni. Yerel dosya; gerçek kur veya borsa bağlantısı yok.
+
+Solana Meme gözlem pilotu: `python -m tools.solana_pilot status`, varsayılan kapalı. Tek mint/havuz, operatörün izinli fiyat/derinlik/güvenlik beyanı; gerçek swap veya güvenlik doğrulaması yok. docs/ROADMAP.md.

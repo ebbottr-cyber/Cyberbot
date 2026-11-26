@@ -30,3 +30,9 @@ import sqlite3
 def observed_pilot():
     try:return observed_snapshot()
     except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Pilot kayıtları okunamadı."},status_code=503)
+
+from .solana_pilot import snapshot as solana_pilot_snapshot
+@router.get("/api/solana-pilot")
+def solana_pilot():
+    try:return solana_pilot_snapshot()
+    except (ValueError,OSError,sqlite3.Error,KeyError,TypeError,ArithmeticError):return JSONResponse({"detail":"Solana pilotu okunamadı."},status_code=503)

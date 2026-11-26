@@ -40,11 +40,11 @@ def snapshot():
             if not rights:blockers.append("Arşiv araştırma kullanım hakkı beyanı yok.")
         elif market=="SOLANA":
             data["status"]="read_only_configured" if os.getenv("CYBERBOT_SOLANA_READ_ENABLED")=="1" else "read_only_disabled"
-            blockers.append("Canlı gözlem ve işlem maliyeti/likidite doğrulaması yok.")
+            blockers.append("Tek mint/havuz manuel gözlem pilotu mevcut; gerçek likidite ve token güvenliği doğrulanmadı.")
         else:
             data["status"]="synthetic_only"
             blockers.append("Gerçek Futures fiyatı, mark fiyatı, fonlama ve likidasyon doğrulaması yok.")
-        blockers.append("Canlı veriyle ileri test doğrulaması yok; BIST/NASDAQ/XETRA manuel gözlem pilotu mevcut.")
+        blockers.append("Canlı veriyle ileri test doğrulaması yok; BIST/NASDAQ/XETRA/Solana manuel gözlem pilotları mevcut.")
         markets.append({"market":market,"currency":currency,"initial_capital":str(amount),"database":db,"data":data,"status":"blocked","blockers":blockers,"live_data_verified":False,"paper_execution_verified":False})
     worker=worker_status()
     last=worker.get("last_cycle") or {}
