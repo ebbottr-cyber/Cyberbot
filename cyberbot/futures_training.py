@@ -147,7 +147,7 @@ def status(sym,*,clock=stocks.utc):
             "minimum_training_rows":batch.MIN_ROWS,"training_export_ready":len(rows)>=batch.MIN_ROWS,
             "feature_provenance_independently_verified":False,"real_orders":False}
 
-def run(sym,cycles,*,clock=stocks.utc,sleep=time.sleep):
+def run(sym,cycles,*,clock=stocks.utc,sleep=time.sleep,after_record=None):
     if not enabled() or type(cycles) is not int or not 1<=cycles<=MAX_CYCLES:
         raise batch.ResearchError("Toplama izni veya döngü sınırı.")
     symbol_check(sym);results=[]
@@ -163,6 +163,11 @@ def run(sym,cycles,*,clock=stocks.utc,sleep=time.sleep):
         except (ValueError,OSError,ArithmeticError,KeyError,TypeError,sqlite3.Error) as e:
             results.append({"status":"missed","type":type(e).__name__})
             # no backfill or immediate retry
+        else:
+            if after_record is not None and results[-1]["status"]=="recorded":
+                try:results[-1]["forward_memory"]=after_record(sym,clock=clock)
+                except (ValueError,OSError,ArithmeticError,KeyError,TypeError,sqlite3.Error) as e:
+                    results[-1]["forward_memory"]={"status":"rejected","type":type(e).__name__}
     return {"version":VERSION,"cycles":cycles,"results":results,"real_orders":False}
 
 def main():

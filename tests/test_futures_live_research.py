@@ -48,6 +48,15 @@ class LiveResearchTests(unittest.TestCase):
         with patch.object(live.training,"run",return_value={"results":[{"status":"recorded"}]}),patch.object(live,"evaluate_session",return_value={"status":"waiting_for_contiguous_data"}) as evaluate:
             self.assertEqual(live.collect_session(SYM,1,clock=lambda:NOW)["status"],"waiting_for_contiguous_data")
             evaluate.assert_called_once()
+    def test_forward_hook_explicit_permission(self):
+        from cyberbot import futures_forward_memory as forward
+        with patch.object(live.training,"run",return_value={"results":[{"status":"recorded"}]}) as run,patch.object(live,"evaluate_session",return_value={"status":"waiting_for_contiguous_data"}):
+            with patch.dict(os.environ,{"CYBERBOT_FUTURES_FORWARD_MEMORY_ENABLED":"0"}):
+                with self.assertRaises(ValueError):live.collect_session(SYM,1,clock=lambda:NOW,include_forward=True)
+                run.assert_not_called()
+            with patch.dict(os.environ,{"CYBERBOT_FUTURES_FORWARD_MEMORY_ENABLED":"1"}):
+                live.collect_session(SYM,1,clock=lambda:NOW,include_forward=True)
+                self.assertIs(run.call_args.kwargs["after_record"],forward.tick)
     def test_paper_probe_separate_explicit_permission(self):
         with patch.object(live.binance,"run",return_value={"applied":True,"real_orders":False,"ingress":{"status":"observation"}}) as observe,patch.object(live.pilot,"snapshot",return_value={}),patch.object(live.pilot,"request",side_effect=AssertionError("new intent")),patch.object(live.risk,"run",side_effect=ValueError("unavailable")):
             d=live.paper_probe(SYM,clock=lambda:NOW,include_risk=True)

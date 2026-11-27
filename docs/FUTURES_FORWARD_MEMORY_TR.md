@@ -12,9 +12,16 @@ python -m cyberbot.futures_forward_memory --symbol BTCUSDT --tick
 python -m cyberbot.futures_forward_memory --symbol BTCUSDT
 ```
 
-Mevcut veri toplama ve iki AI model izni de gereklidir. Tick yalnız bir kez
-çalışır; düzenli çağrı otomatik zamanlayıcı gerektirmez ancak bu sürüm onu
-kurmaz. Yeni gözlemler ayrı collector tarafından kaydedilmelidir. Tick,
+Mevcut veri toplama ve iki AI model izni de gereklidir. Tick tek seferlik
+çağrılabilir veya mevcut collector'a açık izinle bağlanabilir:
+
+```powershell
+.\scripts\futures-windows.ps1 -Mode Collect -Cycles 1440 -ConfirmDataRights -RecordPredictions
+```
+
+İlk 1200 gözlem birikmeden tahmin oluşmaz. Tek oturumda yeni gözlem
+kaydedildikten sonra tick çağrılır. Model hesaplama süreleri dakikayı
+kaçırırsa boşluk doldurulmaz. Otomatik Windows görevi kurulmaz. Tick,
 sonucu gelmiş tahminleri çözer ve zamanı uygunsa yeni tahmin kaydeder.
 Sonuç için altı kesin dakika gözlemi gerekir. Hedefin kaydı beklenir,
 iki dakikalık tolerans sonrasında eksik sonuç kalıcı missing olarak işaretlenir.

@@ -6,7 +6,8 @@ param(
     [ValidateSet('BTCUSDT','ETHUSDT')][string]$Symbol = 'BTCUSDT',
     [ValidateRange(1,1440)][int]$Cycles = 1200,
     [switch]$ConfirmDataRights,
-    [switch]$ConfirmPaperObservation
+    [switch]$ConfirmPaperObservation,
+    [switch]$RecordPredictions
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -113,7 +114,12 @@ try {
     }
     foreach ($flag in $researchFlags) { Set-TemporaryEnv $flag '1' }
     if ($Mode -eq 'Collect') {
-        Invoke-PythonChecked -m cyberbot.futures_live_research --symbol $Symbol --collect-cycles $Cycles
+        $arguments = @('-m','cyberbot.futures_live_research','--symbol',$Symbol,'--collect-cycles',$Cycles)
+        if ($RecordPredictions) {
+            Set-TemporaryEnv 'CYBERBOT_FUTURES_FORWARD_MEMORY_ENABLED' '1'
+            $arguments += '--record-predictions'
+        }
+        Invoke-PythonChecked @arguments
     } elseif ($Mode -eq 'Evaluate') {
         Invoke-PythonChecked -m cyberbot.futures_live_research --symbol $Symbol --evaluate
     }

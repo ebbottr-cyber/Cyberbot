@@ -71,12 +71,17 @@ def evaluate_session(symbol,*,clock=stocks.utc,include_gemini=False):
             "current_memory_exclusions":excluded,"shared_evaluation_data":True,
             "next_candidate_is_order":False}
 
-def collect_session(symbol,cycles,*,clock=stocks.utc,include_gemini=False):
+def collect_session(symbol,cycles,*,clock=stocks.utc,include_gemini=False,include_forward=False):
     if not permitted():raise batch.ResearchError("Canlı araştırma izinleri kapalı.")
     if include_gemini and (os.getenv("CYBERBOT_FUTURES_GEMINI_ENABLED")!="1" or
                           os.getenv("CYBERBOT_GEMINI_METRICS_SHARING_CONFIRMED")!="1"):
         raise batch.ResearchError("Gemini paylaşım izinleri kapalı.")
-    result=training.run(symbol,cycles,clock=clock)
+    kwargs={}
+    if include_forward:
+        from . import futures_forward_memory as forward
+        if not forward.permitted():raise batch.ResearchError("İleri tahmin hafıza izni kapalı.")
+        kwargs["after_record"]=forward.tick
+    result=training.run(symbol,cycles,clock=clock,**kwargs)
     if not any(r.get("status")=="recorded" for r in result["results"]):
         return {**base(symbol),"status":"no_new_observations","collection":result}
     return {**evaluate_session(symbol,clock=clock,include_gemini=include_gemini),"collection":result}
@@ -113,11 +118,13 @@ def main():
     mode.add_argument("--collect-cycles",type=int);mode.add_argument("--evaluate",action="store_true")
     mode.add_argument("--paper-observe",action="store_true");mode.add_argument("--status",action="store_true")
     p.add_argument("--include-gemini",action="store_true");p.add_argument("--include-risk",action="store_true")
+    p.add_argument("--record-predictions",action="store_true")
     a=p.parse_args()
+    if a.record_predictions and a.collect_cycles is None:p.error("İleri tahmin kaydı yalnız toplama ile kullanılabilir.")
     if a.include_risk and not a.paper_observe or a.include_gemini and not (a.evaluate or a.collect_cycles is not None):
         p.error("İsteğe bağlı araştırma modu uyuşmuyor.")
     try:
-        if a.collect_cycles is not None:d=collect_session(a.symbol,a.collect_cycles,include_gemini=a.include_gemini)
+        if a.collect_cycles is not None:d=collect_session(a.symbol,a.collect_cycles,include_gemini=a.include_gemini,include_forward=a.record_predictions)
         elif a.evaluate:d=evaluate_session(a.symbol,include_gemini=a.include_gemini)
         elif a.paper_observe:d=paper_probe(a.symbol,include_risk=a.include_risk)
         else:d=status(a.symbol)
