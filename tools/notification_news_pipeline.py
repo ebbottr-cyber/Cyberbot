@@ -17,7 +17,7 @@ def process_news(news_store, record, *, provider=None, ai_enabled=False, enabled
         raise ValueError("Invalid market")
     key=hashlib.sha256((record["source"].upper()+":"+record["source_id"]).encode()).hexdigest()
     event_key="research:"+key
-    claim=news_store.claim(event_key)
+    claim,owner=news_store.claim(event_key)
     if claim != "claimed":
         return {"status":claim,"event_key":event_key,
                 "ai_status":"skipped_duplicate" if claim=="duplicate" else "skipped_busy",
@@ -31,8 +31,8 @@ def process_news(news_store, record, *, provider=None, ai_enabled=False, enabled
                  "url":record["url"],"published_at":record["published_at"],"market":market,
                  "priority":analysis["priority"],"symbols":analysis["candidate_symbols"],
                  "topics":analysis["topics"],"summary_tr":analysis["summary_tr"] or ""}
-        saved=news_store.save(article)
+        saved=news_store.save(article,owner=owner)
         return {"status":"saved" if saved else "duplicate","event_key":article["event_key"],
                 "ai_status":analysis["ai_status"],"research_only":True,"orders_enabled":False}
     finally:
-        news_store.release(event_key)
+        news_store.release(event_key,owner)
