@@ -4,6 +4,11 @@ on:
     branches: [feature/notification-news-center]
     paths:
       - 'tools/notification_*'
+      - 'cyberbot/api.py'
+      - 'cyberbot/access.py'
+      - 'cyberbot/pwa.py'
+      - 'cyberbot/knowledge_api.py'
+      - 'cyberbot/web/**'
       - 'tests/test_notification_*'
       - '.github/workflows/notification-tests.yml'
   workflow_dispatch:
@@ -23,4 +28,4 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m pip install pytest fastapi httpx tzdata
-      - run: python -m pytest -q tests/test_notification_center.py tests/test_notification_news.py tests/test_notification_news_analysis.py tests/test_notification_calendar.py tests/test_notification_api.py tests/test_notification_policy.py tests/test_notification_preferences.py tests/test_notification_push_queue.py tests/test_notification_bot_events.py tests/test_notification_market_integration.py tests/test_notification_news_sync.py
+      - run: python -m pytest -q tests/test_notification_center.py tests/test_notification_news.py tests/test_notification_news_analysis.py tests/test_notification_calendar.py tests/test_notification_api.py tests/test_notification_policy.py tests/test_notification_preferences.py tests/test_notification_push_queue.py tests/test_notification_bot_events.py tests/test_notification_market_integration.py tests/test_notification_news_sync.py tests/test_notification_pwa_host.py
