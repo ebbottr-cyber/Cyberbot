@@ -80,6 +80,41 @@ def gemini_status(folder):
         return {**base,"status":"DATA_REVIEW_REQUIRED"}
 
 
+def paired_status(folder):
+    path=folder/"paired-ai-review.sqlite3"
+    base={"protocol":"same_targets_frozen_batch_online_replay",
+          "live_prediction_verified":False}
+    if not path.is_file():
+        return {**base,"status":"NOT_AVAILABLE"}
+    try:
+        import math
+        with closing(readonly(path)) as db:
+            row=db.execute("SELECT payload FROM paired_reports ORDER BY created_at DESC,fingerprint DESC LIMIT 1").fetchone()
+        if row is None:
+            return {**base,"status":"NO_REPORT"}
+        p=json.loads(row[0])
+        if (p["version"]!="paired-ai-review-1"
+                or p["comparison_protocol"]!=base["protocol"]
+                or p["evidence_status"]!="EXPLORATORY_UNVERIFIED"
+                or p["live_prediction_verified"] is not False
+                or p["automatic_promotion"] is not False or p["real_orders"] is not False):
+            raise ValueError("invalid paired report")
+        if p["status"]=="INSUFFICIENT_EVIDENCE":
+            return {**base,"status":p["status"]}
+        scores=p["daily_weighted_mae_pct"]
+        if (p["status"]!="RESEARCH_MEASURED"
+                or set(scores)!={"naive","mean","ar1","chronos","lightgbm","river"}
+                or any(type(v) not in (int,float) or not math.isfinite(v) or v<0 for v in scores.values())
+                or type(p["test_samples"]) is not int or p["test_samples"]<20
+                or type(p["train_samples"]) is not int or p["train_samples"]<60):
+            raise ValueError("invalid paired scores")
+        return {**base,"status":"RESEARCH_MEASURED",
+                "observations_scored":p["test_samples"],
+                "daily_weighted_mae_pct":scores}
+    except (OSError,sqlite3.Error,ValueError,KeyError,TypeError,OverflowError):
+        return {**base,"status":"DATA_REVIEW_REQUIRED"}
+
+
 def run(root):
     folder = root/"var/ai"
     return {"version":"ai-status-1","models":{
@@ -87,6 +122,7 @@ def run(root):
         "river":journal_status(folder,"river"),
         "lightgbm":journal_status(folder,"lightgbm"),
         "gemini":gemini_status(folder)},
+        "paired_research":paired_status(folder),
         "shared_ranking_available":False,"automatic_promotion":False,
         "profitability_verified":False,"real_orders":False}
 
