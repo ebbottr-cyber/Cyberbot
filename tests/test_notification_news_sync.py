@@ -60,3 +60,38 @@ class NewsSyncTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             sync_news(self.news, broken, enabled=True)
         self.assertEqual(sync_news(self.news, self.inbox, enabled=True)["published"], 1)
+
+    def test_existing_rss_service_cycle(self):
+        from unittest.mock import patch
+        from tools.notification_service import run_cycle
+        from datetime import datetime, timezone
+        row = dict(source_id="fed", id="rss-1", origin="official_rss",
+                   label=self.record["title"], url=self.record["url"],
+                   event_at=self.record["published_at"], market="NASDAQ")
+        push, queue = Mock(), Mock()
+        with patch.dict("os.environ", {"CYBERBOT_NOTIFICATION_NEWS_BRIDGE":"1"}), \
+             patch("tools.notification_existing_news_bridge.read", return_value={"items":[row]}):
+            def cycle():
+                return run_cycle(self.inbox, push, queue, news_store=self.news,
+                                 enabled=True, now=datetime(2026,11,27,1,tzinfo=timezone.utc))
+            first, second = cycle(), cycle()
+        self.assertEqual(first["existing_news_bridge"]["saved"], 1)
+        self.assertEqual(first["research_news"]["published"], 1)
+        self.assertEqual(second["existing_news_bridge"]["duplicate"], 1)
+        self.assertEqual(second["research_news"]["published"], 0)
+        self.assertEqual(len(self.inbox.list(category="news")), 1)
+        queue.drain.assert_not_called()
+
+    def test_durable_retry(self):
+        from unittest.mock import patch
+        from tools.notification_news_retry import drain_news
+        self.ingest()
+        broken = Mock()
+        broken.publish.side_effect = RuntimeError("temporary")
+        with patch("time.time", return_value=1000000000):
+            self.assertEqual(drain_news(self.news, broken, enabled=True)["retry"], 1)
+            self.assertEqual(drain_news(self.news, self.inbox, enabled=True)["published"], 0)
+        with patch("time.time", return_value=1000003601):
+            self.assertEqual(drain_news(self.news, self.inbox, enabled=True)["published"], 1)
+            self.assertEqual(drain_news(self.news, self.inbox, enabled=True)["published"], 0)
+        self.assertEqual(len(self.inbox.list()), 1)
