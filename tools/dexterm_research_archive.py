@@ -58,7 +58,9 @@ def extract(d):
             obs.append(record("lookup_pending",{"mint":mint},"not_queried"))
         return "bridge",obs
     if source=="dexterm_exact_quantity_exit_quote":
-        raise ValueError("Exact exit validator not integrated in this checkout")
+        from tools.dexterm_exit_validation import validate_report
+        rows=validate_report(d)
+        return "exit_quote",[record("exit_quote",r,"exact_quantity_reported") for r in rows]
     if d.get("research_only") is True and d.get("extensions_verified") is False:
         rows=d.get("observations")
         if not isinstance(rows,list) or len(rows)>3:
