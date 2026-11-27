@@ -99,6 +99,30 @@ def request(client,kind,params,key,*,rpc_url=None):
         code=error.get("code") if isinstance(error,dict) else None
         raise PilotError(stage+": RPC "+str(code if type(code) is int else "unknown")+"; no_retry")
     return raw
+def risk_screen(info,holders,pooldata,ask,bid):
+    """Screen reported observations only; never authorize a pilot quote or fill."""
+    liquidity=sol.number(pooldata["liquidity_usd_reported"])
+    concentration_pct=sol.number(holders["top10_token_account_pct"],high="100")
+    ask=sol.number(ask,low=".000000000001")
+    bid=sol.number(bid,low=".000000000001")
+    # Same-size indicative quotes, not independently verified executable depth.
+    spread=(ask/bid-1)*100
+    loss=(1-bid/ask)*100
+    checks={
+        "reported_liquidity_at_least_100k":liquidity>=D("100000"),
+        "mint_authority_disabled":info["mint_authority_disabled"] is True,
+        "freeze_authority_disabled":info["freeze_authority_disabled"] is True,
+        "top10_token_accounts_at_most_30pct":concentration_pct<=D("30"),
+        "indicative_spread_at_most_2pct":D(0)<=spread<=D("2"),
+    }
+    flags=[name for name,passed in checks.items() if not passed]
+    return {"status":"reported_checks_passed_unverified" if not flags else "reported_risk_detected",
+            "checks":checks,"failed_checks":flags,
+            "indicative_spread_pct":str(spread),
+            "indicative_roundtrip_loss_pct":str(loss),
+            "execution_slippage_verified":False,"wallet_concentration_verified":False,
+            "security_verified":False,"depth_verified":False,
+            "trade_eligible":False,"pilot_applied":False,"real_orders":False}
 def run(*,transport=None,clock=utc):
     if not configured():raise PilotError("Solana veri adaptörü veya kullanım izni/anahtarı eksik.")
     mint,pool=sol.config()
@@ -119,4 +143,4 @@ def run(*,transport=None,clock=utc):
     if not 0<=elapsed<=30:raise PilotError("Tanılama süresi aşıldı.")
     units=D(tokens)/D(10**info["decimals"])
     ask=D(100)/units;bid=(D(received)/D(10**6))/units
-    return {"status":"diagnostic_only","mint":mint,"pool":pool,"retrieved_at":clock().isoformat(),"quote_currency":"USDC","test_input_usdc":"100","quoted_tokens":str(units),"quoted_return_usdc":str(D(received)/D(10**6)),"indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),"roundtrip_indicative_pct":str((D(received)/D(AMOUNT)-1)*100),"pool":pooldata,"mint_checks":{**info,**holders},"quote_source_timestamp_verified":False,"usd_conversion_verified":False,"security_verified":False,"depth_verified":False,"pilot_applied":False,"live_data_verified":False,"real_orders":False,"transport_mocked":transport is not None,"api_key_used":bool(key),"rpc_provider":rpc_name,"blockers":["USDC/USD dönüşümü yok","Kaynak zaman damgası ve eşzamanlılık doğrulanmadı","Token hesabı yoğunlaşması cüzdan yoğunlaşması değildir","Kotasyon dolum ve derinlik garantisi değildir"]}
+    return {"status":"diagnostic_only","mint":mint,"pool":pool,"retrieved_at":clock().isoformat(),"quote_currency":"USDC","test_input_usdc":"100","quoted_tokens":str(units),"quoted_return_usdc":str(D(received)/D(10**6)),"indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),"roundtrip_indicative_pct":str((D(received)/D(AMOUNT)-1)*100),"pool":pooldata,"mint_checks":{**info,**holders},"risk_screen":risk_screen(info,holders,pooldata,ask,bid),"quote_source_timestamp_verified":False,"usd_conversion_verified":False,"security_verified":False,"depth_verified":False,"pilot_applied":False,"live_data_verified":False,"real_orders":False,"transport_mocked":transport is not None,"api_key_used":bool(key),"rpc_provider":rpc_name,"blockers":["USDC/USD dönüşümü yok","Kaynak zaman damgası ve eşzamanlılık doğrulanmadı","Token hesabı yoğunlaşması cüzdan yoğunlaşması değildir","Kotasyon dolum ve derinlik garantisi değildir"]}
