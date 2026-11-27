@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -16,7 +17,7 @@ class IntegrationStatusTests(unittest.TestCase):
     def test_wrong_database_not_modified(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/"wrong.sqlite3"
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 db.execute("CREATE TABLE paper (id INT)")
             before = path.read_bytes()
             self.assertEqual(dexterm_status(path)["status"], "archive_unavailable")
@@ -25,7 +26,7 @@ class IntegrationStatusTests(unittest.TestCase):
     def test_archive_summary_does_not_assert_live_readiness(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/"dexterm.sqlite3"
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 db.execute("PRAGMA application_id="+str(APP_ID))
                 db.execute("PRAGMA user_version=1")
                 db.execute("CREATE TABLE research_reports(digest TEXT PRIMARY KEY, kind TEXT, imported_utc TEXT, payload TEXT)")
