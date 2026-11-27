@@ -28,6 +28,10 @@ def admission(snapshot):
                 or cycle["scope"]!=SCOPE or cycle["training_started"] is not False
                 or cycle["automatic_promotion"] is not False or cycle["real_orders"] is not False):
             raise ValueError("unexpected research state")
+        if cycle["status"]=="DATA_REVIEW_REQUIRED" or snapshot["journal_capacity"]["status"]=="DATA_REVIEW_REQUIRED":
+            return {**base,"status":"DATA_REVIEW_REQUIRED","learning_status":cycle["status"]}
+        if cycle["status"]=="WAIT_STORAGE":
+            return {**base,"status":"WAIT_STORAGE","learning_status":cycle["status"]}
         if cycle["status"] not in READY:
             return {**base,"status":"WAIT_LEARNING_REVIEW","learning_status":cycle["status"]}
         if cycle.get("next_review")!="PAIRED_LIGHTGBM_RIVER_RESEARCH":
