@@ -76,3 +76,20 @@ No trained candidate is loaded into the live engine. Existing daily training
 continues to write research metrics only; candidate training is explicit for now.
 River state is still reconstructed via bounded replay, not an exact persistent
 online checkpoint. Native library round-trip and deployment tests remain pending.
+
+## Observed-minute regime diagnostics
+
+Shadow decisions now include a separate regime_diagnostic field for 21
+validated completed-minute native midpoint observations and the current book.
+The original regime, candidate logic, decision version and risk gates are
+unchanged. Direction and volatility are independent dimensions: a sideways
+instrument can also have high volatility. Provisional log-return thresholds
+are 0.5% cumulative direction and 0.2% per-minute population standard deviation;
+these are not calibrated by market or annualized. Only one instrument is
+classified, never an entire exchange.
+Liquidity is a diagnostic of asserted quote depth and spread. Stocks use
+venue-specific share sizes, Futures USDT depth, Solana USD depth and separate
+pool liquidity. Missing or stale data are unknown, and pool TVL is not depth.
+Thresholds are research-only; neither execution nor data provenance is verified.
+No changes to automatic entry, strategy selection or execution. Regime-specific
+forward outcome scoring and policy calibration remain pending.
