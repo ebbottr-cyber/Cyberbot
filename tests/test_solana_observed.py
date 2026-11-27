@@ -26,6 +26,9 @@ class SolanaObservedTests(unittest.TestCase):
                 self.assertEqual(d["indicative_ask_usdc"],"1")
                 self.assertEqual(d["indicative_bid_usdc"],"0.99")
                 self.assertFalse(d["pilot_applied"]);self.assertFalse(d["security_verified"])
+                self.assertEqual(d["risk_screen"]["status"],"reported_checks_passed_unverified")
+                self.assertFalse(d["risk_screen"]["trade_eligible"])
+                self.assertFalse(d["risk_screen"]["execution_slippage_verified"])
                 self.assertEqual(d["mint_checks"]["top10_token_account_pct"],"10")
                 self.assertFalse(d["mint_checks"]["wallet_concentration_verified"])
                 self.assertEqual(calls,["rpc","rpc","pool","quote","quote"])
@@ -84,3 +87,29 @@ class SolanaObservedTests(unittest.TestCase):
                 with self.assertRaises(PilotError):request(c,"rpc",("getAccountInfo",[]),"fixture")
             with self.assertRaises(PilotError):request(c,"rpc",("getAccountInfo",[]),"fixture",rpc_url="https://example.invalid")
         self.assertEqual(len(seen),2)
+
+    def test_risk_screen_reports_all_failures_without_execution(self):
+        from cyberbot.providers.solana_observed import risk_screen
+        info={"mint_authority_disabled":False,"freeze_authority_disabled":False}
+        holders={"top10_token_account_pct":"31"}
+        pool={"liquidity_usd_reported":"99999"}
+        result=risk_screen(info,holders,pool,"1.03","1")
+        self.assertEqual(result["status"],"reported_risk_detected")
+        self.assertEqual(len(result["failed_checks"]),5)
+        for name in ("trade_eligible","pilot_applied","security_verified","depth_verified",
+                     "real_orders","wallet_concentration_verified","execution_slippage_verified"):
+            self.assertIs(result[name],False)
+
+    def test_risk_screen_boundaries_and_crossed_quotes(self):
+        from cyberbot.providers.solana_observed import risk_screen
+        info={"mint_authority_disabled":True,"freeze_authority_disabled":True}
+        holders={"top10_token_account_pct":"30"}
+        pool={"liquidity_usd_reported":"100000"}
+        good=risk_screen(info,holders,pool,"1.02","1")
+        self.assertEqual(good["failed_checks"],[])
+        self.assertEqual(good["status"],"reported_checks_passed_unverified")
+        self.assertFalse(good["trade_eligible"])
+        crossed=risk_screen(info,holders,pool,"1","1.01")
+        self.assertEqual(crossed["failed_checks"],["indicative_spread_at_most_2pct"])
+        with self.assertRaises(PilotError):risk_screen(info,holders,pool,"1","0")
+        with self.assertRaises(PilotError):risk_screen(info,{"top10_token_account_pct":"NaN"},pool,"1","1")
