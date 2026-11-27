@@ -84,5 +84,51 @@ class ForwardBackupTests(unittest.TestCase):
         self.assertFalse((self.root/"var/ai-recovered").exists())
 
 
+    def test_count_budget_preserves_existing_copy(self):
+        folder=module.backup(self.root)
+        before=module.digest(folder/module.NAME)
+        with patch.object(module,"MAX_BACKUPS",1):
+            with self.assertRaises(module.BackupCapacityDeferred):
+                module.backup(self.root)
+        self.assertEqual(list(folder.parent.iterdir()),[folder])
+        self.assertEqual(module.verify(folder)["sha256"],before)
+
+    def test_byte_budget_preserves_existing_copy(self):
+        folder=module.backup(self.root)
+        before=module.verify(folder)
+        used=sum(p.stat().st_size for p in folder.iterdir())
+        with patch.object(module,"MAX_BACKUP_TOTAL",used+1):
+            with self.assertRaises(module.BackupCapacityDeferred):
+                module.backup(self.root)
+        self.assertEqual(list(folder.parent.iterdir()),[folder])
+        self.assertEqual(module.verify(folder),before)
+
+    def test_identical_snapshot_skipped_and_changed_kept(self):
+        folder=module.backup(self.root)
+        self.assertIsNone(module.backup(self.root,skip_identical=True))
+        self.assertEqual(list(folder.parent.iterdir()),[folder])
+        with closing(sqlite3.connect(self.source)) as db, db:
+            db.execute("UPDATE forecasts SET status='measured',outcome='{}'")
+        next_folder=module.backup(self.root,skip_identical=True)
+        self.assertIsNotNone(next_folder)
+        self.assertNotEqual(module.verify(folder)["sha256"],module.verify(next_folder)["sha256"])
+
+    def test_existing_lock_is_not_removed(self):
+        folder=self.root/"var/ai-backups"
+        lock=folder/".backup-lock"
+        lock.mkdir(parents=True)
+        with self.assertRaises(module.BackupCapacityDeferred):
+            module.backup(self.root)
+        self.assertTrue(lock.is_dir())
+
+    def test_unexpected_partial_requires_review(self):
+        folder=self.root/"var/ai-backups"
+        partial=folder/".partial-test"
+        partial.mkdir(parents=True)
+        with self.assertRaises(ValueError):
+            module.backup(self.root)
+        self.assertEqual(list(folder.iterdir()),[partial])
+
+
 if __name__=="__main__":
     unittest.main()
