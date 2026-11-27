@@ -5,6 +5,7 @@ body{background:#0b1018;color:#e2e8f0;font:15px system-ui;margin:0}main{max-widt
 </style></head><body><main><a href="/">← Ana panel</a><h1>SOLANA ARAŞTIRMA</h1><p>Yalnız kotasyon temelli araştırma. Gerçek emir ve üretim eğitimi kapalı.</p>
 <section><h2 id="state">Rapor bekleniyor</h2><p id="notice"></p><p id="stamp"></p><button id="refresh">Yenile</button></section>
 <section class="grid"><div class="tile"><small>Gözlem</small><strong id="obs">—</strong></div><div class="tile"><small>Eğitim örneği</small><strong id="examples">—</strong></div><div class="tile"><small>Miktar eşleşmesi</small><strong id="match">—</strong></div><div class="tile"><small>Uzlaşma kapsamı</small><strong id="agreement">—</strong></div></section>
+<section><h2>Bilgisayar ve yedekleme</h2><p id="healthState">Sağlık raporu bekleniyor</p><p id="healthTime"></p><div class="grid"><div class="tile"><small>CPU (bilgisayar)</small><strong id="cpu">—</strong></div><div class="tile"><small>Boş RAM</small><strong id="ram">—</strong></div><div class="tile"><small>Boş disk alanı</small><strong id="disk">—</strong></div><div class="tile"><small>Yedek seti</small><strong id="backups">—</strong></div></div><p id="backupStatus"></p><p id="markerStatus"></p><ul id="healthReasons"></ul><p>İşlem ve Windows görev canlılığı bu ekrandan doğrulanmaz. Yedek manifesti tam bütünlük kontrolü değildir.</p></section>
 <section><h2>Model performansı</h2><div class="scroll"><table><thead><tr><th>Model</th><th>Dengeli doğruluk</th><th>Brier</th><th>Yöntem</th></tr></thead><tbody id="models"></tbody></table></div><p id="gemini"></p></section><section><h2>Eğitim engelleri</h2><ul id="blockers"></ul></section></main>
 <script>
 const el=id=>document.getElementById(id),names={constant_training_prior:'Sabit referans',logistic_baseline:'Logistic Regression',lightgbm:'LightGBM',river_logistic:'River'};
@@ -26,5 +27,21 @@ async function refresh(){if(busy)return;busy=true;try{
  put('gemini',d.gemini_status==='manual_packet_ready'?'Gemini: manuel değerlendirme paketi hazır.':'Gemini: rapor bekleniyor.');
  for(const b of d.blockers||[]){const li=document.createElement('li');li.textContent=reasons[b]||b;el('blockers').append(li)}
  }catch(_){clear();put('state','Bağlantı veya rapor hatası');put('notice','Önceki değerler gösterilmiyor.')}finally{busy=false}}
-el('refresh').addEventListener('click',refresh);refresh();setInterval(refresh,30000);
+const healthLabels={preflight_ok:'Kaynak ön kontrolü uygun',preflight_blocked:'Yeni döngü engelli',unavailable:'Sağlık bilgisi yapılandırılmadı',error:'Sağlık kontrolü başarısız'};
+const healthReasons={low_disk_space:'Disk alanı yetersiz',ram_measurement_unavailable:'RAM ölçümü yok',low_available_ram:'Boş RAM yetersiz',operator_review_stop_marker:'Durdurma işareti var',scheduler_lock_present:'Araştırma kilidi var',cpu_measurement_unavailable:'CPU ölçümü yok',high_cpu_sample:'CPU örneklemesi yüksek',publication_stale:'Araştırma raporu eski',last_research_incomplete:'Son araştırma eksik',invalid_publication:'Araştırma raporu geçersiz'};
+const backupLabels={manifest_present:'Son yedek manifesti mevcut',overdue:'Yedekleme gecikmiş',invalid:'Yedek bilgisi geçersiz veya eksik',unavailable:'Yedek bulunamadı'};
+const gib=x=>typeof x==='number'&&Number.isFinite(x)?(x/1073741824).toFixed(2)+' GiB':'—';
+let healthBusy=false;
+function clearHealth(){for(const id of ['cpu','ram','disk','backups','backupStatus','markerStatus','healthTime'])put(id,'—');el('healthReasons').replaceChildren()}
+async function refreshHealth(){if(healthBusy)return;healthBusy=true;const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),10000);try{
+ const r=await fetch('/api/solana/health',{cache:'no-store',signal:controller.signal});if(!r.ok)throw Error('HTTP');
+ const d=await r.json();clearHealth();put('healthState',healthLabels[d.health_state]||'Bilinmeyen sağlık durumu');
+ put('healthTime',d.sampled_utc);put('cpu',pct(d.cpu_sample_pct));put('ram',gib(d.available_ram_bytes));put('disk',gib(d.disk_free_bytes));
+ const b=d.backup||{};put('backups',b.sets==null?'—':b.sets+' / '+b.capacity);
+ put('backupStatus',(backupLabels[b.state]||'Yedek durumu bilinmiyor')+(b.last_created_utc?' • '+b.last_created_utc:''));
+ put('markerStatus',d.stop_marker_present===true?'Operatör incelemesi gerekli.':d.lock_marker_present===true?'Kilit mevcut; süreç canlılığı doğrulanmadı.':d.stop_marker_present===false?'Durdurma/kilit işareti yok.':'İşaret durumu bilinmiyor.');
+ for(const reason of [...(d.blockers||[]),...(d.warnings||[])]){const li=document.createElement('li');li.textContent=healthReasons[reason]||'Bilinmeyen uyarı';el('healthReasons').append(li)}
+ }catch(_){clearHealth();put('healthState','Sağlık bağlantısı başarısız');}finally{clearTimeout(timer);healthBusy=false}}
+function refreshAll(){refresh();refreshHealth()}
+el('refresh').addEventListener('click',refreshAll);refreshAll();setInterval(refreshAll,30000);
 </script></body></html>
