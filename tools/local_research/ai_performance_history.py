@@ -54,12 +54,14 @@ def summarize(rows, *, now=None):
         direction={name:sum((1 if pred[name]>0 else -1 if pred[name]<0 else 0)==
                             (1 if actual>0 else -1 if actual<0 else 0)
                             for _,actual,pred in items)/n*100 for name in MODELS}
+        gain=None if scores["naive"]==0 else (1-scores["chronos"]/scores["naive"])*100
+        if gain is not None and not math.isfinite(gain):
+            gain=None
         result.append({"day_utc":day,"measured_forecasts":n,
                        "mae_pct":scores,"direction_match_pct":direction,
-                       "chronos_relative_mae_gain_pct":None if scores["naive"]==0 else
-                       (1-scores["chronos"]/scores["naive"])*100,
+                       "chronos_relative_mae_gain_pct":gain,
                        "sample_status":"DESCRIPTIVE_ONLY" if n>=MIN_DAILY else "LOW_SAMPLE",
-                       "day_complete":day<now.date().isoformat()})
+                       "utc_day_ended":day<now.date().isoformat()})
     return {"status":"RESEARCH_MEASURED" if result else "INSUFFICIENT_EVIDENCE",
             "days":result,"rejected_records":0}
 
