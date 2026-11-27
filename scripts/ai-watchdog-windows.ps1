@@ -1,5 +1,5 @@
-# Read-only health audit of the five local research tasks. Never starts or enables tasks.
-param([switch]$CheckExitCode)
+# Read-only task audit; optional bounded local health history. Never starts or enables tasks.
+param([switch]$CheckExitCode,[switch]$Persist)
 $ErrorActionPreference = 'Stop'
 $now = Get-Date
 $plans = @(
@@ -56,6 +56,57 @@ $result = [ordered]@{
     automatic_restart=$false
     task_configuration_modified=$false
     real_orders=$false
+}
+if ($Persist) {
+    $root = Split-Path -Parent $PSScriptRoot
+    $var = Get-Item -LiteralPath (Join-Path $root 'var') -ErrorAction Stop
+    if (!$var.PSIsContainer -or ($var.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw 'Unsafe local var directory.'
+    }
+    $folder = Join-Path $var.FullName 'ai-health'
+    if (!(Test-Path -LiteralPath $folder)) {
+        New-Item -ItemType Directory -Path $folder -ErrorAction Stop | Out-Null
+    }
+    $item = Get-Item -LiteralPath $folder
+    if (!$item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw 'Unsafe health directory.'
+    }
+    $disk = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($folder))
+    if ($disk.AvailableFreeSpace -lt 5GB) {
+        Write-Warning 'Health history not written: insufficient disk reserve.'
+    } else {
+        $path = Join-Path $folder 'watchdog-history.json'
+        $mutex = [Threading.Mutex]::new($false, ('Local\CyberbotAIHealth-' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value))
+        $owned = $false
+        $tmp = $null
+        try {
+            try { $owned = $mutex.WaitOne(0) }
+            catch [Threading.AbandonedMutexException] { $owned = $true }
+            if (!$owned) { throw 'Health history writer busy.' }
+            $history = @()
+            if (Test-Path -LiteralPath $path) {
+                $existing = Get-Item -LiteralPath $path
+                if ($existing.PSIsContainer -or ($existing.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $existing.Length -gt 2MB) {
+                    throw 'Unsafe or oversized health history.'
+                }
+                $history = @(Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -ErrorAction Stop)
+            }
+            # Bounded diagnostics only, no market data or raw stderr.
+            $history = @(@($history) + @($result) | Select-Object -Last 288)
+            $json = ConvertTo-Json -InputObject $history -Depth 7 -Compress
+            $tmp = Join-Path $folder ('.watchdog-' + [Guid]::NewGuid().ToString('N') + '.tmp')
+            [IO.File]::WriteAllText($tmp,$json,[Text.UTF8Encoding]::new($false))
+            if (Test-Path -LiteralPath $path) {
+                [IO.File]::Replace($tmp,$path,$null)
+            } else {
+                [IO.File]::Move($tmp,$path)
+            }
+        } finally {
+            if ($null -ne $tmp -and (Test-Path -LiteralPath $tmp)) { Remove-Item -LiteralPath $tmp }
+            if ($owned) { $mutex.ReleaseMutex() }
+            $mutex.Dispose()
+        }
+    }
 }
 $result | ConvertTo-Json -Depth 5
 if ($CheckExitCode) {
