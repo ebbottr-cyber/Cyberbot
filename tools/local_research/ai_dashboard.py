@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 
-from . import ai_status, journal_capacity, ai_performance_history, ai_review_history, ai_model_referee, ai_forecast_quality, ai_regime_review, ai_risk_referee
+from . import ai_status, journal_capacity, ai_performance_history, ai_review_history, ai_model_referee, ai_forecast_quality, ai_regime_review, ai_risk_referee, ai_decision_memory
 
 TASKS = {"Chronos", "RiverLive", "RiverReplay", "LightGBM", "ForwardBackup"}
 TASK_STATES = {"NOT_REGISTERED", "DISABLED", "NOT_RUN", "RUNNING", "EXIT_OK",
@@ -101,6 +101,7 @@ def snapshot(root):
             "real_orders":False,"automatic_promotion":False,
             "cross_source_atomic_snapshot":False}
     result["risk_referee"]=ai_risk_referee.assess(result)
+    result["decision_memory"]=ai_decision_memory.history(root)
     return result
 
 
