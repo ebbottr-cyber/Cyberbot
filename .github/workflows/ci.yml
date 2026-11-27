@@ -28,13 +28,15 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: powershell
         run: |
-          foreach ($file in @('scripts/register-pilot-windows.ps1','scripts/pilot-supervisor-windows.ps1','scripts/prepare-pilot-windows.ps1','scripts/futures-windows.ps1')) {
+          foreach ($file in @('scripts/register-pilot-windows.ps1','scripts/pilot-supervisor-windows.ps1','scripts/prepare-pilot-windows.ps1','scripts/futures-windows.ps1','scripts/central-windows.ps1')) {
             $tokens = $null; $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file).Path,[ref]$tokens,[ref]$errors) | Out-Null
             if ($errors.Count -gt 0) { throw ($errors | Out-String) }
           }
           & .\scripts\register-pilot-windows.ps1
           & .\scripts\futures-windows.ps1
+          $preview = & .\scripts\central-windows.ps1 | ConvertFrom-Json
+          if ($preview.writes -ne $false -or $preview.network -ne $false -or $preview.starts_services -ne $false) { throw 'Central preview must be non-mutating.' }
 
       - name: Windows AI script parse and safe previews
         if: matrix.os == 'windows-latest'
