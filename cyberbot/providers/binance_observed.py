@@ -15,6 +15,7 @@ MARK="/fapi/v1/premiumIndex"
 INFO="/fapi/v1/fundingInfo"
 FUNDING="/fapi/v1/fundingRate"
 OPEN_INTEREST="/fapi/v1/openInterest"
+DEPTH="/fapi/v1/depth"
 MAX_BYTES=262144
 PERIOD_MS=fut.FUNDING_PERIOD*1000
 
@@ -24,7 +25,7 @@ def stamp(ms):
     if type(ms) is not int or not 0<ms<253402300799000:raise PilotError("Sağlayıcı zamanı geçersiz.")
     return datetime.fromtimestamp(ms/1000,timezone.utc)
 def get(client,endpoint,params):
-    if endpoint not in (BOOK,MARK,INFO,FUNDING,OPEN_INTEREST):raise PilotError("İzin verilmeyen API.")
+    if endpoint not in (BOOK,MARK,INFO,FUNDING,OPEN_INTEREST,DEPTH):raise PilotError("İzin verilmeyen API.")
     try:
         with client.stream("GET",HOST+endpoint,params=params) as response:
             response.raise_for_status()
@@ -85,8 +86,63 @@ def market_context(book,mark,oi,sym,now):
             "best_level_qty_imbalance":str((bq-aq)/total) if total else None,
             "settled_funding_verified":False,"full_book_verified":False,
             "directional_signal":None,"pilot_applied":False,"real_orders":False}
-def run(*,apply=False,transport=None,clock=stocks.utc,context_probe=False):
-    if apply and context_probe:raise PilotError("Piyasa bağlamı yalnız salt okunur tanılama modunda.")
+def orderbook_context(raw,book,sym,now):
+    """Bounded REST snapshot; visible resting liquidity is not an execution guarantee."""
+    if not isinstance(raw,dict) or not isinstance(book,dict) or book.get("symbol")!=sym or raw.get("symbol",sym)!=sym:
+        raise PilotError("Emir defteri sembolü geçersiz.")
+    uid=raw.get("lastUpdateId")
+    if type(uid) is not int or uid<=0:raise PilotError("Emir defteri güncelleme kimliği geçersiz.")
+    t,e,bt=(stamp(x) for x in (raw.get("T"),raw.get("E"),book.get("time")))
+    if any(not 0<=(now-x).total_seconds()<=fut.MAX_AGE for x in (t,e,bt)) or e<t or (max(t,e,bt)-min(t,e,bt)).total_seconds()>3:
+        raise PilotError("Emir defteri eski veya eşzamanlı değil.")
+    def levels(name,descending):
+        rows=raw.get(name)
+        if not isinstance(rows,list) or not 1<=len(rows)<=20:raise PilotError("Emir defteri seviye sınırı.")
+        result=[]
+        for row in rows:
+            if not isinstance(row,list) or len(row)!=2 or not all(isinstance(x,str) for x in row):
+                raise PilotError("Emir defteri seviye biçimi.")
+            p=stocks.dec(row[0]);qty=fut.number(row[1],"0.000000000001","1000000000")
+            if result and not (p<result[-1][0] if descending else p>result[-1][0]):
+                raise PilotError("Tekrar veya sırasız emir defteri fiyatı.")
+            result.append((p,qty))
+        return result
+    bids,asks=levels("bids",True),levels("asks",False)
+    bid,bq=bids[0];ask,aq=asks[0]
+    if bid>=ask:raise PilotError("Çapraz veya kilitli emir defteri.")
+    ticker_match=(bid,ask,bq,aq)==(stocks.dec(book.get("bidPrice")),stocks.dec(book.get("askPrice")),
+                                  fut.number(book.get("bidQty"),"0","1000000000"),fut.number(book.get("askQty"),"0","1000000000"))
+    mid=(bid+ask)/2
+    bands=[]
+    for n in (5,10,20):
+        if min(len(bids),len(asks))<n:continue
+        b=sum(p*q for p,q in bids[:n]);a=sum(p*q for p,q in asks[:n])
+        bands.append({"levels_per_side":n,"bid_notional_usdt":str(b),"ask_notional_usdt":str(a),
+                      "notional_imbalance":str((b-a)/(b+a))})
+    def sweep(rows,qty):
+        left=qty;cost=D(0)
+        for p,available in rows:
+            take=min(left,available);cost+=take*p;left-=take
+            if left==0:return cost/qty
+        return None
+    probes=[]
+    for size in (100,500,1000):
+        qty=D(size)/mid
+        buy=sweep(asks,qty);sell=sweep(bids,qty)
+        probes.append({"reference_notional_usdt":size,"base_qty":str(qty),
+                       "buy_vwap":str(buy) if buy is not None else None,
+                       "sell_vwap":str(sell) if sell is not None else None,
+                       "buy_impact_bps":str((buy/ask-1)*10000) if buy is not None else None,
+                       "sell_impact_bps":str((1-sell/bid)*10000) if sell is not None else None})
+    return {"status":"visible_snapshot_only","symbol":sym,"source_at":t.isoformat(),
+            "last_update_id":uid,"requested_levels_per_side":20,
+            "bid_levels":len(bids),"ask_levels":len(asks),"ticker_top_matches":ticker_match,
+            "spread_bps":str((ask-bid)/mid*10000),
+            "depth_bands":bands,"indicative_sweeps":probes,
+            "rpi_included":False,"full_book_verified":False,"execution_verified":False,
+            "directional_signal":None,"pilot_applied":False,"real_orders":False}
+def run(*,apply=False,transport=None,clock=stocks.utc,context_probe=False,depth_probe=False):
+    if apply and (context_probe or depth_probe):raise PilotError("Piyasa bağlamı yalnız salt okunur tanılama modunda.")
     if not configured():raise PilotError("Binance adaptörü veya veri kullanım izni kapalı.")
     if apply and (not fut.enabled() or os.getenv("CYBERBOT_PILOT_INGRESS_ENABLED")!="1" or source_for("FUTURES")!=SOURCE):raise PilotError("Futures pilot/giriş izni veya kaynak ayarı eksik.")
     sym=fut.symbol()
@@ -98,6 +154,7 @@ def run(*,apply=False,transport=None,clock=stocks.utc,context_probe=False):
         book=fetch(BOOK,{"symbol":sym});mark=fetch(MARK,{"symbol":sym})
         q=parse(book,mark,info,sym,clock())
         context=market_context(book,mark,fetch(OPEN_INTEREST,{"symbol":sym}),sym,clock()) if context_probe else None
+        depth=orderbook_context(fetch(DEPTH,{"symbol":sym,"limit":20}),book,sym,clock()) if depth_probe else None
         if old and old["position"]:
             before=stocks.ts(old["quote"]["source_at"]);after=stocks.ts(q["source_at"])
             if after<=before:raise PilotError("Yeni gözlem yok.")
@@ -108,7 +165,7 @@ def run(*,apply=False,transport=None,clock=stocks.utc,context_probe=False):
                 q["funding"]=settled(raw,expected,sym)
         fut.validate(q,clock(),sym)
     envelope={"schema":SCHEMA,"market":"FUTURES","quote":q}
-    result={"status":"quote_validated","symbol":sym,"source":SOURCE,"source_at":q["source_at"],"quote":q,"market_context":context,"applied":False,"live_data_verified":False,"exchange_execution_verified":False,"real_orders":False,"automatic_entry_enabled":False,"bulk_price_download_enabled":False,"transport_mocked":transport is not None}
+    result={"status":"quote_validated","symbol":sym,"source":SOURCE,"source_at":q["source_at"],"quote":q,"market_context":context,"orderbook_context":depth,"applied":False,"live_data_verified":False,"exchange_execution_verified":False,"real_orders":False,"automatic_entry_enabled":False,"bulk_price_download_enabled":False,"transport_mocked":transport is not None}
     if apply:
         result["ingress"]=ingest(envelope,clock=clock);result["applied"]=True
     return result
