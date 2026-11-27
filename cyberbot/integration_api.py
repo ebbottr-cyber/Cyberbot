@@ -108,9 +108,10 @@ def ai_status():
                 status = "DATA_REVIEW_REQUIRED"
             count = row.get("observations_scored")
             result["models"][name] = {"status": status, "observations_scored": count if type(count) is int and count >= 0 else None}
+        result["market_memory"] = memory_summary(data.get("market_memory", {}))
         result["status"] = "research_inventory_available"
     except (OSError, RuntimeError, sqlite3.Error, ValueError, KeyError, TypeError, ArithmeticError, ImportError, AttributeError):
-        result.update(status="unavailable", models={})
+        result.update(status="unavailable", models={}, market_memory=[])
     return result
 
 
@@ -209,3 +210,76 @@ def portfolio_risk_status():
 @router.get("/api/integration/portfolio")
 def portfolio_status():
     return portfolio_risk_status()
+
+MEMORY_STATES = {"NOT_INITIALIZED", "AWAITING_EVIDENCE", "RESEARCH_ONLY", "DATA_REVIEW_REQUIRED"}
+
+
+def memory_summary(memory):
+    rows = []
+    for market in MARKETS:
+        row = memory.get(market, {})
+        state = row.get("status", "NOT_INITIALIZED")
+        scopes = row.get("scopes", [])
+        if state not in MEMORY_STATES or not isinstance(scopes, list) or len(scopes) > 10000:
+            state, scopes = "DATA_REVIEW_REQUIRED", []
+        counts = [s.get("reports") if isinstance(s, dict) else None for s in scopes]
+        if any(type(n) is not int or not 1 <= n <= 10**12 for n in counts) or (state == "RESEARCH_ONLY") != bool(scopes):
+            state, scopes, counts = "DATA_REVIEW_REQUIRED", [], []
+        rows.append({"market": market, "status": state,
+                     "scope_count": len(scopes) if state != "DATA_REVIEW_REQUIRED" else None,
+                     "report_count": sum(counts) if state != "DATA_REVIEW_REQUIRED" else None})
+    return rows
+
+
+DETAIL_STATES = {
+    "windows_health": {"NOT_AVAILABLE", "DATA_REVIEW_REQUIRED", "STALE", "REVIEW_REQUIRED", "NOT_FULLY_RUNNING", "SCHEDULER_OK"},
+    "learning_cycle": {"WAIT_EVIDENCE", "DATA_REVIEW_REQUIRED", "WAIT_STORAGE", "INITIAL_COMPARISON_REVIEW", "WAIT_NEW_DATA", "WAIT_COOLDOWN", "RECOMPARISON_REVIEW"},
+    "orchestrator": {"DATA_REVIEW_REQUIRED", "WAIT_STORAGE", "WAIT_LEARNING_REVIEW", "READY_FOR_PAIRED_RESEARCH"},
+    "risk_referee": {"HUMAN_REVIEW_ONLY", "REVIEW_BLOCKED"},
+    "decision_memory": {"NOT_AVAILABLE", "LIMIT_REACHED", "AVAILABLE", "DATA_REVIEW_REQUIRED"},
+    "error_memory": {"NOT_AVAILABLE", "INSUFFICIENT_EVIDENCE", "RESEARCH_MEASURED", "DATA_REVIEW_REQUIRED"},
+    "model_lifecycle": {"NOT_AVAILABLE", "LIMIT_REACHED", "AVAILABLE", "DATA_REVIEW_REQUIRED"},
+}
+FUTURES_SCOPE = "FUTURES/BTCUSDT/binance-usdm-public"
+
+
+def ai_learning_status():
+    """Manual read-only detailed research summary, without exposing raw records."""
+    base = {"status": "disabled", "scope": FUTURES_SCOPE, "sections": {},
+            "training_started": False, "automatic_promotion": False,
+            "real_orders": False, "paper_readiness_verified": False}
+    if os.getenv("CYBERBOT_AI_PANEL_ENABLED") != "1":
+        return base
+    try:
+        from tools.local_research.ai_dashboard import snapshot
+    except ImportError:
+        return {**base, "status": "not_integrated"}
+    try:
+        data = snapshot(Path(__file__).resolve().parent.parent)
+        if data.get("version") != "ai-dashboard-1" or any(data.get(k) is not False for k in ("paper_readiness_verified", "real_orders", "automatic_promotion")):
+            raise ValueError("Unexpected AI authority")
+        for key in ("learning_cycle", "risk_referee", "error_memory"):
+            if data[key].get("scope") != FUTURES_SCOPE:
+                raise ValueError("Unexpected AI scope")
+        if data["learning_cycle"].get("training_started") is not False or data["orchestrator"].get("training_started") is not False:
+            raise ValueError("Unexpected training state")
+        sections = {}
+        for key, allowed in DETAIL_STATES.items():
+            row = data[key]
+            state = row["status"]
+            if state not in allowed:
+                raise ValueError("Unknown AI state")
+            fields = {"status": state}
+            for name in ("train_samples", "test_samples", "new_retained_blocks", "total_records", "measured_records", "event_count"):
+                value = row.get(name)
+                if type(value) is int and 0 <= value <= 10**12:
+                    fields[name] = value
+            sections[key] = fields
+        return {**base, "status": "research_summary_available", "sections": sections}
+    except (OSError, RuntimeError, sqlite3.Error, ValueError, KeyError, TypeError, ArithmeticError, ImportError, AttributeError):
+        return {**base, "status": "unavailable"}
+
+
+@router.get("/api/integration/ai/learning")
+def learning_status():
+    return ai_learning_status()
