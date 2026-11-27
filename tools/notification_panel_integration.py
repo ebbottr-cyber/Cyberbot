@@ -1,12 +1,13 @@
 """Explicit single-operator host integration; disabled by default."""
 from fastapi import APIRouter, Depends, Request
+from tools.notification_news_api import build_news_router
 from tools.notification_api import build_router
 from tools.notification_preferences_api import build_preferences_router
 from tools.notification_push_api import build_push_router
 from tools.notification_health_api import build_health_router
 
 def mount_notification_panel(app, *, store, preferences, push_store, queue, health_path,
-                             require_user, require_csrf, enabled=False):
+                             require_user, require_csrf, enabled=False, news_store=None):
     if not enabled:
         return False
     if not callable(require_user) or not callable(require_csrf):
@@ -27,6 +28,8 @@ def mount_notification_panel(app, *, store, preferences, push_store, queue, heal
     combined.include_router(build_preferences_router(preferences, require_user, require_csrf))
     combined.include_router(build_push_router(push_store, require_user, require_csrf))
     combined.include_router(build_health_router(health_path, queue, push_store, require_user))
+    if news_store is not None:
+        combined.include_router(build_news_router(news_store, require_user))
     existing = {(r.path,m) for r in app.routes for m in (getattr(r,"methods",None) or ())}
     if any((r.path,m) in existing for r in combined.routes for m in r.methods):
         raise RuntimeError("Notification route collision")
