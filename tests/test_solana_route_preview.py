@@ -38,3 +38,23 @@ class RoutePreviewTests(unittest.TestCase):
         self.assertEqual(d["reported_roundtrip_return_usdc"],"99")
         for flag in ("pilot_applied","real_orders","security_verified","route_integrity_verified","api_key_used","live_data_verified"):
             self.assertFalse(d[flag])
+
+    def test_multihop_arithmetic_matches_observed_shape(self):
+        from tools.solana_route_preview import accounting
+        mid="So11111111111111111111111111111111111111112"
+        def leg(a,b,u,v,bps):
+            return {"input_mint":a,"output_mint":b,"input_raw":str(u),"output_raw":str(v),"bps":bps}
+        legs=[leg(M,USDC,2711611170118,59180900,5926),
+              leg(M,mid,1346978549306,405512258,2944),
+              leg(M,mid,516905519949,155622097,1130),
+              leg(mid,USDC,561134355,40682720,10000)]
+        d=accounting(legs,M,USDC,4575495239373,99763757)
+        self.assertTrue(d["reported_input_and_intermediate_balanced"])
+        self.assertEqual(d["source_bps_sum"],10000)
+        self.assertEqual(d["terminal_gross_minus_reported_raw"],"99863")
+        self.assertFalse(d["terminal_output_exact_match"])
+        self.assertFalse(d["fee_semantics_verified"])
+        legs[-1]["input_raw"]="561134356"
+        self.assertFalse(accounting(legs,M,USDC,4575495239373,99763757)["reported_input_and_intermediate_balanced"])
+        legs.append(leg(mid,M,1,1,1))
+        self.assertFalse(accounting(legs,M,USDC,4575495239373,99763757)["graph_connected_acyclic"])
