@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 
-from . import ai_status, journal_capacity, ai_performance_history, ai_review_history
+from . import ai_status, journal_capacity, ai_performance_history, ai_review_history, ai_model_referee
 
 TASKS = {"Chronos", "RiverLive", "RiverReplay", "LightGBM", "ForwardBackup"}
 TASK_STATES = {"NOT_REGISTERED", "DISABLED", "NOT_RUN", "RUNNING", "EXIT_OK",
@@ -87,12 +87,14 @@ def storage_summary(root):
 def snapshot(root):
     root=Path(root).resolve()
     forward=ai_performance_history.run(root)
+    reviews=ai_review_history.snapshot(root,forward)
     return {"version":"ai-dashboard-1",
             "research":ai_status.run(root),
             "windows_health":windows_health(root),
             "journal_capacity":storage_summary(root),
             "forward_performance_history":forward,
-            "model_review_history":ai_review_history.snapshot(root,forward),
+            "model_review_history":reviews,
+            "model_referee":ai_model_referee.run(root,degradation_status=reviews["chronos_degradation"]["status"]),
             "paper_readiness_verified":False,
             "real_orders":False,"automatic_promotion":False,
             "cross_source_atomic_snapshot":False}
