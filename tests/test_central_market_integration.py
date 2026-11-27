@@ -76,3 +76,18 @@ class IntegrationStatusTests(unittest.TestCase):
             self.assertEqual(ai_status()["status"],"unavailable")
         with patch.dict(sys.modules,{"tools.local_research.ai_status":fake}),patch.dict("os.environ",{"CYBERBOT_AI_PANEL_ENABLED":"0"}):
             self.assertEqual(ai_status()["status"],"disabled")
+
+    def test_notification_health_is_not_delivery_proof(self):
+        import json
+        from cyberbot.integration_api import notification_status
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/"health.json"
+            now=datetime(2026,11,27,10,0,tzinfo=timezone.utc)
+            self.assertEqual(notification_status(path,now=now)["status"],"not_available")
+            path.write_text(json.dumps({"status":"ok","started_at":"2026-11-27T09:58:00+00:00","finished_at":"2026-11-27T09:59:00+00:00","secret":"private"}),encoding="utf-8")
+            state=notification_status(path,now=now)
+            self.assertEqual(state["status"],"ok")
+            self.assertFalse(state["device_delivery_verified"])
+            self.assertNotIn("private",str(state))
+            self.assertEqual(notification_status(path,now=datetime(2026,11,27,11,0,tzinfo=timezone.utc))["status"],"stale")
+            self.assertEqual(notification_status(path,now=datetime(2026,11,27,9,0,tzinfo=timezone.utc))["status"],"unavailable")
