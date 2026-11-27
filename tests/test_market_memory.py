@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 import os
 from pathlib import Path
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -38,7 +39,7 @@ class MarketMemoryTests(unittest.TestCase):
         self.assertEqual(markets["FUTURES"]["status"],"AWAITING_EVIDENCE")
         self.assertTrue(all(s["reports"]==1 for m in MARKETS for s in markets[m]["scopes"]))
         for m in MARKETS:
-            with sqlite3.connect(path_for(self.root,m)) as db:
+            with closing(sqlite3.connect(path_for(self.root,m))) as db, db:
                 self.assertEqual(db.execute("SELECT COUNT(*) FROM reports WHERE market<>?",(m,)).fetchone()[0],0)
 
     def test_rights_gate(self):
