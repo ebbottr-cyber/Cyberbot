@@ -7,7 +7,8 @@ $plans = @(
     @{ Name='Cyberbot-AI-RiverLive'; MaxAge=45; Limit=14 },
     @{ Name='Cyberbot-AI-RiverReplay'; MaxAge=90; Limit=3 },
     @{ Name='Cyberbot-AI-LightGBM'; MaxAge=1500; Limit=30 },
-    @{ Name='Cyberbot-AI-ForwardBackup'; MaxAge=1500; Limit=5 }
+    @{ Name='Cyberbot-AI-ForwardBackup'; MaxAge=1500; Limit=5 },
+    @{ Name='Cyberbot-AI-ResearchReview'; MaxAge=1500; Limit=20; Optional=$true }
 )
 $rows = @()
 foreach ($plan in $plans) {
@@ -47,7 +48,10 @@ foreach ($plan in $plans) {
     }
 }
 $problem = @($rows | Where-Object { $_.status -in @('FAILED','STALE','STALE_DEFERRED','REVIEW_REQUIRED','OVERRUN_REVIEW_REQUIRED','CLOCK_REVIEW_REQUIRED') }).Count
-$waiting = @($rows | Where-Object { $_.status -in @('DEFERRED','NOT_RUN','NOT_REGISTERED','DISABLED') }).Count
+$waiting = @($rows | Where-Object {
+    $_.status -in @('DEFERRED','NOT_RUN','NOT_REGISTERED','DISABLED') -and
+    !($_.name -eq 'Cyberbot-AI-ResearchReview' -and $_.status -in @('NOT_REGISTERED','DISABLED'))
+}).Count
 $resources = $null
 try {
     $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
@@ -63,7 +67,18 @@ try {
         }
     }
 } catch { $resources = $null }
+# Independent CPU sample; a failed query must not erase valid RAM/disk data.
+if ($null -ne $resources) {
+    $resources['cpu_load_pct'] = $null
+    try {
+        $loads = @(Get-CimInstance -ClassName Win32_Processor -ErrorAction Stop | ForEach-Object { $_.LoadPercentage })
+        if ($loads.Count -gt 0 -and @($loads | Where-Object { $null -eq $_ -or $_ -lt 0 -or $_ -gt 100 }).Count -eq 0) {
+            $resources['cpu_load_pct'] = [math]::Round(($loads | Measure-Object -Average).Average,2)
+        }
+    } catch { }
+}
 $result = [ordered]@{
+    version='ai-watchdog-2'
     resources=$resources
     checked_at_utc=$now.ToUniversalTime().ToString('o')
     status=$(if ($problem -gt 0) { 'REVIEW_REQUIRED' } elseif ($waiting -gt 0) { 'NOT_FULLY_RUNNING' } else { 'SCHEDULER_OK' })
