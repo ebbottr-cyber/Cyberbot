@@ -1,0 +1,2 @@
+# Optional Futures research; standard runtime and CI installation unchanged.
+lightgbm>=4.6,<5
