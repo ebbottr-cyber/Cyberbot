@@ -6,11 +6,13 @@ Host resources are sampled, not process-level usage or a readiness guarantee.
 import argparse
 from datetime import datetime, timezone
 import json
+import math
 from pathlib import Path
 
 from . import ai_status, journal_capacity, ai_performance_history, ai_review_history, ai_model_referee, ai_forecast_quality, ai_regime_review, ai_risk_referee, ai_decision_memory, ai_error_memory, ai_learning_cycle, challenger_shadow, ai_model_lifecycle, ai_orchestrator
 
 TASKS = {"Chronos", "RiverLive", "RiverReplay", "LightGBM", "ForwardBackup"}
+OPTIONAL_TASK = "ResearchReview"
 TASK_STATES = {"NOT_REGISTERED", "DISABLED", "NOT_RUN", "RUNNING", "EXIT_OK",
                "FAILED", "DEFERRED", "STALE", "STALE_DEFERRED", "REVIEW_REQUIRED",
                "OVERRUN_REVIEW_REQUIRED", "CLOCK_REVIEW_REQUIRED"}
@@ -30,7 +32,10 @@ def resource_summary(value):
     for kind in ("ram", "disk"):
         if not 0 < value["total_"+kind+"_bytes"] or value["free_"+kind+"_bytes"] > value["total_"+kind+"_bytes"]:
             raise ValueError("inconsistent resource size")
-    return {**{k:value[k] for k in keys}, "scope":"host_sample_not_process_usage"}
+    cpu=value.get("cpu_load_pct")
+    if cpu is not None and (type(cpu) not in (int,float) or not math.isfinite(cpu) or not 0<=cpu<=100):
+        raise ValueError("invalid CPU sample")
+    return {**{k:value[k] for k in keys}, "cpu_load_pct":cpu, "scope":"host_sample_not_process_usage"}
 
 
 def windows_health(root, now=None):
@@ -55,19 +60,32 @@ def windows_health(root, now=None):
         age=(now-stamp).total_seconds()
         if age < -5 or report["status"] not in HEALTH_STATES or report["real_orders"] is not False or report["task_configuration_modified"] is not False:
             raise ValueError("invalid health report")
+        version=report.get("version","ai-watchdog-1")
+        if version not in ("ai-watchdog-1","ai-watchdog-2"):
+            raise ValueError("unknown watchdog version")
+        expected=TASKS|{OPTIONAL_TASK} if version=="ai-watchdog-2" else TASKS
         tasks={}
         for row in report["tasks"]:
             name=row["name"]
             if not name.startswith("Cyberbot-AI-"):
                 raise ValueError("unexpected task")
             key=name.removeprefix("Cyberbot-AI-")
-            if key not in TASKS or key in tasks or row["status"] not in TASK_STATES:
+            if key not in expected or key in tasks or row["status"] not in TASK_STATES:
                 raise ValueError("invalid task state")
             tasks[key]={"name":key,"status":row["status"]}
-        if set(tasks)!=TASKS:
+        if set(tasks)!=expected:
             raise ValueError("incomplete task inventory")
         stale=age>MAX_AGE_SECONDS
-        return {"status":"STALE" if stale else report["status"],
+        effective=report["status"]
+        if version=="ai-watchdog-2":
+            bad={"FAILED","STALE","STALE_DEFERRED","REVIEW_REQUIRED","OVERRUN_REVIEW_REQUIRED","CLOCK_REVIEW_REQUIRED"}
+            waiting={"DEFERRED","NOT_RUN","NOT_REGISTERED","DISABLED"}
+            active=[v["status"] for k,v in tasks.items() if not (k==OPTIONAL_TASK and v["status"] in ("NOT_REGISTERED","DISABLED"))]
+            derived="REVIEW_REQUIRED" if any(v in bad for v in active) else "NOT_FULLY_RUNNING" if any(v in waiting for v in active) else "SCHEDULER_OK"
+            if effective!=derived:
+                raise ValueError("inconsistent task health")
+        return {"status":"STALE" if stale else effective,
+                "watchdog_version":version,"research_review_monitored":version=="ai-watchdog-2" and not stale,
                 "sampled_at_utc":stamp.astimezone(timezone.utc).isoformat(),
                 "age_seconds":max(0,int(age)),
                 "tasks":[tasks[k] for k in sorted(tasks)],
