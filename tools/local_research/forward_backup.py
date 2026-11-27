@@ -111,13 +111,61 @@ def backup(root):
         raise
 
 
+def recover(root, folder):
+    """Verify and copy a trusted local backup into an inactive staging area."""
+    if os.getenv("CYBERBOT_LOCAL_RESEARCH_RIGHTS_CONFIRMED")!="1":
+        raise RuntimeError("local research rights confirmation required")
+    root=Path(root).resolve(strict=True)
+    var=root/"var"
+    backups=var/"ai-backups"
+    destination=var/"ai-recovered"
+    folder=Path(folder).expanduser()
+    if any(p.is_symlink() for p in (var,backups,destination,folder)):
+        raise ValueError("unsafe recovery path")
+    folder=folder.resolve(strict=True)
+    if folder.parent!=backups.resolve(strict=True) or not folder.name.startswith("forward-"):
+        raise ValueError("expected finalized local backup")
+    data=verify(folder)
+    source=folder/NAME
+    if any(same(source,p) for p in (*checked().values(),pilot_path(),var/"ai"/NAME)):
+        raise ValueError("active database collision")
+    destination.mkdir(mode=0o700,exist_ok=True)
+    if shutil.disk_usage(destination).free<MIN_FREE_DISK_MIB*MIB+data["bytes"]:
+        raise RuntimeError("insufficient recovery capacity")
+    stage=Path(tempfile.mkdtemp(prefix=".partial-",dir=destination))
+    try:
+        for name in (NAME,"manifest.json"):
+            shutil.copyfile(folder/name,stage/name)
+        copied=verify(stage)
+        if copied!=data or verify(folder)!=data:
+            raise ValueError("backup changed during recovery")
+        (stage/"recovery.json").write_text(json.dumps({
+            "status":"verified_inactive_copy","sha256":data["sha256"],
+            "rows":data["rows"],"activated":False,"real_orders":False,
+            "active_database_modified":False,
+            "created_at":datetime.now(timezone.utc).isoformat()
+        },indent=2),encoding="utf-8")
+        final=destination/("recovered-"+datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ"))
+        if final.exists():
+            raise ValueError("recovery target already exists")
+        stage.rename(final)
+        return final
+    except BaseException:
+        shutil.rmtree(stage,ignore_errors=True)
+        raise
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--root",type=Path,default=Path.cwd())
-    p.add_argument("--verify",type=Path)
+    action=p.add_mutually_exclusive_group()
+    action.add_argument("--verify",type=Path)
+    action.add_argument("--recover",type=Path)
     args=p.parse_args()
     if args.verify:
         print(json.dumps(verify(args.verify),indent=2))
+    elif args.recover:
+        print(str(recover(args.root,args.recover)))
     else:
         print(str(backup(args.root)))
 
