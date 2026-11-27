@@ -92,6 +92,8 @@ def evaluate(rows, fit_predict=None):
 def run(root):
     if os.environ.get("CYBERBOT_LOCAL_RESEARCH_RIGHTS_CONFIRMED") != "1":
         raise RuntimeError("research data rights confirmation required")
+    from .journal_capacity import require_capacity
+    require_capacity(root, 'LightGBM')
     import lightgbm as lgb
     folder = root/"var/ai"
     output = folder/"lightgbm-review-journal.sqlite3"
@@ -122,6 +124,7 @@ def run(root):
                       interval="1m",lightgbm_version=lgb.__version__,
                       created_at=datetime.now(timezone.utc).isoformat(),cached=False)
         if rows:
+            require_capacity(root, 'LightGBM')
             db.execute("INSERT INTO training_reports VALUES (?,?,?)",
                        (key,result["created_at"],json.dumps(result,allow_nan=False)))
         if db.execute("PRAGMA quick_check").fetchone()[0] != "ok":
