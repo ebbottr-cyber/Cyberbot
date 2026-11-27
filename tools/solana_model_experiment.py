@@ -8,6 +8,7 @@ from tools.solana_paper_replay import FALSE_FLAGS
 from tools.solana_lightgbm_experiment import fit_lightgbm,OptionalModelUnavailable,PARAMS,ROUNDS
 
 from tools.solana_river_experiment import fit_river
+from tools.solana_model_consensus import analyze
 
 MIN_EARLIER=100
 MIN_LATER=50
@@ -82,12 +83,14 @@ def evaluate(report,*,allow_experiment=False,include_lightgbm=False,include_rive
          "experimental_fit_performed":False,"training_allowed":False,"production_training_performed":False,
          "weights_updated":False,"model_saved":False,"model_promoted":False,
          "independent_holdout_verified":False,"winner":None,"results":[],
+         "consensus":{"status":"blocked_by_experiment_gate","trade_eligible":False},
          "lightgbm_status":"blocked_by_experiment_gate" if include_lightgbm else "not_requested",
          "river_status":"blocked_by_experiment_gate" if include_river else "not_requested",**FALSE_FLAGS}
     if blockers:return out
     train=prepare(groups["earlier"]);test=prepare(groups["later"])
     prior=sum(y for x,y in train)/len(train)
     predictor=fit(train)
+    static_predictions={"logistic_baseline":[predictor(x) for x,y in test]}
     out.update(status="experiment_complete",experimental_fit_performed=True,
                results=[{"model":name,"later_window":metrics(test,p)}
                         for name,p in (("constant_training_prior",lambda x:prior),
@@ -100,11 +103,13 @@ def evaluate(report,*,allow_experiment=False,include_lightgbm=False,include_rive
             score=metrics(test,lambda x:next(values))
             out["results"].append({"model":"lightgbm","version":version,"parameters":dict(PARAMS),
                                    "boost_rounds":ROUNDS,"later_window":score})
+            static_predictions["lightgbm"]=list(predictions)
             out["lightgbm_status"]="experiment_complete"
         except (OptionalModelUnavailable,ValueError) as e:
             out["lightgbm_status"]="unavailable_or_failed"
             out["lightgbm_reason"]=str(e) if isinstance(e,OptionalModelUnavailable) else "invalid_predictions"
             out["status"]="experiment_partial"
+    out["consensus"]=analyze([y for x,y in test],static_predictions)
     if include_river:
         try:
             predictions,version,details=fit_river(groups["earlier"],groups["later"],split_timestamp=report["split_timestamp"])
