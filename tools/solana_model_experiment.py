@@ -7,6 +7,8 @@ from tools.solana_learning_dataset import run as dataset,FEATURE_NAMES
 from tools.solana_paper_replay import FALSE_FLAGS
 from tools.solana_lightgbm_experiment import fit_lightgbm,OptionalModelUnavailable,PARAMS,ROUNDS
 
+from tools.solana_river_experiment import fit_river
+
 MIN_EARLIER=100
 MIN_LATER=50
 MIN_CLASS=15
@@ -52,8 +54,8 @@ def metrics(data,predict):
             "accuracy":(tp+tn)/n,"balanced_accuracy":((tp/(tp+fn))+(tn/(tn+fp)))/2,
             "brier_score":brier/n,"log_loss":loss/n}
 
-def evaluate(report,*,allow_experiment=False,include_lightgbm=False):
-    if type(allow_experiment) is not bool or type(include_lightgbm) is not bool:raise ValueError("Explicit experiment flag required")
+def evaluate(report,*,allow_experiment=False,include_lightgbm=False,include_river=False):
+    if type(allow_experiment) is not bool or type(include_lightgbm) is not bool or type(include_river) is not bool:raise ValueError("Explicit experiment flag required")
     if report.get("source_scope")!="dexterm_bridge_only" or report.get("research_only") is not True:
         raise ValueError("Unexpected dataset scope")
     if any(report.get(k) is not False for k in ("training_allowed","training_performed","model_promoted","real_orders","labels_are_real_fills")):
@@ -80,7 +82,8 @@ def evaluate(report,*,allow_experiment=False,include_lightgbm=False):
          "experimental_fit_performed":False,"training_allowed":False,"production_training_performed":False,
          "weights_updated":False,"model_saved":False,"model_promoted":False,
          "independent_holdout_verified":False,"winner":None,"results":[],
-         "lightgbm_status":"blocked_by_experiment_gate" if include_lightgbm else "not_requested",**FALSE_FLAGS}
+         "lightgbm_status":"blocked_by_experiment_gate" if include_lightgbm else "not_requested",
+         "river_status":"blocked_by_experiment_gate" if include_river else "not_requested",**FALSE_FLAGS}
     if blockers:return out
     train=prepare(groups["earlier"]);test=prepare(groups["later"])
     prior=sum(y for x,y in train)/len(train)
@@ -102,10 +105,23 @@ def evaluate(report,*,allow_experiment=False,include_lightgbm=False):
             out["lightgbm_status"]="unavailable_or_failed"
             out["lightgbm_reason"]=str(e) if isinstance(e,OptionalModelUnavailable) else "invalid_predictions"
             out["status"]="experiment_partial"
+    if include_river:
+        try:
+            predictions,version,details=fit_river(groups["earlier"],groups["later"],split_timestamp=report["split_timestamp"])
+            if len(predictions)!=len(test):raise ValueError("Prediction length mismatch")
+            values=iter(predictions)
+            score=metrics(test,lambda x:next(values))
+            out["results"].append({"model":"river_logistic","version":version,"later_window":score,
+                                   "evaluation_details":details,"direct_static_comparison":False})
+            out["river_status"]="experiment_complete"
+        except (OptionalModelUnavailable,ValueError,KeyError,TypeError) as e:
+            out["river_status"]="unavailable_or_failed"
+            out["river_reason"]=str(e) if isinstance(e,OptionalModelUnavailable) else "invalid_replay_inputs_or_predictions"
+            out["status"]="experiment_partial"
     return out
 
-def run(database,*,limit=500,allow_experiment=False,include_lightgbm=False):
-    return evaluate(dataset(database,limit=limit),allow_experiment=allow_experiment,include_lightgbm=include_lightgbm)
+def run(database,*,limit=500,allow_experiment=False,include_lightgbm=False,include_river=False):
+    return evaluate(dataset(database,limit=limit),allow_experiment=allow_experiment,include_lightgbm=include_lightgbm,include_river=include_river)
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
@@ -113,9 +129,10 @@ def main():
     p.add_argument("--limit",type=int,default=500)
     p.add_argument("--allow-experiment",action="store_true")
     p.add_argument("--include-lightgbm",action="store_true")
+    p.add_argument("--include-river",action="store_true")
     a=p.parse_args()
     try:
-        print(json.dumps(run(a.database,limit=a.limit,allow_experiment=a.allow_experiment,include_lightgbm=a.include_lightgbm),indent=2,allow_nan=False))
+        print(json.dumps(run(a.database,limit=a.limit,allow_experiment=a.allow_experiment,include_lightgbm=a.include_lightgbm,include_river=a.include_river),indent=2,allow_nan=False))
         return 0
     except (ValueError,TypeError,KeyError,ArithmeticError,AttributeError,OSError,sqlite3.Error) as e:
         print(json.dumps({"status":"rejected","error_type":type(e).__name__,"training_allowed":False,**FALSE_FLAGS}))
