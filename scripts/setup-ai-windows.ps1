@@ -1,6 +1,6 @@
 # Preview by default. Installs only new isolated LightGBM/River environments.
 # Existing runtimes, model weights, databases, tasks and main venv are not modified.
-param([switch]$Install)
+param([switch]$Install,[switch]$IncludeReviewRuntime)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $base = Join-Path $env:LOCALAPPDATA 'Cyberbot'
@@ -8,11 +8,14 @@ $plans = @(
     @{ Name='LightGBMRuntime'; Package='lightgbm==4.6.0'; Module='lightgbm'; Version='4.6.0' },
     @{ Name='RiverRuntime'; Package='river==0.23.0'; Module='river'; Version='0.23.0' }
 )
+if ($IncludeReviewRuntime) {
+    $plans += @{ Name='ReviewRuntime'; Package=@('lightgbm==4.6.0','river==0.23.0'); Module=@('lightgbm','river'); Version=@('4.6.0','0.23.0') }
+}
 if (!$Install) {
     Write-Host 'PREVIEW ONLY. Existing Chronos CPU runtime is preserved.'
     foreach ($plan in $plans) {
         $target = Join-Path $base $plan.Name
-        Write-Host ($plan.Package + ' -> ' + $target + ' ; exists=' + (Test-Path -LiteralPath $target))
+        Write-Host (($plan.Package -join ', ') + ' -> ' + $target + ' ; exists=' + (Test-Path -LiteralPath $target))
     }
     Write-Host 'Use -Install only after reviewing package sources. No tasks registered or enabled.'
     return
@@ -48,13 +51,18 @@ try {
         & $python -m venv $target
         if ($LASTEXITCODE -ne 0) { throw ('venv creation failed: ' + $plan.Name) }
         $runtime = Join-Path $target 'Scripts\python.exe'
-        & $runtime -m pip --isolated install --index-url https://pypi.org/simple --only-binary=:all: --no-input --disable-pip-version-check --timeout 30 --retries 1 $plan.Package
+        $packages = @($plan.Package)
+        & $runtime -m pip --isolated install --index-url https://pypi.org/simple --only-binary=:all: --no-input --disable-pip-version-check --timeout 30 --retries 1 @packages
         if ($LASTEXITCODE -ne 0) { throw ('Install failed; incomplete runtime retained for manual review: ' + $plan.Name) }
         & $runtime -m pip check
         if ($LASTEXITCODE -ne 0) { throw 'Dependency check failed.' }
         $verify = 'import importlib.metadata as m; import importlib; import sys; importlib.import_module(sys.argv[1]); assert m.version(sys.argv[1]) == sys.argv[2]'
-        & $runtime -c $verify $plan.Module $plan.Version
-        if ($LASTEXITCODE -ne 0) { throw 'Native import or version check failed.' }
+        $modules = @($plan.Module)
+        $versions = @($plan.Version)
+        for ($i=0; $i -lt $modules.Count; $i++) {
+            & $runtime -c $verify $modules[$i] $versions[$i]
+            if ($LASTEXITCODE -ne 0) { throw 'Native import or version check failed.' }
+        }
         Remove-Item -LiteralPath $marker
         Write-Host ('RUNTIME_IMPORT_OK: ' + $plan.Name)
     }
