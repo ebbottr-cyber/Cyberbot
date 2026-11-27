@@ -48,6 +48,19 @@ def prepare(rows):
     return train, test
 
 
+def fit_lightgbm(train_x, train_y, test_x):
+    import lightgbm as lgb
+    import numpy as np
+    model = lgb.train(
+        {"objective": "regression_l1", "num_threads": 2,
+         "verbosity": -1, "seed": 42, "deterministic": True,
+         "force_col_wise": True, "num_leaves": 7,
+         "min_data_in_leaf": 10, "learning_rate": 0.05},
+        lgb.Dataset(np.asarray(train_x), label=np.asarray(train_y)),
+        num_boost_round=40)
+    return model.predict(np.asarray(test_x), num_threads=2)
+
+
 def evaluate(rows, fit_predict=None):
     train, test = prepare(rows)
     result = {"version": VERSION, "train_samples": len(train),
@@ -58,17 +71,7 @@ def evaluate(rows, fit_predict=None):
     if len(train) < MIN_TRAIN or len(test) < MIN_TEST:
         return result
     if fit_predict is None:
-        import lightgbm as lgb
-        import numpy as np
-        def fit_predict(train_x, train_y, test_x):
-            model = lgb.train(
-                {"objective": "regression_l1", "num_threads": 2,
-                 "verbosity": -1, "seed": 42, "deterministic": True,
-                 "force_col_wise": True, "num_leaves": 7,
-                 "min_data_in_leaf": 10, "learning_rate": 0.05},
-                lgb.Dataset(np.asarray(train_x), label=np.asarray(train_y)),
-                num_boost_round=40)
-            return model.predict(np.asarray(test_x), num_threads=2)
+        fit_predict = fit_lightgbm
     # Holdout labels never enter the estimator.
     preds = list(fit_predict([r[2] for r in train], [r[3] for r in train],
                              [r[2] for r in test]))
