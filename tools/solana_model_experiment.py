@@ -9,6 +9,7 @@ from tools.solana_lightgbm_experiment import fit_lightgbm,OptionalModelUnavailab
 
 from tools.solana_river_experiment import fit_river
 from tools.solana_model_consensus import analyze
+from tools.solana_adaptive_weights import replay as adaptive_replay
 
 MIN_EARLIER=100
 MIN_LATER=50
@@ -55,8 +56,8 @@ def metrics(data,predict):
             "accuracy":(tp+tn)/n,"balanced_accuracy":((tp/(tp+fn))+(tn/(tn+fp)))/2,
             "brier_score":brier/n,"log_loss":loss/n}
 
-def evaluate(report,*,allow_experiment=False,include_lightgbm=False,include_river=False):
-    if type(allow_experiment) is not bool or type(include_lightgbm) is not bool or type(include_river) is not bool:raise ValueError("Explicit experiment flag required")
+def evaluate(report,*,allow_experiment=False,include_lightgbm=False,include_river=False,include_adaptive=False):
+    if type(allow_experiment) is not bool or type(include_lightgbm) is not bool or type(include_river) is not bool or type(include_adaptive) is not bool:raise ValueError("Explicit experiment flag required")
     if report.get("source_scope")!="dexterm_bridge_only" or report.get("research_only") is not True:
         raise ValueError("Unexpected dataset scope")
     if any(report.get(k) is not False for k in ("training_allowed","training_performed","model_promoted","real_orders","labels_are_real_fills")):
@@ -84,6 +85,7 @@ def evaluate(report,*,allow_experiment=False,include_lightgbm=False,include_rive
          "weights_updated":False,"model_saved":False,"model_promoted":False,
          "independent_holdout_verified":False,"winner":None,"results":[],
          "consensus":{"status":"blocked_by_experiment_gate","trade_eligible":False},
+         "adaptive_weights":{"status":"blocked_by_experiment_gate" if include_adaptive else "not_requested","trade_eligible":False},
          "lightgbm_status":"blocked_by_experiment_gate" if include_lightgbm else "not_requested",
          "river_status":"blocked_by_experiment_gate" if include_river else "not_requested",**FALSE_FLAGS}
     if blockers:return out
@@ -110,6 +112,12 @@ def evaluate(report,*,allow_experiment=False,include_lightgbm=False,include_rive
             out["lightgbm_reason"]=str(e) if isinstance(e,OptionalModelUnavailable) else "invalid_predictions"
             out["status"]="experiment_partial"
     out["consensus"]=analyze([y for x,y in test],static_predictions)
+    if include_adaptive:
+        try:
+            out["adaptive_weights"]=adaptive_replay(groups["later"],static_predictions,split_timestamp=report.get("split_timestamp"))
+        except (ValueError,KeyError,TypeError,AttributeError,ArithmeticError):
+            out["adaptive_weights"]={"status":"invalid_replay_inputs","trade_eligible":False}
+            out["status"]="experiment_partial"
     if include_river:
         try:
             predictions,version,details=fit_river(groups["earlier"],groups["later"],split_timestamp=report["split_timestamp"])
@@ -125,8 +133,8 @@ def evaluate(report,*,allow_experiment=False,include_lightgbm=False,include_rive
             out["status"]="experiment_partial"
     return out
 
-def run(database,*,limit=500,allow_experiment=False,include_lightgbm=False,include_river=False):
-    return evaluate(dataset(database,limit=limit),allow_experiment=allow_experiment,include_lightgbm=include_lightgbm,include_river=include_river)
+def run(database,*,limit=500,allow_experiment=False,include_lightgbm=False,include_river=False,include_adaptive=False):
+    return evaluate(dataset(database,limit=limit),allow_experiment=allow_experiment,include_lightgbm=include_lightgbm,include_river=include_river,include_adaptive=include_adaptive)
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
@@ -135,9 +143,10 @@ def main():
     p.add_argument("--allow-experiment",action="store_true")
     p.add_argument("--include-lightgbm",action="store_true")
     p.add_argument("--include-river",action="store_true")
+    p.add_argument("--include-adaptive",action="store_true")
     a=p.parse_args()
     try:
-        print(json.dumps(run(a.database,limit=a.limit,allow_experiment=a.allow_experiment,include_lightgbm=a.include_lightgbm,include_river=a.include_river),indent=2,allow_nan=False))
+        print(json.dumps(run(a.database,limit=a.limit,allow_experiment=a.allow_experiment,include_lightgbm=a.include_lightgbm,include_river=a.include_river,include_adaptive=a.include_adaptive),indent=2,allow_nan=False))
         return 0
     except (ValueError,TypeError,KeyError,ArithmeticError,AttributeError,OSError,sqlite3.Error) as e:
         print(json.dumps({"status":"rejected","error_type":type(e).__name__,"training_allowed":False,**FALSE_FLAGS}))
