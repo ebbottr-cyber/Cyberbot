@@ -76,3 +76,15 @@ Gozlem portfoyunun SOLANA satirinda canli kasa degerleri bos kalir; rapor toplam
 portfoye eklenmez. Rapor gecmisi, kaynak tazeligi veya gercek dolum kaniti degildir.
 Rapor uretimi su an manuel; surekli DexTerm calismasi ve canli sanal motor
 baglantisi ayrica dogrulanmalidir. Eski Solana saglayicisi geri yuklenmez.
+
+## AI öğrenme hafızası ve denetim
+
+Bot Gelişimi ekranı mevcut /api/integration/ai envanterinden beş piyasanın
+ayrı kapsam ve rapor sayılarını gösterir. Bu sayılar benzersiz eğitim örneği
+veya model başarısı değildir. /api/integration/ai/learning manuel okuma ile
+AI dalının ai-dashboard-1 raporunu tüketir. Öğrenme planı, koordinatör, hata ve
+karar hafızası, model yaşam döngüsü, Windows görev ve risk denetimi gösterilir.
+Öğrenme ve risk kararları yalnız BTCUSDT / Binance USD-M araştırma kapsamındadır;
+diğer piyasalara genellenmez. Ham tahminler, yollar ve kimlik bilgileri gösterilmez.
+AI PR #1 ve bağımlılıkları aynı checkout'ta doğrulanmadan bağlantı aktif olmaz.
+Varsayılan kapalıdır; panel eğitim, zamanlanmış görev veya emir başlatmaz.
