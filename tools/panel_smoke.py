@@ -64,6 +64,30 @@ def main():
                             page.route("**/api/panel-test-probe",probe)
                             assert page.evaluate("api('/api/panel-test-probe').then(d=>d.probe)")
                             page.unroute("**/api/panel-test-probe")
+                            # Accelerate only the read timeout, keeping actual AbortSignal behavior.
+                            assert page.evaluate("""async()=>{
+                                const originalFetch=window.fetch, originalTimeout=window.setTimeout;
+                                window.setTimeout=(fn,ms,...args)=>originalTimeout(fn,ms===15000?20:ms,...args);
+                                window.fetch=(url,options)=>url==='/api/panel-timeout-probe'
+                                    ?new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError')),{once:true}))
+                                    :originalFetch(url,options);
+                                try {
+                                    return await api('/api/panel-timeout-probe').then(()=>false,e=>e.message.includes('zaman aşımına')) &&
+                                        !pendingDashboardReads.has('/api/panel-timeout-probe');
+                                } finally {window.fetch=originalFetch;window.setTimeout=originalTimeout}
+                            }""")
+                            # Simulate a hidden document and advance the browser clock.
+                            page.clock.install()
+                            page.evaluate("""()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'))}""")
+                            background_reads=[]
+                            def record_background(request):
+                                if "/api/" in request.url:background_reads.append(request.url)
+                            page.on("request",record_background)
+                            page.clock.run_for(61000)
+                            assert not background_reads,background_reads
+                            page.evaluate("""()=>{delete document.hidden;document.dispatchEvent(new Event('visibilitychange'))}""")
+                            expect(page.locator("#marketCards .card")).to_have_count(5)
+                            page.remove_listener("request",record_background)
                             context.set_offline(True)
                             expect(page.locator("#equity")).to_have_text("—")
                             expect(page.locator("#marketCards .card")).to_have_count(0)
