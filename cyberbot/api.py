@@ -109,3 +109,6 @@ app.include_router(development_router)
 
 from .knowledge_api import router as knowledge_router
 app.include_router(knowledge_router)
+
+from .integration_api import router as integration_router
+app.include_router(integration_router)
