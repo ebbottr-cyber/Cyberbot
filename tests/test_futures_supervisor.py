@@ -36,3 +36,18 @@ class SupervisorTests(unittest.TestCase):
     def test_disabled_before_lease(self):
         with patch.dict(os.environ,{"CYBERBOT_FUTURES_SUPERVISOR_ENABLED":"0"}),patch.object(s,"lease",side_effect=AssertionError("disabled")):
             with self.assertRaises(ValueError):s.supervise("BTCUSDT",1)
+
+    def test_session_bound_allows_initial_learning_and_strategy_windows(self):
+        self.assertGreaterEqual(s.MAX_MINUTES,s.forward.WINDOW+3*6*60+6*60)
+        with patch.dict(os.environ,{"CYBERBOT_FUTURES_SUPERVISOR_ENABLED":"1"}),patch.object(s.research,"permitted",return_value=True),patch.object(s.forward,"permitted",return_value=True):
+            s.validate("BTCUSDT",4320,False,False)
+            with self.assertRaises(ValueError):s.validate("BTCUSDT",4321,False,False)
+    def test_automatic_fill_only_after_new_queued_intent(self):
+        def observe(**kw):
+            return {"applied":True,"real_orders":False,"ingress":{"status":"observation"},"source_at":self.clock().isoformat()}
+        with patch.object(s,"validate"),patch.object(s,"lease",return_value=nullcontext()),patch.object(s.training,"collect",side_effect=self.collect),patch.object(s.training,"save",side_effect=self.save),patch.object(s.forward,"tick",return_value={"status":"recorded"}),patch.object(s.binance,"run",side_effect=observe) as regular,patch.object(s.auto,"run",return_value={"status":"paper_intent_queued"}) as decide,patch.object(s.auto,"observe_pending",side_effect=lambda *a,**kw:observe(**kw)) as fill:
+            d=s.supervise("BTCUSDT",3,paper=True,automatic=True,clock=self.clock,sleep=self.sleep,emit=self.events.append)
+            self.assertEqual(decide.call_count,2)
+            self.assertEqual(fill.call_count,2)
+            self.assertEqual(d["counts"]["auto_intents"],2)
+            self.assertTrue(all(not c.kwargs["auto_paper"] for c in regular.call_args_list))

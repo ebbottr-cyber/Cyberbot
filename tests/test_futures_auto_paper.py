@@ -58,3 +58,16 @@ class AutoPaperTests(unittest.TestCase):
     def test_orchestrator_disabled_before_network(self):
         with patch.dict(os.environ,{"CYBERBOT_FUTURES_AUTO_PAPER_ENABLED":"0"}),patch.object(auto.binance,"run",side_effect=AssertionError("network")):
             with self.assertRaises(ValueError):auto.run(SYM,clock=self.clock)
+
+    def test_pending_fill_rechecks_strategy_gate(self):
+        self.queue()
+        pred={"feature_at":AT.isoformat(),"lightgbm_return":.01,"river_return":.01}
+        with patch.dict(os.environ,{k:"1" for k in auto.bridge.FLAGS}),patch.object(auto.forward,"permitted",return_value=True),patch.object(auto,"evidence",return_value=({"scored":100},pred)),patch.object(auto.memory,"snapshot",return_value={}),patch.object(auto.bridge,"memory_ready",return_value=True),patch.object(auto.strategy_gate,"allowed",return_value=False) as gate,patch.object(auto.binance,"run",return_value={}) as provider:
+            auto.observe_pending(SYM,clock=self.clock)
+            self.assertFalse(provider.call_args.kwargs["auto_paper"])
+            gate.return_value=True
+            auto.observe_pending(SYM,clock=self.clock)
+            self.assertTrue(provider.call_args.kwargs["auto_paper"])
+            gate.side_effect=ValueError("unavailable")
+            auto.observe_pending(SYM,clock=self.clock)
+            self.assertFalse(provider.call_args.kwargs["auto_paper"])

@@ -1,9 +1,9 @@
 # Futures Autonomous Supervisor V1
 
-Tek ön plan süreci; en fazla 1440 UTC dakika. Windows'ta Prepare sonrası:
+Tek ön plan süreci; en fazla 4320 UTC dakika (72 saat). Windows'ta Prepare sonrası:
 
 ```powershell
-.\scripts\futures-windows.ps1 -Mode Supervise -Cycles 1440 -ConfirmDataRights
+.\scripts\futures-windows.ps1 -Mode Supervise -Cycles 4320 -ConfirmDataRights
 ```
 
 Varsayılan yalnız veri ve AI araştırmasıdır. İleri tahmin günlüğü otomatik

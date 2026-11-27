@@ -61,12 +61,38 @@ def evidence(symbol,now):
         if len(directional)<MIN_DIRECTIONAL or sum(a==b for a,b in directional)/len(directional)<.5:return None,candidate
     return {"scored":n,"missing":missing,"coverage_pct":100*n/(n+missing)},candidate
 
+def observe_pending(symbol,*,clock=stocks.utc):
+    """Revalidate a pending AI intent before the next provider observation.
+
+    If evidence is unavailable, the ordinary observer cancels the entry;
+    it can still process existing exits. This is not an atomic cross-DB lock.
+    """
+    state=fut.snapshot(clock=clock)
+    order=state.get("pending")
+    allow=False
+    if order and order.get("reason")=="ai_auto":
+        try:
+            now=clock()
+            if (fut.auto_enabled() and forward.permitted() and all(os.getenv(k)=="1" for k in bridge.FLAGS)
+                and fut.symbol()==symbol and now<stocks.ts(order["expires_at"])):
+                proof,pred=evidence(symbol,now)
+                if proof and pred and pred["feature_at"]==order["feature_at"]:
+                    at=batch.timestamp(pred["feature_at"])
+                    direction=batch.direction(pred["lightgbm_return"])
+                    allow=(direction!="HOLD" and direction==batch.direction(pred["river_return"])
+                           and order["side"]==("LONG" if direction=="UP" else "SHORT")
+                           and bridge.memory_ready(memory.snapshot(symbol),symbol,at)
+                           and strategy_gate.allowed(symbol,clock=clock))
+        except (ValueError,OSError,ArithmeticError,KeyError,TypeError,sqlite3.Error):
+            allow=False
+    return binance.run(apply=True,clock=clock,auto_paper=allow)
+
 def run(symbol,*,clock=stocks.utc):
     if not fut.auto_enabled() or not forward.permitted() or any(os.getenv(k)!="1" for k in bridge.FLAGS):
         raise batch.ResearchError("Otomatik sanal giriş izinleri kapalı.")
     if fut.symbol()!=symbol:raise batch.ResearchError("Sembol uyuşmuyor.")
     # Observe existing exits first. One public quote cycle, no automatic retries.
-    obs=binance.run(apply=True,clock=clock,auto_paper=True)
+    obs=observe_pending(symbol,clock=clock)
     s=fut.snapshot(clock=clock)
     if s["position"] or s["pending"]:return result(symbol,"position_or_pending",observation=obs["ingress"])
     now=clock();proof,pred=evidence(symbol,now)

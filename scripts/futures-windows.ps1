@@ -4,7 +4,7 @@ param(
     [ValidateSet('Preview','Prepare','Status','Probe','SafetyStatus','SafetyProbe','Health','Performance','StrategyGate','Backup','VerifyBackup','StageRecovery','Collect','Evaluate','PaperObserve','Supervise','Watchdog')]
     [string]$Mode = 'Preview',
     [ValidateSet('BTCUSDT','ETHUSDT')][string]$Symbol = 'BTCUSDT',
-    [ValidateRange(1,1440)][int]$Cycles = 1200,
+    [ValidateRange(1,4320)][int]$Cycles = 1200,
     [switch]$ConfirmDataRights,
     [switch]$ConfirmPaperObservation,
     [switch]$RecordPredictions,
@@ -20,7 +20,7 @@ $python = Join-Path $root '.venv-futures\Scripts\python.exe'
 $marker = Join-Path $root '.venv-futures\cyberbot-tested-head.txt'
 $researchFlags = @('CYBERBOT_FUTURES_LIVE_RESEARCH_ENABLED','CYBERBOT_FUTURES_TRAINING_ENABLED','CYBERBOT_FUTURES_AI_CONSENSUS_ENABLED','CYBERBOT_FUTURES_LIGHTGBM_ENABLED','CYBERBOT_FUTURES_RIVER_ENABLED','CYBERBOT_FUTURES_AI_MEMORY_ENABLED','CYBERBOT_FUTURES_STRATEGY_OPTIMIZER_ENABLED')
 $saved = @{}
-function Set-TemporaryEnv([string]$Name,[string]$Value) {
+function Set-TemporaryEnv([string]$Name,$Value) {
     if (-not $saved.ContainsKey($Name)) { $saved[$Name] = [Environment]::GetEnvironmentVariable($Name,'Process') }
     [Environment]::SetEnvironmentVariable($Name,$Value,'Process')
 }
@@ -32,6 +32,8 @@ function Get-CleanHead {
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'Git required.' }
     $dirty = & git status --porcelain --untracked-files=no
     if ($LASTEXITCODE -ne 0 -or $dirty) { throw 'Tracked checkout must be clean; no automatic git changes.' }
+    $untracked = & git ls-files --others --exclude-standard -- cyberbot tests scripts tools
+    if ($LASTEXITCODE -ne 0 -or $untracked) { throw 'Untracked source files must be reviewed before launching.' }
     $commit = & git rev-parse HEAD
     if ($LASTEXITCODE -ne 0 -or -not $commit) { throw 'Git HEAD unavailable.' }
     return [string]$commit
@@ -43,6 +45,10 @@ try {
         [ordered]@{mode='Preview';symbol=$Symbol;venv_exists=(Test-Path -LiteralPath $python -PathType Leaf);test_marker_exists=(Test-Path -LiteralPath $marker -PathType Leaf);writes=$false;network=$false;real_orders=$false;automatic_entry=$false} | ConvertTo-Json
         return
     }
+    if ($ConfirmAutoPaper -and $Mode -notin @('Supervise','Watchdog')) { throw 'Automatic confirmation is only for supervisor/watchdog.' }
+    if ($Mode -eq 'Collect' -and $Cycles -gt 1440) { throw 'Collect maximum is 1440 cycles; use Supervise/Watchdog for longer sessions.' }
+    Set-TemporaryEnv 'PYTHONPATH' $null
+    Set-TemporaryEnv 'PYTHONHOME' $null
     if ($Mode -eq 'Prepare') {
         $head = Get-CleanHead
         if (Test-Path -LiteralPath $marker) { Remove-Item -LiteralPath $marker -Force }
@@ -161,11 +167,16 @@ try {
             Set-TemporaryEnv 'CYBERBOT_FUTURES_SUPERVISOR_PAPER_CONFIRMED' '1'
             $arguments += '--paper'
         }
+        Set-TemporaryEnv 'CYBERBOT_FUTURES_AUTO_PAPER_ENABLED' '0'
+        Set-TemporaryEnv 'CYBERBOT_FUTURES_AUTO_PAPER_CONFIRMED' '0'
         if ($ConfirmAutoPaper) {
             if (-not $ConfirmPaperObservation) { throw 'Separate paper observation confirmation required.' }
             Set-TemporaryEnv 'CYBERBOT_FUTURES_AUTO_PAPER_ENABLED' '1'
             Set-TemporaryEnv 'CYBERBOT_FUTURES_AUTO_PAPER_CONFIRMED' '1'
             Set-TemporaryEnv 'CYBERBOT_FUTURES_AI_BRIDGE_ENABLED' '1'
+            foreach ($flag in @('CYBERBOT_FUTURES_DYNAMIC_RISK_ENABLED','CYBERBOT_FUTURES_CONSENSUS_ENABLED','CYBERBOT_FUTURES_TIMEFRAMES_ENABLED','CYBERBOT_FUTURES_MOMENTUM_ENABLED')) {
+                Set-TemporaryEnv $flag '1'
+            }
             $arguments += '--automatic'
         }
         Invoke-PythonChecked @arguments

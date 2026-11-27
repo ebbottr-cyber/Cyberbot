@@ -13,7 +13,7 @@ from . import observed_pilot as stocks,db_paths
 from .providers import binance_observed as binance
 
 VERSION="futures-supervisor-1"
-MAX_MINUTES=1440
+MAX_MINUTES=4320
 ERRORS=(ValueError,OSError,ArithmeticError,KeyError,TypeError,sqlite3.Error)
 
 @contextmanager
@@ -42,7 +42,7 @@ def lease(kind="supervisor"):
 def validate(symbol,minutes,paper,automatic):
     training.symbol_check(symbol)
     if type(minutes) is not int or not 1<=minutes<=MAX_MINUTES:
-        raise ValueError("Oturum 1–1440 dakika.")
+        raise ValueError("Oturum 1–4320 dakika.")
     if os.getenv("CYBERBOT_FUTURES_SUPERVISOR_ENABLED")!="1" or not research.permitted() or not forward.permitted():
         raise ValueError("Supervisor araştırma izinleri kapalı.")
     if automatic and not paper:raise ValueError("Otomatik mod için sanal gözlem gerekli.")
@@ -81,13 +81,14 @@ def supervise(symbol,minutes,*,paper=False,automatic=False,clock=stocks.utc,slee
             counts["errors"]+=1;report(stage,"rejected",error_type=type(exc).__name__)
             return None
     def observe(allow_auto=False):
-        d=binance.run(apply=True,clock=now,auto_paper=allow_auto)
+        d=auto.observe_pending(symbol,clock=now) if allow_auto else binance.run(apply=True,clock=now,auto_paper=False)
         if d.get("applied") is not True or d.get("real_orders") is not False:raise ValueError("Sanal gözlem geçersiz.")
         counts["paper_observations"]+=1
         return {"status":d["ingress"]["status"],"source_at":d["source_at"]}
     with lease():
         report("session","started")
-        start=training.minute(now())+training.STEP
+        t=now()
+        start=training.minute(t)+(training.STEP if t.second>=4 else timedelta(0))
         pending_record=None
         last_observed=None
         # All slots advance by wall clock, never execute an old missed slot.

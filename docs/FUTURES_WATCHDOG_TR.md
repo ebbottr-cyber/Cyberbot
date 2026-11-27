@@ -3,7 +3,7 @@
 Prepare sonrası Windows ön plan oturumu:
 
 ```powershell
-.\scripts\futures-windows.ps1 -Mode Watchdog -Cycles 1440 -ConfirmDataRights
+.\scripts\futures-windows.ps1 -Mode Watchdog -Cycles 4320 -ConfirmDataRights
 ```
 
 Ayrı izinle sanal gözlem için -ConfirmPaperObservation kullanılabilir.
@@ -16,7 +16,7 @@ ile mümkündür. Varsayılan araştırma modudur.
 - Yalnız kendi çocuk sürecini sonlandırır; başka botlara, sistem servisine
   veya ortak kalıcı kill switch kaydına müdahale etmez.
 - En fazla üç yeniden başlatma: 15, 30, 60 saniye bekleme. Oturum süresi
-  sınırlıdır; başarılı bitişte yeniden başlamaz.
+  en fazla 72 saattir; başarılı bitişte yeniden başlamaz.
 - Her toparlanma çocuğunda otomatik giriş kapalıdır. Ortam giriş freni
   açıktır; mevcut pozisyonların gözlemi ve çıkışı sürdürülebilir, fakat
   giriş izni kendiliğinden geri gelmez. Yeniden otomatik moda geçiş ayrı
