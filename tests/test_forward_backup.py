@@ -1,4 +1,5 @@
 import os
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -58,6 +59,29 @@ class ForwardBackupTests(unittest.TestCase):
         with patch.object(module,"checked",return_value={"learning":self.source}):
             with self.assertRaises(ValueError):
                 module.backup(self.root)
+
+    def test_recover_without_overwriting_live(self):
+        folder=module.backup(self.root)
+        with closing(sqlite3.connect(self.source)) as db, db:
+            db.execute("INSERT INTO forecasts VALUES ('FUTURES','BTCUSDT','synthetic',3,'test','{}','pending',NULL)")
+        before=module.digest(self.source)
+        restored=module.recover(self.root,folder)
+        self.assertEqual(restored.parent,self.root/"var/ai-recovered")
+        self.assertEqual(module.digest(restored/module.NAME),module.verify(folder)["sha256"])
+        report=json.loads((restored/"recovery.json").read_text(encoding="utf-8"))
+        self.assertFalse(report["activated"])
+        self.assertEqual(report["rows"],1)
+        self.assertEqual(module.digest(self.source),before)
+        with closing(module.connect_readonly(self.source)) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM forecasts").fetchone()[0],2)
+
+    def test_recover_rejects_tampering(self):
+        folder=module.backup(self.root)
+        with (folder/module.NAME).open("ab") as f:
+            f.write(b"changed")
+        with self.assertRaises(ValueError):
+            module.recover(self.root,folder)
+        self.assertFalse((self.root/"var/ai-recovered").exists())
 
 
 if __name__=="__main__":
