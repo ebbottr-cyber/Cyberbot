@@ -108,6 +108,18 @@ nav.tiles .tile span{font-size:12px}
  refreshCentral();setInterval(refreshCentral,60000);
 })();
 </script>
+<section class="performance" aria-label="Bildirim bağlantısı"><div class="charthead"><h2>Bildirim Servisi Durumu</h2><a href="/news">Haber Merkezi</a></div><p id="centralNotificationStatus" role="status">Servis kaydı okunuyor…</p><p class="muted">Son görev kaydı; telefon bildiriminin ulaştığını veya canlı haber akışını doğrulamaz.</p></section>
+<script>
+(function(){
+ const labels={not_configured:"Yapılandırılmadı",not_available:"Henüz görev kaydı yok",unavailable:"Görev kaydı okunamadı",stale:"Eski görev kaydı",ok:"Son görev tamamlandı",degraded:"Kısmi görev sonucu",error:"Görev hatası",disabled:"Devre dışı",unknown:"Bilinmiyor"};
+ async function refresh(){
+  const el=document.getElementById("centralNotificationStatus");
+  try{const r=await fetch("/api/integration/notifications",{cache:"no-store"});if(!r.ok)throw Error("API");const d=await r.json();el.textContent=(labels[d.status]||"Bilinmiyor")+(d.last_cycle_utc?" · "+d.last_cycle_utc:"");}
+  catch(e){el.textContent="Bildirim bağlantısı okunamadı.";}
+ }
+ refresh();
+})();
+</script>
 <section class="performance home-markets" aria-label="Beş piyasa genel görünümü"><div class="charthead"><h2>Beş Piyasa Genel Görünümü</h2><a href="#markets">Piyasa Merkezi</a></div><p class="muted">Sentetik sanal portföyler · Canlı fiyat veya gerçek işlem değildir.</p><p id="homeMarketStatus" role="status">Kayıtlar okunuyor…</p><div id="homeMarketOverview" class="grid"></div></section>
 <section class="performance" aria-label="Birleşik AI araştırma bağlantısı"><div class="charthead"><h2>AI Araştırma Bağlantısı</h2><a href="/development">Bot Gelişimi</a></div><p id="centralAiStatus" role="status">Araştırma bağlantısı okunuyor…</p><div id="centralAiRows" class="grid"></div><p class="muted">Araştırma kayıtları; canlı model kalitesi, kârlılık veya işlem yetkisi değildir.</p></section>
 <script>
