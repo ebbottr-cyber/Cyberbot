@@ -28,12 +28,16 @@ def run(*,limit=2,discoverer=discover,inspect=snapshot,sleep=time.sleep):
         try:
             report=inspect(row["mint"],row["pool"])
             reports.append({"candidate":row,"diagnostic":report})
-            if report.get("status")!="diagnostic_complete":break
+            if report.get("status") not in ("diagnostic_complete","diagnostic_unsupported_mint"):break
         except (ValueError,KeyError,TypeError,OSError,ArithmeticError,AttributeError,httpx.HTTPError) as e:
             reports.append({"candidate":row,"diagnostic":{"status":"rejected","reason":str(e) if isinstance(e,PilotError) else type(e).__name__}})
             break
-    complete=bool(selected) and len(reports)==len(selected) and all(r["diagnostic"].get("status")=="diagnostic_complete" for r in reports)
-    return {"status":"scan_complete" if complete else "scan_no_candidates" if not selected else "scan_partial",
+    done=sum(r["diagnostic"].get("status")=="diagnostic_complete" for r in reports)
+    skipped=sum(r["diagnostic"].get("status")=="diagnostic_unsupported_mint" for r in reports)
+    exhausted=bool(selected) and len(reports)==len(selected) and done+skipped==len(selected)
+    status=("scan_no_candidates" if not selected else "scan_partial" if not exhausted else
+            "scan_no_supported_candidates" if not done else "scan_complete_with_skips" if skipped else "scan_complete")
+    return {"status":status,"completed_mints":done,"unsupported_mints":skipped,
             "retrieved_at":utc().isoformat(),"scope":"geckoterminal_trending_page_1_direct_usdc",
             "available_pools":len(pools),"selected_mints":len(selected),"inspected_mints":len(reports),
             "reports":reports,"meme_classification_verified":False,"security_verified":False,
@@ -46,7 +50,7 @@ def main():
     try:
         d=run(limit=a.limit)
         print(json.dumps(d,indent=2,allow_nan=False))
-        return 0 if d["status"]=="scan_complete" else 2 if d["status"]=="scan_no_candidates" else 1
+        return 0 if d["status"] in ("scan_complete","scan_complete_with_skips") else 2 if d["status"] in ("scan_no_candidates","scan_no_supported_candidates") else 1
     except (ValueError,KeyError,TypeError,OSError,ArithmeticError,AttributeError,httpx.HTTPError) as e:
         print(json.dumps({"status":"rejected","reason":str(e) if isinstance(e,PilotError) else type(e).__name__,"pilot_applied":False,"real_orders":False}));return 1
 if __name__=="__main__":raise SystemExit(main())

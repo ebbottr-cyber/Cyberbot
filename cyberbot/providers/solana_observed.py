@@ -31,9 +31,22 @@ def rpc_result(d):
     x=d["result"];slot=x["context"]["slot"]
     if type(slot) is not int or slot<=0:raise PilotError("RPC slot geçersiz.")
     return slot,x["value"]
+class UnsupportedMint(PilotError):
+    """Well-shaped account that does not satisfy the legacy-only policy."""
+
 def mint_info(raw):
     slot,v=rpc_result(raw)
-    if v["owner"]!=LEGACY or v.get("executable") is not False or v["data"]["program"]!="spl-token" or v["data"]["parsed"]["type"]!="mint":raise PilotError("Yalnız legacy SPL mint desteklenir.")
+    if not isinstance(v,dict) or not sol.address(v.get("owner")) or type(v.get("executable")) is not bool:
+        raise PilotError("Mint account response invalid")
+    data=v.get("data")
+    # A recognized owner different from the required program is ineligible.
+    # No safety claim is made about this account or its extensions.
+    if v["owner"]!=LEGACY:
+        raise UnsupportedMint("Yalnız legacy SPL mint desteklenir.")
+    if not isinstance(data,dict) or not isinstance(data.get("program"),str) or not isinstance(data.get("parsed"),dict) or not isinstance(data["parsed"].get("type"),str):
+        raise PilotError("Mint account response invalid")
+    if v["executable"] or data["program"]!="spl-token" or data["parsed"]["type"]!="mint":
+        raise UnsupportedMint("Yalnız legacy SPL mint desteklenir.")
     i=v["data"]["parsed"]["info"];decimals=i["decimals"]
     if type(decimals) is not int or not 0<=decimals<=9 or i.get("isInitialized") is not True:raise PilotError("Mint bilgisi geçersiz.")
     return {"slot":slot,"decimals":decimals,"supply":uint(i["supply"],True),"mint_authority_disabled":"mintAuthority" in i and i["mintAuthority"] is None,"freeze_authority_disabled":"freezeAuthority" in i and i["freezeAuthority"] is None}
