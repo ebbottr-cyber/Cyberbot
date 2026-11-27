@@ -1,5 +1,5 @@
 # Default: read-only preflight. -Prepare installs only project dependencies and runs isolated tests.
-param([switch]$Prepare)
+param([switch]$Prepare,[switch]$PreferPython311)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
@@ -14,7 +14,7 @@ try {
             $candidates = @()
             $launcher = Get-Command py.exe -CommandType Application -ErrorAction SilentlyContinue
             if ($launcher) {
-                foreach ($v in @('-3.12','-3.11')) {
+                foreach ($v in $(if ($PreferPython311) { @('-3.11','-3.12') } else { @('-3.12','-3.11') })) {
                     $located = & $launcher.Source $v -c "import sys; print(sys.executable)" 2>$null
                     if ($LASTEXITCODE -eq 0 -and $located) { $candidates += [string]($located | Select-Object -Last 1) }
                 }
@@ -22,7 +22,7 @@ try {
             foreach ($command in @(Get-Command python.exe,python3.exe -CommandType Application -All -ErrorAction SilentlyContinue)) {
                 if ($command.Source -notlike '*\Microsoft\WindowsApps\*') { $candidates += $command.Source }
             }
-            foreach ($version in @('312','311')) {
+            foreach ($version in $(if ($PreferPython311) { @('311','312') } else { @('312','311') })) {
                 foreach ($folder in @("$env:LOCALAPPDATA\Programs\Python\Python$version", "$env:ProgramFiles\Python$version", "C:\Python$version")) {
                     $candidates += (Join-Path $folder 'python.exe')
                 }
