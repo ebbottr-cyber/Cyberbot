@@ -84,7 +84,7 @@ try {
         }
         'Backup' {
             $python = Join-Path $root '.venv\Scripts\python.exe'
-            $arguments = @('-m','tools.local_research.forward_backup','--root',$root)
+            $arguments = @('-m','tools.local_research.forward_backup','--root',$root,'--scheduled')
         }
     }
     if (!(Test-Path -LiteralPath $python -PathType Leaf)) { throw ('Research runtime missing: ' + $Mode) }
