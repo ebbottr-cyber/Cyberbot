@@ -1,7 +1,7 @@
 # Futures-only setup and foreground launch. Default mode is a read-only preview.
 [CmdletBinding()]
 param(
-    [ValidateSet('Preview','Prepare','Status','Probe','SafetyStatus','SafetyProbe','Collect','Evaluate','PaperObserve','Supervise')]
+    [ValidateSet('Preview','Prepare','Status','Probe','SafetyStatus','SafetyProbe','Collect','Evaluate','PaperObserve','Supervise','Watchdog')]
     [string]$Mode = 'Preview',
     [ValidateSet('BTCUSDT','ETHUSDT')][string]$Symbol = 'BTCUSDT',
     [ValidateRange(1,1440)][int]$Cycles = 1200,
@@ -114,10 +114,15 @@ try {
         return
     }
     foreach ($flag in $researchFlags) { Set-TemporaryEnv $flag '1' }
-    if ($Mode -eq 'Supervise') {
+    if ($Mode -in @('Supervise','Watchdog')) {
         Set-TemporaryEnv 'CYBERBOT_FUTURES_SUPERVISOR_ENABLED' '1'
         Set-TemporaryEnv 'CYBERBOT_FUTURES_FORWARD_MEMORY_ENABLED' '1'
-        $arguments = @('-m','cyberbot.futures_supervisor','--symbol',$Symbol,'--minutes',$Cycles)
+        $module = 'cyberbot.futures_supervisor'
+        if ($Mode -eq 'Watchdog') {
+            Set-TemporaryEnv 'CYBERBOT_FUTURES_WATCHDOG_ENABLED' '1'
+            $module = 'cyberbot.futures_watchdog'
+        }
+        $arguments = @('-m',$module,'--symbol',$Symbol,'--minutes',$Cycles)
         if ($ConfirmPaperObservation) {
             Set-TemporaryEnv 'CYBERBOT_FUTURES_SUPERVISOR_PAPER_CONFIRMED' '1'
             $arguments += '--paper'

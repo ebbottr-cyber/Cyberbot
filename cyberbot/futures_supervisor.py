@@ -17,11 +17,12 @@ MAX_MINUTES=1440
 ERRORS=(ValueError,OSError,ArithmeticError,KeyError,TypeError,sqlite3.Error)
 
 @contextmanager
-def lease():
+def lease(kind="supervisor"):
+    if kind not in ("supervisor","watchdog"):raise ValueError("Geçersiz süreç kilidi.")
     # OS advisory lease for supervisors sharing the pilot path; no stale PID lock.
     db_paths.checked()
     p=db_paths.pilot_path()
-    lock=p.with_name(p.name+".supervisor.lock")
+    lock=p.with_name(p.name+"."+kind+".lock")
     p.parent.mkdir(parents=True,exist_ok=True)
     with lock.open("a+b") as stream:
         if stream.seek(0,2)==0:stream.write(b"0");stream.flush()
@@ -85,6 +86,7 @@ def supervise(symbol,minutes,*,paper=False,automatic=False,clock=stocks.utc,slee
         counts["paper_observations"]+=1
         return {"status":d["ingress"]["status"],"source_at":d["source_at"]}
     with lease():
+        report("session","started")
         start=training.minute(now())+training.STEP
         pending_record=None
         last_observed=None
