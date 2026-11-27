@@ -25,6 +25,17 @@ def priority(database,mints):
     finally:
         con.close()
 
+def unsupported_only(data):
+    s=data.get("scan") or {}
+    reports=s.get("reports") or []
+    return (data.get("status")=="diagnostic_partial"
+            and s.get("status")=="scan_no_supported_candidates"
+            and s.get("stop_reason") is None
+            and s.get("target_reached") is False
+            and s.get("completed_mints")==0
+            and 0<len(reports)==s.get("unsupported_mints")==s.get("inspected_mints")==s.get("selected_mints")
+            and all(r["diagnostic"].get("status")=="diagnostic_unsupported_mint" for r in reports))
+
 def cycle(root,database,report_dir,*,probe_fn=probe,review_fn=review,bridge_fn=bridge,archive_fn=archive):
     permissions()
     folder=Path(report_dir)
@@ -51,11 +62,17 @@ def cycle(root,database,report_dir,*,probe_fn=probe,review_fn=review,bridge_fn=b
     permissions()
     data=bridge_fn(raw,lookup_limit=3,priority_mints=ordered)
     result["archive"]=save("bridge",data)
+    details=data.get("scan") or {}
     result.update(stage="bridge",bridge_status=data["status"],matched_pool_count=data["matched_pool_count"],
-                  completed_mints=(data.get("scan") or {}).get("completed_mints",0),
-                  stop_reason=(data.get("scan") or {}).get("stop_reason"))
+                  completed_mints=details.get("completed_mints",0),
+                  unsupported_mints=details.get("unsupported_mints",0),
+                  stop_reason=details.get("stop_reason"))
     if data["status"]=="diagnostic_complete":result["status"]="cycle_complete"
     elif data["status"] in ("no_eligible_pools","no_nonreference_candidates"):result["status"]="cycle_no_candidates"
+    elif unsupported_only(data):
+        # Expected unsupported-mint exhaustion is not a provider outage.
+        # Preserve the underlying scan report and do not count a completed diagnostic.
+        result["status"]="cycle_no_supported_candidates"
     return result
 
 def run(root,database,report_dir,*,cycles=1,interval=180,cycle_fn=cycle,sleep=time.sleep):
@@ -70,7 +87,11 @@ def run(root,database,report_dir,*,cycles=1,interval=180,cycle_fn=cycle,sleep=ti
         runs.append(result)
         if result["status"]=="cycle_partial":break
     return {"status":"research_run_complete" if len(runs)==cycles and all(r["status"]!="cycle_partial" for r in runs) else "research_run_partial",
-            "requested_cycles":cycles,"completed_cycles":len(runs),"runs":runs,**FLAGS}
+            "requested_cycles":cycles,"completed_cycles":len(runs),
+            "successful_diagnostics":sum(r.get("completed_mints",0) for r in runs),
+            "unsupported_mint_observations":sum(r.get("unsupported_mints",0) for r in runs),
+            "unsupported_only_cycles":sum(r["status"]=="cycle_no_supported_candidates" for r in runs),
+            "runs":runs,**FLAGS}
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
