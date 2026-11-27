@@ -38,10 +38,19 @@ class PublicScanTests(unittest.TestCase):
             return {"status":{"a":"diagnostic_unsupported_mint","b":"diagnostic_complete","c":"diagnostic_partial"}[m]}
         with patch.dict(os.environ,{"CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED":"1"}):
             d=run(discoverer=lambda:rows,inspect=inspect,sleep=lambda n:None)
-            self.assertEqual(d["status"],"scan_complete_with_skips")
+            # One completed mint out of a target of two is partial, even
+            # when the remaining candidate was intentionally skipped.
+            self.assertEqual(d["status"],"scan_partial")
+            self.assertFalse(d["target_reached"])
+            self.assertIsNone(d["stop_reason"])
             self.assertEqual((d["completed_mints"],d["unsupported_mints"]),(1,1))
+            self.assertEqual(calls,["a","b"])
+            calls.clear()
             d=run(limit=3,discoverer=lambda:rows,inspect=inspect,sleep=lambda n:None)
             self.assertEqual(d["status"],"scan_partial")
+            self.assertFalse(d["target_reached"])
+            self.assertEqual(d["stop_reason"],"diagnostic_failure")
+            self.assertEqual(calls,["a","b","c"])
             d=run(discoverer=lambda:rows,inspect=lambda m,p:{"status":"diagnostic_unsupported_mint"},sleep=lambda n:None)
             self.assertEqual(d["status"],"scan_no_supported_candidates")
             self.assertEqual(d["completed_mints"],0)
