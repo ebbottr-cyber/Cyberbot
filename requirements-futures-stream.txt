@@ -1,0 +1,2 @@
+# Optional read-only Futures WebSocket observer; standard installation unchanged.
+websockets>=15,<17
