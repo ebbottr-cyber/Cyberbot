@@ -78,7 +78,7 @@ def evaluate(state,report,now,*,entry_halted):
             e/(entry*(1/leverage+FEE)),depth/max(entry,exit_stop,ask)).quantize(D(".000001"),rounding=ROUND_DOWN)
     if qty<=0:return hold("quantity_below_model_step")
     notional=qty*entry;margin=notional/leverage
-    out.update(status="research_proposal",proposal={"side":side,"quantity":str(qty),"entry":str(entry),
+    out.update(status="research_proposal",quote_reference={"source":q["source"],"source_at":q["source_at"],"mid":str((bid+ask)/2)},proposal={"side":side,"quantity":str(qty),"entry":str(entry),
         "stop_price":str(stop),"target_price":str(target),"stop_distance_pct":str(stop_pct*100),
         "target_distance_pct":str(min(fut.TARGET,stop_pct*2)*100),"leverage_cap":str(leverage),
         "notional_usdt":str(notional),"margin_usdt":str(margin),"risk_budget_usdt":str(budget),
