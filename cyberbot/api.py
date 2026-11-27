@@ -132,8 +132,13 @@ if os.getenv("CYBERBOT_NOTIFICATION_PANEL_ENABLED") == "1":
     def notification_csrf(request: Request):
         notification_user(request)
         host = request.headers.get("host", "")
-        scheme = "https" if os.getenv("CYBERBOT_TAILSCALE_ENABLED") == "1" else "http"
-        if request.headers.get("origin") != scheme + "://" + host:
+        if os.getenv("CYBERBOT_TAILSCALE_ENABLED") == "1":
+            authority = os.getenv("CYBERBOT_TAILSCALE_HOST", "").lower()
+            port = os.getenv("CYBERBOT_TAILSCALE_PORT", "8443")
+            expected = "https://" + authority + (":" + port if port != "443" else "")
+        else:
+            expected = "http://" + host
+        if request.headers.get("origin") != expected:
             raise HTTPException(403, "Bildirim kaynağı doğrulanamadı.")
 
     @app.get("/notification-settings", response_class=HTMLResponse)
