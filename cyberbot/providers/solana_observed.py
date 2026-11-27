@@ -18,6 +18,7 @@ USDC="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 LEGACY="TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 AMOUNT=100_000_000
 MAX_BYTES=262144
+RUG_MAX_BYTES=8*1024*1024
 def configured():
     return os.getenv("CYBERBOT_SOLANA_OBSERVED_ENABLED")=="1" and os.getenv("CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED")=="1" and (bool(os.getenv("CYBERBOT_JUPITER_KEY","").strip()) or os.getenv("CYBERBOT_JUPITER_ANONYMOUS_ENABLED")=="1")
 def uint(v,positive=False):
@@ -110,12 +111,13 @@ def request(client,kind,params,key,*,rpc_url=None):
         method_http,url,kw="GET",JUP,{"params":params,"headers":{"x-api-key":key} if key else {}}
     else:raise PilotError("İzinsiz kaynak.")
     stage=("solana_rpc."+method if kind=="rpc" else kind if kind in ("rugcheck","gecko_holders") else "dexscreener.pool" if kind=="pool" else "jupiter.buy" if params.get("inputMint")==USDC else "jupiter.sell")
+    limit=RUG_MAX_BYTES if kind=="rugcheck" else MAX_BYTES
     try:
         with client.stream(method_http,url,**kw) as res:
             res.raise_for_status();data=bytearray()
-            for chunk in res.iter_bytes():
+            for chunk in res.iter_bytes(chunk_size=65536):
+                if len(data)+len(chunk)>limit:raise PilotError(stage+": response_too_large")
                 data.extend(chunk)
-                if len(data)>MAX_BYTES:raise PilotError(stage+": response_too_large")
         raw=json.loads(data)
     except httpx.HTTPStatusError as e:
         raise PilotError(stage+": HTTP "+str(e.response.status_code)+"; no_retry") from None

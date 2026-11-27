@@ -104,3 +104,20 @@ class SolanaObservedTests(unittest.TestCase):
             reported_holders({**rug,"topHolders":rows[:9]},gecko,mint)
         with self.assertRaises(PilotError):
             reported_holders({**rug,"topHolders":[rows[0]]*10},gecko,mint)
+
+    def test_rugcheck_response_budget_is_source_specific(self):
+        import json,httpx
+        from unittest.mock import patch
+        from cyberbot.providers.solana_observed import request,MAX_BYTES,RUG_MAX_BYTES
+        mint="1"*31+"2"
+        self.assertEqual(MAX_BYTES,256*1024)
+        self.assertEqual(RUG_MAX_BYTES,8*1024*1024)
+        payload=json.dumps({"padding":"x"*MAX_BYTES}).encode()
+        with httpx.Client(transport=httpx.MockTransport(lambda req:httpx.Response(200,content=payload))) as c:
+            self.assertEqual(len(request(c,"rugcheck",mint,"")["padding"]),MAX_BYTES)
+            with self.assertRaisesRegex(PilotError,"gecko_holders: response_too_large"):
+                request(c,"gecko_holders",mint,"")
+        with patch("cyberbot.providers.solana_observed.RUG_MAX_BYTES",len(payload)-1):
+            with httpx.Client(transport=httpx.MockTransport(lambda req:httpx.Response(200,content=payload))) as c:
+                with self.assertRaisesRegex(PilotError,"rugcheck: response_too_large"):
+                    request(c,"rugcheck",mint,"")
