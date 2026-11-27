@@ -48,7 +48,23 @@ foreach ($plan in $plans) {
 }
 $problem = @($rows | Where-Object { $_.status -in @('FAILED','STALE','STALE_DEFERRED','REVIEW_REQUIRED','OVERRUN_REVIEW_REQUIRED','CLOCK_REVIEW_REQUIRED') }).Count
 $waiting = @($rows | Where-Object { $_.status -in @('DEFERRED','NOT_RUN','NOT_REGISTERED','DISABLED') }).Count
+$resources = $null
+try {
+    $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+    $root = Split-Path -Parent $PSScriptRoot
+    $disk = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($root))
+    if ($null -ne $os.FreePhysicalMemory -and $null -ne $os.TotalVisibleMemorySize) {
+        $resources = [ordered]@{
+            free_ram_bytes = ([long]$os.FreePhysicalMemory * 1024)
+            total_ram_bytes = ([long]$os.TotalVisibleMemorySize * 1024)
+            free_disk_bytes = [long]$disk.AvailableFreeSpace
+            total_disk_bytes = [long]$disk.TotalSize
+            scope = 'host_sample_not_process_usage'
+        }
+    }
+} catch { $resources = $null }
 $result = [ordered]@{
+    resources=$resources
     checked_at_utc=$now.ToUniversalTime().ToString('o')
     status=$(if ($problem -gt 0) { 'REVIEW_REQUIRED' } elseif ($waiting -gt 0) { 'NOT_FULLY_RUNNING' } else { 'SCHEDULER_OK' })
     tasks=$rows
