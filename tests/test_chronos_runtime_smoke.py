@@ -26,7 +26,9 @@ class ChronosPreflightTests(unittest.TestCase):
             report={"runtime_verified":True,"synthetic_only":True}
             path=write_report(root,report)
             self.assertEqual(json.loads(path.read_text()),report)
-            self.assertEqual(list(folder.iterdir()),[path])
+            entries=list(folder.iterdir())
+            self.assertEqual(len(entries),1)
+            self.assertTrue(entries[0].samefile(path))
             self.assertNotEqual(write_report(root,report),path)
 
 
