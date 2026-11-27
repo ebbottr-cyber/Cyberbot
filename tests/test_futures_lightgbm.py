@@ -21,7 +21,7 @@ class LightGBMTests(unittest.TestCase):
         self.assertEqual(purged,5)
         self.assertLess(train[-1][0]+m.HORIZON,test[0][0])
         i=40;original=m.features(rows,i)
-        raw[i+1]["mid"]=999
+        raw[i+1]["mid"]*=1.05
         modified=m.validate(raw,"BTCUSDT",NOW)
         self.assertEqual(m.features(modified,i),original)
         self.assertNotEqual(m.build(modified),m.build(rows))
