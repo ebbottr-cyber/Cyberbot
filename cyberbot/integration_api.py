@@ -117,3 +117,38 @@ def ai_status():
 @router.get("/api/integration/ai")
 def research_status():
     return ai_status()
+
+def notification_status(path=None, *, now=None):
+    """Read only the notification worker health handoff, not push credentials or inbox."""
+    result = {"status": "not_configured", "last_cycle_utc": None,
+              "device_delivery_verified": False, "news_delivery_verified": False}
+    path = path or os.getenv("CYBERBOT_NOTIFICATION_HEALTH_FILE")
+    if not path:
+        return result
+    try:
+        import json
+        with Path(path).open("rb") as stream:
+            raw = stream.read(16385)
+        if len(raw) > 16384:
+            raise ValueError("Health report too large")
+        report = json.loads(raw)
+        stamp = datetime.fromisoformat(report["finished_at"])
+        start = datetime.fromisoformat(report["started_at"])
+        clock = now or datetime.now(timezone.utc)
+        if stamp.tzinfo is None or start.tzinfo is None or not start <= stamp <= clock:
+            raise ValueError("Invalid worker timestamps")
+        state = report["status"]
+        if state not in ("ok", "degraded", "error", "disabled", "unknown"):
+            raise ValueError("Unknown health state")
+        result.update(status="stale" if (clock-stamp).total_seconds() > 900 else state,
+                      last_cycle_utc=stamp.astimezone(timezone.utc).isoformat())
+    except FileNotFoundError:
+        result["status"] = "not_available"
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, OverflowError):
+        result["status"] = "unavailable"
+    return result
+
+
+@router.get("/api/integration/notifications")
+def notifications_status():
+    return notification_status()
