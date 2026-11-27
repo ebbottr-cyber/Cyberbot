@@ -2,6 +2,7 @@
 import argparse
 import json
 import sqlite3
+from datetime import datetime,timezone
 from pathlib import Path
 from tools.solana_paper_replay import collect,FALSE_FLAGS
 from tools.solana_learning_readiness import evaluate as readiness
@@ -24,6 +25,7 @@ def run(database,history_database,*,limit=500,allow_experiment=False,
         raise ValueError("Collection requires both root and report directory")
     result={"status":"learning_cycle_partial","stage":"collection","research_only":True,
             "collection_requested":dexterm_root is not None,"collection":None,
+            "started_utc":datetime.now(timezone.utc).isoformat(),
             "production_training_performed":False,"training_allowed":False,
             "weights_updated":False,"model_promoted":False,"model_saved":False,
             "scheduled":False,"gemini_api_called":False,**FALSE_FLAGS}
@@ -35,6 +37,7 @@ def run(database,history_database,*,limit=500,allow_experiment=False,
         result["collection"]=collected
         if collected["status"]!="research_run_complete":
             result["stop_reason"]="collection_partial"
+            result["finished_utc"]=datetime.now(timezone.utc).isoformat()
             return result
     # All downstream stages use the same immutable in-memory observation set.
     result["stage"]="archive_read"
@@ -57,6 +60,7 @@ def run(database,history_database,*,limit=500,allow_experiment=False,
     result["stage"]="complete"
     result["status"]="learning_cycle_complete" if e["status"]!="experiment_partial" else "learning_cycle_partial"
     result["experiment_blocked"]=e["status"]=="experiment_blocked"
+    result["finished_utc"]=datetime.now(timezone.utc).isoformat()
     return result
 
 def main():
