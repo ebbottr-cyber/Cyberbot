@@ -5,12 +5,13 @@ $root = Split-Path -Parent $PSScriptRoot
 $script = Join-Path $root 'scripts\ai-research-windows.ps1'
 $plans = @(
     @{ Name = 'Cyberbot-AI-Chronos'; Mode = 'Chronos'; Time = '00:01'; Interval = 15; Limit = 15 },
-    @{ Name = 'Cyberbot-AI-LightGBM'; Mode = 'LightGBM'; Time = '02:11'; Interval = 0; Limit = 30 },
+    @{ Name = 'Cyberbot-AI-RiverLive'; Mode = 'RiverLive'; Time = '00:00'; Interval = 15; Limit = 14 },
+    @{ Name = 'Cyberbot-AI-LightGBM'; Mode = 'LightGBM'; Time = '02:12'; Interval = 0; Limit = 30 },
     @{ Name = 'Cyberbot-AI-RiverReplay'; Mode = 'RiverReplay'; Time = '00:13'; Interval = 30; Limit = 3 },
     @{ Name = 'Cyberbot-AI-ForwardBackup'; Mode = 'Backup'; Time = '03:15'; Interval = 0; Limit = 5 }
 )
 if (-not $Register) {
-    Write-Host 'PREVIEW: Chronos every 15 minutes; LightGBM at 02:11; River replay every 30 minutes; forward backup at 03:15 local time.'
+    Write-Host 'PREVIEW: Chronos every 15 minutes; River live every 15 minutes; LightGBM at 02:12; River replay every 30 minutes; forward backup at 03:15 local time.'
     Write-Host 'All tasks will be disabled, interactive user only, AC power only. No task started.'
     return
 }
