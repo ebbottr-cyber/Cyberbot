@@ -22,6 +22,7 @@ SCOPE = ("FUTURES", "BTCUSDT", "binance-usdm-public")
 FEATURES = ("mean", "ar1", "chronos")
 MAX_REPLAY = 1000
 MAX_PENDING = 100
+MAX_RECORDS = 100000
 WARMUP = 60
 
 
@@ -86,7 +87,7 @@ def tick(source, db, *, library_version, factory=make_model, clock=now_utc):
                 validated(row[:4])
                 o=json.loads(row[3])
                 if (row[1]==created and digest(row[2])==fp
-                        and utc(o["target_source_at"])>utc(own_created)):
+                        and utc(own_created)<utc(o["target_source_at"])<=clock()):
                     actual=o["actual_return_pct"]
                     status="measured"
             elif current-target<3 and (not row or row[4]=="pending"):
@@ -106,6 +107,10 @@ def tick(source, db, *, library_version, factory=make_model, clock=now_utc):
     try:
         if db.execute("SELECT 1 FROM river_shadow WHERE target=?",(current,)).fetchone():
             return "ALREADY_RECORDED"
+        if db.execute("SELECT 1 FROM river_shadow WHERE target>? LIMIT 1",(current,)).fetchone():
+            return "CLOCK_REVIEW_REQUIRED"
+        if db.execute("SELECT COUNT(*) FROM river_shadow").fetchone()[0]>=MAX_RECORDS:
+            return "JOURNAL_LIMIT_REACHED"
         if db.execute("SELECT 1 FROM river_shadow WHERE status='pending' LIMIT 1").fetchone():
             return "WAIT_PRIOR_OUTCOME"
         if db.execute("SELECT 1 FROM river_shadow WHERE library_version<>? LIMIT 1",
@@ -151,7 +156,8 @@ def tick(source, db, *, library_version, factory=make_model, clock=now_utc):
                    (current,created,digest(payload),stamp.isoformat(),
                     json.dumps(x,sort_keys=True,allow_nan=False),pred,len(history),
                     library_version,"pending",None,None))
-        if minute(clock())!=current or clock().second>35:
+        finished=clock()
+        if minute(finished)!=current or finished.second>35 or finished<stamp:
             return "WINDOW_EXPIRED"
         db.commit()
         return "FORECAST_RECORDED"
@@ -176,6 +182,8 @@ def run(root, seconds):
     if not 1<=seconds<=900:
         raise ValueError("invalid bounded runtime")
     import river
+    import shutil
+    from .vps_guard import MIB, MIN_FREE_DISK_MIB
     folder=root/"var/ai"
     src=folder/"forward-models-v2.sqlite3"
     path=folder/"river-live-shadow.sqlite3"
@@ -185,8 +193,14 @@ def run(root, seconds):
         raise ValueError("unsafe shadow path")
     with closing(readonly(src)) as source, closing(sqlite3.connect(path,timeout=3)) as db:
         deadline=time.monotonic()+seconds
+        previous=None
         while True:
-            print(tick(source,db,library_version=river.__version__),flush=True)
+            if shutil.disk_usage(folder).free//MIB<MIN_FREE_DISK_MIB:
+                raise RuntimeError("insufficient disk")
+            outcome=tick(source,db,library_version=river.__version__)
+            if outcome!=previous:
+                print(outcome,flush=True)
+                previous=outcome
             if time.monotonic()>=deadline:
                 break
             time.sleep(min(2,max(0,deadline-time.monotonic())))
