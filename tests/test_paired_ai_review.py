@@ -1,5 +1,6 @@
 """Synthetic tests of the common evaluation protocol."""
 from datetime import datetime, timedelta, timezone
+import json
 import unittest
 from tools.local_research.paired_ai_review import compare
 
