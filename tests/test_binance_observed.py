@@ -2,7 +2,7 @@ import os,tempfile,unittest
 from pathlib import Path
 from datetime import datetime,timezone,timedelta
 from unittest.mock import patch
-from cyberbot.providers.binance_observed import run,BOOK,MARK,INFO,FUNDING,SOURCE,PilotError,PERIOD_MS,OPEN_INTEREST,market_context
+from cyberbot.providers.binance_observed import run,BOOK,MARK,INFO,FUNDING,SOURCE,PilotError,PERIOD_MS,OPEN_INTEREST,market_context,DEPTH,orderbook_context
 from cyberbot import futures_pilot as fut
 class BinanceObservedTests(unittest.TestCase):
     def test_probe_apply_funding(self):
@@ -15,6 +15,9 @@ class BinanceObservedTests(unittest.TestCase):
                 if endpoint==BOOK:return {"symbol":"BTCUSDT","time":ms,"bidPrice":"100","askPrice":"100.1","bidQty":"10","askQty":"10"}
                 if endpoint==MARK:return {"symbol":"BTCUSDT","time":ms,"markPrice":"100","indexPrice":"100","lastFundingRate":".0001","nextFundingTime":(ms//PERIOD_MS+1)*PERIOD_MS}
                 if endpoint==OPEN_INTEREST:return {"symbol":"BTCUSDT","time":ms,"openInterest":"500"}
+                if endpoint==DEPTH:
+                    self.assertEqual(params,{"symbol":"BTCUSDT","limit":20})
+                    return {"lastUpdateId":1,"T":ms,"E":ms,"bids":[["100","10"]],"asks":[["100.1","10"]]}
                 if endpoint==FUNDING:return fund
                 raise AssertionError(endpoint)
             def poll(apply=False):return run(apply=apply,transport=mock,clock=lambda:t)
@@ -32,6 +35,14 @@ class BinanceObservedTests(unittest.TestCase):
                 self.assertEqual(list(p.iterdir()),[])
                 calls.clear()
                 with self.assertRaises(PilotError):run(apply=True,context_probe=True,transport=mock,clock=lambda:t)
+                self.assertEqual(calls,[])
+                depth=run(depth_probe=True,transport=mock,clock=lambda:t)["orderbook_context"]
+                self.assertEqual(calls,[INFO,BOOK,MARK,DEPTH])
+                self.assertTrue(depth["ticker_top_matches"])
+                self.assertFalse(depth["execution_verified"])
+                self.assertEqual(list(p.iterdir()),[])
+                calls.clear()
+                with self.assertRaises(PilotError):run(apply=True,depth_probe=True,transport=mock,clock=lambda:t)
                 self.assertEqual(calls,[])
                 bad=True
                 with self.assertRaises(PilotError):poll()
@@ -58,3 +69,37 @@ class BinanceObservedTests(unittest.TestCase):
             with self.assertRaises(PilotError):market_context(book,mark,{**oi,**change},sym,t)
         empty=market_context({**book,"bidQty":"0","askQty":"0"},mark,oi,sym,t)
         self.assertIsNone(empty["best_level_qty_imbalance"])
+
+    def test_orderbook_depth_and_sweep(self):
+        from decimal import Decimal as D
+        t=datetime(2026,1,1,tzinfo=timezone.utc);ms=int(t.timestamp()*1000)
+        book={"symbol":"BTCUSDT","time":ms,"bidPrice":"99","askPrice":"101","bidQty":"1","askQty":"1"}
+        raw={"lastUpdateId":1,"T":ms,"E":ms,
+             "bids":[[str(99-i),"1"] for i in range(5)],
+             "asks":[[str(101+i),"1"] for i in range(5)]}
+        d=orderbook_context(raw,book,"BTCUSDT",t)
+        self.assertTrue(d["ticker_top_matches"])
+        self.assertEqual(len(d["depth_bands"]),1)
+        self.assertEqual(d["depth_bands"][0]["bid_notional_usdt"],"485")
+        self.assertEqual(d["depth_bands"][0]["ask_notional_usdt"],"515")
+        self.assertEqual(D(d["depth_bands"][0]["notional_imbalance"]),D("-.03"))
+        self.assertEqual(D(d["indicative_sweeps"][0]["buy_vwap"]),D(101))
+        self.assertEqual(D(d["indicative_sweeps"][1]["buy_vwap"]),D(103))
+        self.assertIsNone(d["indicative_sweeps"][2]["buy_vwap"])
+        self.assertIsNone(d["indicative_sweeps"][2]["sell_vwap"])
+        self.assertIsNone(d["directional_signal"])
+        self.assertFalse(d["real_orders"])
+        self.assertFalse(d["full_book_verified"])
+
+    def test_orderbook_rejects_invalid_snapshots(self):
+        t=datetime(2026,1,1,tzinfo=timezone.utc);ms=int(t.timestamp()*1000)
+        book={"symbol":"BTCUSDT","time":ms,"bidPrice":"99","askPrice":"101","bidQty":"1","askQty":"1"}
+        raw={"lastUpdateId":1,"T":ms,"E":ms,"bids":[["99","1"]],"asks":[["101","1"]]}
+        for change in ({"T":ms-4000},{"E":ms+1},{"lastUpdateId":True},{"symbol":"ETHUSDT"},
+                       {"bids":[["99","1"],["99","2"]]},{"asks":[["98","1"]]},
+                       {"asks":[["101","0"]]},{"bids":[]},{"bids":[["99","NaN"]]},
+                       {"bids":[[str(99-i),"1"] for i in range(21)]}):
+            with self.subTest(change=change),self.assertRaises(PilotError):
+                orderbook_context({**raw,**change},book,"BTCUSDT",t)
+        d=orderbook_context(raw,{**book,"bidQty":"2"},"BTCUSDT",t)
+        self.assertFalse(d["ticker_top_matches"])
