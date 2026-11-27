@@ -13,7 +13,19 @@ class NewsStore:
             db.execute("""CREATE TABLE IF NOT EXISTS research_news (
                 event_key TEXT PRIMARY KEY, published_at TEXT NOT NULL,
                 market TEXT NOT NULL, priority TEXT NOT NULL, payload TEXT NOT NULL)""")
+            db.execute("CREATE TABLE IF NOT EXISTS research_news_claims (event_key TEXT PRIMARY KEY)")
             db.execute("CREATE INDEX IF NOT EXISTS research_news_date ON research_news(published_at DESC)")
+
+    def claim(self, event_key):
+        with closing(sqlite3.connect(self.path, timeout=10)) as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            if db.execute("SELECT 1 FROM research_news WHERE event_key=?", (event_key,)).fetchone():
+                return "duplicate"
+            return "claimed" if db.execute("INSERT OR IGNORE INTO research_news_claims VALUES (?)", (event_key,)).rowcount else "busy"
+
+    def release(self, event_key):
+        with closing(sqlite3.connect(self.path, timeout=10)) as db, db:
+            db.execute("DELETE FROM research_news_claims WHERE event_key=?", (event_key,))
 
     def save(self,article):
         required=("event_key","title","source","url","published_at","market","priority")
