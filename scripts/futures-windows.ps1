@@ -1,13 +1,14 @@
 # Futures-only setup and foreground launch. Default mode is a read-only preview.
 [CmdletBinding()]
 param(
-    [ValidateSet('Preview','Prepare','Status','Probe','SafetyStatus','SafetyProbe','Collect','Evaluate','PaperObserve')]
+    [ValidateSet('Preview','Prepare','Status','Probe','SafetyStatus','SafetyProbe','Collect','Evaluate','PaperObserve','Supervise')]
     [string]$Mode = 'Preview',
     [ValidateSet('BTCUSDT','ETHUSDT')][string]$Symbol = 'BTCUSDT',
     [ValidateRange(1,1440)][int]$Cycles = 1200,
     [switch]$ConfirmDataRights,
     [switch]$ConfirmPaperObservation,
-    [switch]$RecordPredictions
+    [switch]$RecordPredictions,
+    [switch]$ConfirmAutoPaper
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -113,6 +114,24 @@ try {
         return
     }
     foreach ($flag in $researchFlags) { Set-TemporaryEnv $flag '1' }
+    if ($Mode -eq 'Supervise') {
+        Set-TemporaryEnv 'CYBERBOT_FUTURES_SUPERVISOR_ENABLED' '1'
+        Set-TemporaryEnv 'CYBERBOT_FUTURES_FORWARD_MEMORY_ENABLED' '1'
+        $arguments = @('-m','cyberbot.futures_supervisor','--symbol',$Symbol,'--minutes',$Cycles)
+        if ($ConfirmPaperObservation) {
+            Set-TemporaryEnv 'CYBERBOT_FUTURES_SUPERVISOR_PAPER_CONFIRMED' '1'
+            $arguments += '--paper'
+        }
+        if ($ConfirmAutoPaper) {
+            if (-not $ConfirmPaperObservation) { throw 'Separate paper observation confirmation required.' }
+            Set-TemporaryEnv 'CYBERBOT_FUTURES_AUTO_PAPER_ENABLED' '1'
+            Set-TemporaryEnv 'CYBERBOT_FUTURES_AUTO_PAPER_CONFIRMED' '1'
+            Set-TemporaryEnv 'CYBERBOT_FUTURES_AI_BRIDGE_ENABLED' '1'
+            $arguments += '--automatic'
+        }
+        Invoke-PythonChecked @arguments
+        return
+    }
     if ($Mode -eq 'Collect') {
         $arguments = @('-m','cyberbot.futures_live_research','--symbol',$Symbol,'--collect-cycles',$Cycles)
         if ($RecordPredictions) {

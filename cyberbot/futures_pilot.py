@@ -202,7 +202,7 @@ def observe(input_quote,*,clock=utc,auto_paper=False):
         order=s["pending"]
         if order and order["side"]!="CLOSE" and halted(db):
             s["pending"]=None;event="entry_cancelled"
-        elif order and order.get("reason")=="ai_auto" and (not auto_paper or not auto_enabled()):
+        elif order and order.get("reason")=="ai_auto" and (not auto_paper or not auto_enabled() or old is None or (ts(q["source_at"])-ts(old["source_at"])).total_seconds()>MAX_AGE):
             s["pending"]=None;event="entry_cancelled"
         elif order and order["side"]!="CLOSE" and (now>ts(order["expires_at"]) or ts(order["requested_at"]).date()!=now.date()):
             s["pending"]=None;event="expired"
