@@ -1,5 +1,5 @@
 """Read-only Solana quote diagnostics, never an executable pilot quote."""
-import os,json,re
+import os,json,re,base64,hashlib
 from decimal import Decimal as D
 import httpx
 from .. import solana_pilot as sol
@@ -138,6 +138,82 @@ def request(client,kind,params,key,*,rpc_url=None):
         code=error.get("code") if isinstance(error,dict) else None
         raise PilotError(stage+": RPC "+str(code if type(code) is int else "unknown")+"; no_retry")
     return raw
+# Raydium CPMM account format: official program-addresses and PoolState schema.
+# https://github.com/raydium-io/raydium-cp-swap/blob/master/programs/cp-swap/src/states/pool.rs
+CPMM="CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C"
+def b58key(raw):
+    n=int.from_bytes(raw,"big");out=""
+    while n:
+        n,i=divmod(n,58);out=sol.ALPHABET[i]+out
+    return "1"*(len(raw)-len(raw.lstrip(b"\x00")))+out
+
+def cpmm_state(raw,mint,pool,info):
+    slot,row=rpc_result(raw)
+    if not info["slot"]<=slot<=info["slot"]+20 or not isinstance(row,dict) or row.get("executable") is not False:
+        raise PilotError("Havuz hesabı veya slot geçersiz.")
+    program=row.get("owner")
+    if not sol.address(program):raise PilotError("Havuz programı geçersiz.")
+    if program!=CPMM:return None
+    encoded=row.get("data")
+    if not isinstance(encoded,list) or len(encoded)!=2 or encoded[1]!="base64" or not isinstance(encoded[0],str) or len(encoded[0])>1024:
+        raise PilotError("CPMM hesap biçimi geçersiz.")
+    data=base64.b64decode(encoded[0],validate=True)
+    if len(data)!=637 or data[:8]!=hashlib.sha256(b"account:PoolState").digest()[:8]:
+        raise PilotError("CPMM hesap şeması desteklenmiyor.")
+    keys=[b58key(data[8+i*32:40+i*32]) for i in range(10)]
+    vaults=keys[2:4];lp=keys[4];mints=keys[5:7]
+    if (set(mints)!={mint,USDC} or keys[7:9]!=[LEGACY,LEGACY] or
+        len(set(vaults+[lp]+mints+[pool]))!=6 or not all(sol.address(k) for k in vaults+[lp])):
+        raise PilotError("CPMM kasa/mint kimliği uyuşmuyor.")
+    decimals=list(data[331:333])
+    if decimals[mints.index(mint)]!=info["decimals"] or decimals[mints.index(USDC)]!=6 or data[330]!=9:
+        raise PilotError("CPMM token hassasiyeti uyuşmuyor.")
+    return {"slot":slot,"pool":pool,"creator":keys[1],"vaults":vaults,"lp_mint":lp,
+            "mints":mints,"decimals":decimals,"status_bits":data[329],
+            "lp_supply_reported_raw":str(int.from_bytes(data[333:341],"little"))}
+
+def pool_probe(get,mint,pool,info):
+    """Read-only CPMM vault and LP supply evidence; not proof of a lock or burn."""
+    def rpc(method,args):return get("rpc",(method,args))
+    raw=rpc("getAccountInfo",[pool,{"encoding":"base64","commitment":"finalized","minContextSlot":info["slot"]}])
+    state=cpmm_state(raw,mint,pool,info)
+    result={"status":"unsupported_pool_program","program":rpc_result(raw)[1]["owner"],
+            "lp_lock_verified":False,"lp_burn_verified":False,"pool_vaults_excluded":False,
+            "vault_pda_verified":False,"security_verified":False,"depth_verified":False,
+            "trade_eligible":False,"pilot_applied":False,"real_orders":False}
+    if state is None:return result
+    raw=rpc("getMultipleAccounts",[state["vaults"]+[state["lp_mint"]],
+            {"encoding":"jsonParsed","commitment":"finalized","minContextSlot":state["slot"]}])
+    slot,rows=rpc_result(raw)
+    if not state["slot"]<=slot<=info["slot"]+20 or not isinstance(rows,list) or len(rows)!=3:
+        raise PilotError("CPMM kasa örneklemi eksik veya eski.")
+    reserves=[];owners=[]
+    for row,expected,decimals in zip(rows[:2],state["mints"],state["decimals"]):
+        if not isinstance(row,dict) or row.get("owner")!=LEGACY or row.get("executable") is not False:
+            raise PilotError("CPMM kasa programı geçersiz.")
+        data=row["data"];parsed=data["parsed"];item=parsed["info"];balance=item["tokenAmount"]
+        if (data.get("program")!="spl-token" or parsed.get("type")!="account" or item.get("mint")!=expected or
+            not sol.address(item.get("owner")) or item.get("state")!="initialized" or
+            type(balance.get("decimals")) is not int or balance["decimals"]!=decimals):
+            raise PilotError("CPMM kasa token bilgisi uyuşmuyor.")
+        reserves.append(uint(balance["amount"]));owners.append(item["owner"])
+    lp=mint_info({"jsonrpc":"2.0","id":1,"result":{"context":{"slot":slot},"value":rows[2]}})
+    lp_raw=rows[2]["data"]["parsed"]["info"]
+    if lp["decimals"]!=9 or owners[0]!=owners[1] or lp_raw.get("mintAuthority")!=owners[0]:
+        raise PilotError("CPMM kasa ve LP yetkileri uyuşmuyor.")
+    largest=rpc("getTokenLargestAccounts",[state["lp_mint"],{"commitment":"finalized","minContextSlot":slot}])
+    lp_slot,_=rpc_result(largest)
+    if not slot<=lp_slot<=info["slot"]+20:raise PilotError("LP örneklem slot uyumsuz.")
+    lp_accounts=concentration(largest,lp)
+    usdc=D(reserves[state["mints"].index(USDC)])/D(10**6)
+    flags=[]
+    if not all(reserves):flags.append("empty_vault")
+    if state["status_bits"]&7:flags.append("pool_operation_disabled")
+    if D(lp_accounts["top10_token_account_pct"])>30:flags.append("lp_account_concentration_above_30pct")
+    return {**result,"status":"cpmm_reported_evidence_only","state":state,"vault_slot":slot,
+            "vault_balances_raw":[str(n) for n in reserves],"usdc_vault_balance":str(usdc),
+            "lp_mint_supply_raw":str(lp["supply"]),"lp_account_sample":lp_accounts,
+            "risk_flags":flags,"rug_pull_risk_resolved":False}
 def risk_screen(info,holders,pooldata,ask,bid):
     """Screen reported observations only; never authorize a pilot quote or fill."""
     liquidity=sol.number(pooldata["liquidity_usd_reported"])
@@ -181,7 +257,7 @@ def quote_ladder(samples,decimals):
             "samples":rows,"source_synchronization_verified":False,
             "execution_slippage_verified":False,"depth_verified":False,
             "trade_eligible":False,"pilot_applied":False,"real_orders":False}
-def run(*,transport=None,clock=utc,depth_probe=False,owner_probe=False):
+def run(*,transport=None,clock=utc,depth_probe=False,owner_probe=False,vault_probe=False):
     if not configured():raise PilotError("Solana veri adaptörü veya kullanım izni/anahtarı eksik.")
     mint,pool=sol.config()
     if mint==USDC:raise PilotError("USDC baz token olamaz.")
@@ -190,7 +266,9 @@ def run(*,transport=None,clock=utc,depth_probe=False,owner_probe=False):
     rpc_name,rpc_url=rpc_endpoint()
     started=clock()
     with httpx.Client(timeout=httpx.Timeout(8,connect=6),follow_redirects=False,trust_env=False) as c:
-        def get(kind,params):return transport(kind,params) if transport else request(c,kind,params,key,rpc_url=rpc_url)
+        def get(kind,params):
+            if not 0<=(clock()-started).total_seconds()<30:raise PilotError("Tanılama süresi aşıldı.")
+            return transport(kind,params) if transport else request(c,kind,params,key,rpc_url=rpc_url)
         info=mint_info(get("rpc",("getAccountInfo",[mint,{"encoding":"jsonParsed","commitment":"finalized"}])))
         largest=get("rpc",("getTokenLargestAccounts",[mint,{"commitment":"finalized"}]))
         holders=concentration(largest,info)
@@ -201,6 +279,7 @@ def run(*,transport=None,clock=utc,depth_probe=False,owner_probe=False):
             raw=get("rpc",("getMultipleAccounts",[addresses,{"encoding":"jsonParsed","commitment":"finalized","minContextSlot":holders["slot"]}]))
             owners=owner_sample(largest,raw,info,mint)
         pooldata=pool_info(get("pool",pool),mint,pool)
+        vaults=pool_probe(get,mint,pool,info) if vault_probe else None
         def query(a,b,n):return quote(get("quote",{"inputMint":a,"outputMint":b,"amount":str(n)}),a,b,n,pool)
         samples=[]
         for size in ((25,50,100) if depth_probe else (100,)):
@@ -213,4 +292,4 @@ def run(*,transport=None,clock=utc,depth_probe=False,owner_probe=False):
     if not 0<=elapsed<=30:raise PilotError("Tanılama süresi aşıldı.")
     units=D(tokens)/D(10**info["decimals"])
     ask=D(100)/units;bid=(D(received)/D(10**6))/units
-    return {"status":"diagnostic_only","mint":mint,"pool":pool,"retrieved_at":clock().isoformat(),"quote_currency":"USDC","test_input_usdc":"100","quoted_tokens":str(units),"quoted_return_usdc":str(D(received)/D(10**6)),"indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),"roundtrip_indicative_pct":str((D(received)/D(AMOUNT)-1)*100),"pool":pooldata,"mint_checks":{**info,**holders},"risk_screen":risk_screen(info,holders,pooldata,ask,bid),"depth_probe":quote_ladder(samples,info["decimals"]) if depth_probe else None,"owner_probe":owners,"quote_source_timestamp_verified":False,"usd_conversion_verified":False,"security_verified":False,"depth_verified":False,"pilot_applied":False,"live_data_verified":False,"real_orders":False,"transport_mocked":transport is not None,"api_key_used":bool(key),"rpc_provider":rpc_name,"blockers":["USDC/USD dönüşümü yok","Kaynak zaman damgası ve eşzamanlılık doğrulanmadı","Token hesabı yoğunlaşması cüzdan yoğunlaşması değildir","Kotasyon dolum ve derinlik garantisi değildir"]}
+    return {"status":"diagnostic_only","mint":mint,"pool":pool,"retrieved_at":clock().isoformat(),"quote_currency":"USDC","test_input_usdc":"100","quoted_tokens":str(units),"quoted_return_usdc":str(D(received)/D(10**6)),"indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),"roundtrip_indicative_pct":str((D(received)/D(AMOUNT)-1)*100),"pool":pooldata,"mint_checks":{**info,**holders},"risk_screen":risk_screen(info,holders,pooldata,ask,bid),"depth_probe":quote_ladder(samples,info["decimals"]) if depth_probe else None,"owner_probe":owners,"vault_probe":vaults,"quote_source_timestamp_verified":False,"usd_conversion_verified":False,"security_verified":False,"depth_verified":False,"pilot_applied":False,"live_data_verified":False,"real_orders":False,"transport_mocked":transport is not None,"api_key_used":bool(key),"rpc_provider":rpc_name,"blockers":["USDC/USD dönüşümü yok","Kaynak zaman damgası ve eşzamanlılık doğrulanmadı","Token hesabı yoğunlaşması cüzdan yoğunlaşması değildir","Kotasyon dolum ve derinlik garantisi değildir"]}
