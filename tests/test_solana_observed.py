@@ -65,3 +65,22 @@ class SolanaObservedTests(unittest.TestCase):
         with httpx.Client(transport=httpx.MockTransport(rpc_error)) as c:
             with self.assertRaises(PilotError) as ctx:request(c,"rpc",("getAccountInfo",[]),"")
             self.assertEqual(str(ctx.exception),"solana_rpc.getAccountInfo: RPC -32005; no_retry")
+
+    def test_rpc_provider_allowlist(self):
+        import httpx
+        from cyberbot.providers.solana_observed import request,rpc_endpoint
+        seen=[]
+        def transport(req):
+            seen.append(str(req.url))
+            self.assertNotIn("x-api-key",req.headers)
+            return httpx.Response(200,json={"jsonrpc":"2.0","id":1,"result":{}})
+        with httpx.Client(transport=httpx.MockTransport(transport)) as c:
+            for name,url in (("official","https://api.mainnet-beta.solana.com"),("publicnode","https://solana-rpc.publicnode.com")):
+                with patch.dict(os.environ,{"CYBERBOT_SOLANA_RPC_PROVIDER":name}):
+                    self.assertEqual(rpc_endpoint(),(name,url))
+                    request(c,"rpc",("getAccountInfo",[]),"fixture")
+                    self.assertEqual(seen[-1].rstrip("/"),url)
+            with patch.dict(os.environ,{"CYBERBOT_SOLANA_RPC_PROVIDER":"https://example.invalid"}):
+                with self.assertRaises(PilotError):request(c,"rpc",("getAccountInfo",[]),"fixture")
+            with self.assertRaises(PilotError):request(c,"rpc",("getAccountInfo",[]),"fixture",rpc_url="https://example.invalid")
+        self.assertEqual(len(seen),2)

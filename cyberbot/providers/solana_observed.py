@@ -5,6 +5,11 @@ import httpx
 from .. import solana_pilot as sol
 from ..observed_pilot import PilotError,utc
 RPC="https://api.mainnet-beta.solana.com"
+RPC_ENDPOINTS={"official":RPC,"publicnode":"https://solana-rpc.publicnode.com"}
+def rpc_endpoint():
+    name=os.getenv("CYBERBOT_SOLANA_RPC_PROVIDER","official")
+    if name not in RPC_ENDPOINTS:raise PilotError("RPC provider not allowed")
+    return name,RPC_ENDPOINTS[name]
 DEX="https://api.dexscreener.com/latest/dex/pairs/solana/"
 JUP="https://api.jup.ag/swap/v2/order"
 USDC="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
@@ -61,11 +66,13 @@ def quote(raw,inp,out,amount,pool):
             raise PilotError("Net rota miktarı doğrulanamadı.")
     if route.get("bps")!=10000 and route.get("percent")!=100:raise PilotError("Tam rota gerekli.")
     return n
-def request(client,kind,params,key):
+def request(client,kind,params,key,*,rpc_url=None):
     if kind=="rpc":
         method,args=params
         if method not in ("getAccountInfo","getTokenLargestAccounts"):raise PilotError("RPC metodu izinli değil.")
-        method_http,url,kw="POST",RPC,{"json":{"jsonrpc":"2.0","id":1,"method":method,"params":args}}
+        url=rpc_endpoint()[1] if rpc_url is None else rpc_url
+        if url not in RPC_ENDPOINTS.values():raise PilotError("RPC endpoint not allowed")
+        method_http,url,kw="POST",url,{"json":{"jsonrpc":"2.0","id":1,"method":method,"params":args}}
     elif kind=="pool":
         if not sol.address(params):raise PilotError("Havuz kimliği geçersiz.")
         method_http,url,kw="GET",DEX+params,{}
@@ -98,9 +105,10 @@ def run(*,transport=None,clock=utc):
     if mint==USDC:raise PilotError("USDC baz token olamaz.")
     key=os.getenv("CYBERBOT_JUPITER_KEY","").strip()
     if key and (len(key)>256 or not re.fullmatch(r"[A-Za-z0-9_.-]+",key)):raise PilotError("API anahtarı biçimi geçersiz.")
+    rpc_name,rpc_url=rpc_endpoint()
     started=clock()
-    with httpx.Client(timeout=httpx.Timeout(8,connect=3),follow_redirects=False,trust_env=False) as c:
-        def get(kind,params):return transport(kind,params) if transport else request(c,kind,params,key)
+    with httpx.Client(timeout=httpx.Timeout(8,connect=6),follow_redirects=False,trust_env=False) as c:
+        def get(kind,params):return transport(kind,params) if transport else request(c,kind,params,key,rpc_url=rpc_url)
         info=mint_info(get("rpc",("getAccountInfo",[mint,{"encoding":"jsonParsed","commitment":"finalized"}])))
         holders=concentration(get("rpc",("getTokenLargestAccounts",[mint,{"commitment":"finalized"}])),info)
         pooldata=pool_info(get("pool",pool),mint,pool)
@@ -111,4 +119,4 @@ def run(*,transport=None,clock=utc):
     if not 0<=elapsed<=30:raise PilotError("Tanılama süresi aşıldı.")
     units=D(tokens)/D(10**info["decimals"])
     ask=D(100)/units;bid=(D(received)/D(10**6))/units
-    return {"status":"diagnostic_only","mint":mint,"pool":pool,"retrieved_at":clock().isoformat(),"quote_currency":"USDC","test_input_usdc":"100","quoted_tokens":str(units),"quoted_return_usdc":str(D(received)/D(10**6)),"indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),"roundtrip_indicative_pct":str((D(received)/D(AMOUNT)-1)*100),"pool":pooldata,"mint_checks":{**info,**holders},"quote_source_timestamp_verified":False,"usd_conversion_verified":False,"security_verified":False,"depth_verified":False,"pilot_applied":False,"live_data_verified":False,"real_orders":False,"transport_mocked":transport is not None,"api_key_used":bool(key),"blockers":["USDC/USD dönüşümü yok","Kaynak zaman damgası ve eşzamanlılık doğrulanmadı","Token hesabı yoğunlaşması cüzdan yoğunlaşması değildir","Kotasyon dolum ve derinlik garantisi değildir"]}
+    return {"status":"diagnostic_only","mint":mint,"pool":pool,"retrieved_at":clock().isoformat(),"quote_currency":"USDC","test_input_usdc":"100","quoted_tokens":str(units),"quoted_return_usdc":str(D(received)/D(10**6)),"indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),"roundtrip_indicative_pct":str((D(received)/D(AMOUNT)-1)*100),"pool":pooldata,"mint_checks":{**info,**holders},"quote_source_timestamp_verified":False,"usd_conversion_verified":False,"security_verified":False,"depth_verified":False,"pilot_applied":False,"live_data_verified":False,"real_orders":False,"transport_mocked":transport is not None,"api_key_used":bool(key),"rpc_provider":rpc_name,"blockers":["USDC/USD dönüşümü yok","Kaynak zaman damgası ve eşzamanlılık doğrulanmadı","Token hesabı yoğunlaşması cüzdan yoğunlaşması değildir","Kotasyon dolum ve derinlik garantisi değildir"]}
