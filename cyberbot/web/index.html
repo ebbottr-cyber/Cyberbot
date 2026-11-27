@@ -153,7 +153,13 @@ nav.tiles .tile span{font-size:12px}
    const r=await fetch("/api/integration/portfolio",{cache:"no-store"});if(!r.ok)throw Error("API");
    const d=await r.json();if(d.version!=="central-portfolio-1")throw Error("schema");
    for(const a of d.markets){const c=node("article","");c.className="card";c.append(node("strong",names[a.market]||a.market),node("p",states[a.status]||"Bilinmiyor"));
-    for(const [k,v] of [["Kasa değeri",amount(a.equity,a.currency)],["Nakit",amount(a.cash,a.currency)],["Günlük K/Z",amount(a.daily_pnl,a.currency)],["Gerçekleşen K/Z",amount(a.statistics?.realized_pnl,a.currency)],["Kapanan işlem",a.statistics?.closed??"—"],["Zirveden düşüş",a.current_drawdown_pct==null?"—":a.current_drawdown_pct+"%"],["Pozisyon",a.position_open==null?"—":a.position_open?"Açık":"Yok"],["Risk kontrolü",a.risk_gate==null?"Bilinmiyor":a.risk_gate?"Yerel koşullar uygun":"Engelli"]])c.append(node("p",k+": "+v));root.append(c);
+    for(const [k,v] of [["Kasa değeri",amount(a.equity,a.currency)],["Nakit",amount(a.cash,a.currency)],["Günlük K/Z",amount(a.daily_pnl,a.currency)],["Gerçekleşen K/Z",amount(a.statistics?.realized_pnl,a.currency)],["Kapanan işlem",a.statistics?.closed??"—"],["Zirveden düşüş",a.current_drawdown_pct==null?"—":a.current_drawdown_pct+"%"],["Pozisyon",a.position_open==null?"—":a.position_open?"Açık":"Yok"],["Risk kontrolü",a.risk_gate==null?"Bilinmiyor":a.risk_gate?"Yerel koşullar uygun":"Engelli"]])c.append(node("p",k+": "+v));if(a.market==="SOLANA"){
+     const replay=a.historical_replay||{};c.append(node("strong","Geçmiş DexTerm sanal pozisyon deneyi"));
+     if(replay.status==="position_replay_complete"){
+      for(const [k,v] of [["Deney nakdi",amount(replay.cash,"USDC")],["Deney gerçekleşen K/Z",amount(replay.realized_pnl,"USDC")],["Deney son değeri",amount(replay.final_equity,"USDC")],["Açık deney pozisyonu",replay.open_positions],["Kapanan deney pozisyonu",replay.closed_positions],["Deney giriş freni",replay.replay_entry_halted?"Açık":"Kapalı"]])c.append(node("p",k+": "+v));
+      c.append(node("p","Geçmiş tekrar; canlı bakiye değildir. Açık pozisyonlar doğrulanmış değer olmadan fiyatlanmaz."));
+     }else c.append(node("p",replay.status==="no_position_observations"?"Deney için yeterli gözlem yok.":"DexTerm deney raporu yok veya okunamadı."));
+    }root.append(c);
    }
    const brake=d.entry_halted===true?"Giriş freni açık":d.entry_halted===false?"Giriş freni kapalı":"Giriş freni durumu bilinmiyor";
    s.textContent=brake+" · Otomatik giriş ve gerçek emir kapalı · "+(d.as_of?"Okuma: "+d.as_of:"Portföy kaydı okunamadı");
