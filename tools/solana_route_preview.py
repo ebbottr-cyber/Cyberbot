@@ -67,31 +67,41 @@ def inspect(raw,inp,out,amount):
              "route_kind":("single_direct" if len(legs)==1 else "split_direct") if direct else "multi_hop_or_mixed",
              "legs":legs,"route_integrity_verified":False,
              "accounting":accounting(legs,inp,out,amount,n)}
+    # Provider-declared fields only; no inferred fee accounting.
+    fee=raw.get("platformFee")
+    bps=raw.get("feeBps")
+    summary["reported_fee_bps"]=bps if type(bps) is int and 0<=bps<=10000 else None
+    fm=raw.get("feeMint")
+    summary["reported_fee_mint"]=fm if address(fm) else None
+    fb=fee.get("feeBps") if isinstance(fee,dict) else None
+    summary["reported_platform_fee_bps"]=fb if type(fb) is int and 0<=fb<=10000 else None
     if direct:
         summary["direct_input_delta_raw"]=str(sum(int(x["input_raw"]) for x in legs)-amount)
         summary["direct_output_delta_raw"]=str(sum(int(x["output_raw"]) for x in legs)-n)
         summary["direct_bps_sum"]=sum(x["bps"] for x in legs)
     return summary
 
-def run(mint,*,transport=None,clock=utc):
+def run(mint,*,amount=AMOUNT,transport=None,clock=utc):
     if os.getenv("CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED")!="1":
         raise PilotError("Explicit data usage permission required")
     if not address(mint) or mint==USDC:
         raise PilotError("Invalid base mint")
+    if type(amount) is not int or not 1_000_000<=amount<=100_000_000:
+        raise PilotError("Quote amount outside diagnostic budget")
     started=clock()
     with httpx.Client(timeout=httpx.Timeout(8,connect=6),follow_redirects=False,trust_env=False) as c:
         def get(a,b,n):
             params={"inputMint":a,"outputMint":b,"amount":str(n)}
             raw=transport(params) if transport else request(c,"quote",params,"")
             return inspect(raw,a,b,n)
-        buy=get(USDC,mint,AMOUNT)
+        buy=get(USDC,mint,amount)
         sell=get(mint,USDC,int(buy["reported_output_raw"]))
     if not 0<=(clock()-started).total_seconds()<=30:
         raise PilotError("Preview time budget exceeded")
     return {"status":"route_preview_only","mint":mint,"retrieved_at":clock().isoformat(),
-            "buy":buy,"sell":sell,
+            "buy":buy,"sell":sell,"test_input_usdc":str(D(amount)/D(10**6)),
             "reported_roundtrip_return_usdc":str(D(sell["reported_output_raw"])/D(10**6)),
-            "reported_roundtrip_pct":str((D(sell["reported_output_raw"])/D(AMOUNT)-1)*100),
+            "reported_roundtrip_pct":str((D(sell["reported_output_raw"])/D(amount)-1)*100),
             "quote_source_timestamp_verified":False,"route_integrity_verified":False,
             "security_verified":False,"depth_verified":False,"usd_conversion_verified":False,
             "live_data_verified":False,"pilot_applied":False,"real_orders":False,

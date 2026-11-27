@@ -58,3 +58,19 @@ class RoutePreviewTests(unittest.TestCase):
         self.assertFalse(accounting(legs,M,USDC,4575495239373,99763757)["reported_input_and_intermediate_balanced"])
         legs.append(leg(mid,M,1,1,1))
         self.assertFalse(accounting(legs,M,USDC,4575495239373,99763757)["graph_connected_acyclic"])
+
+    def test_custom_probe_amount_and_bounds(self):
+        calls=[]
+        def mock(p):
+            calls.append(p)
+            n=int(p["amount"])
+            return fixture(p["inputMint"],p["outputMint"],n,200 if len(calls)==1 else 24900000)
+        with patch.dict(os.environ,{"CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED":"1"}):
+            for invalid in (0,100000001,True):
+                with self.assertRaises(PilotError):run(M,amount=invalid,transport=mock)
+            self.assertEqual(calls,[])
+            d=run(M,amount=25000000,transport=mock,clock=lambda:datetime(2026,1,1,tzinfo=timezone.utc))
+        self.assertEqual(calls[0]["amount"],"25000000")
+        self.assertEqual(d["test_input_usdc"],"25")
+        self.assertEqual(d["reported_roundtrip_pct"],"-0.400")
+        self.assertFalse(d["depth_verified"])
