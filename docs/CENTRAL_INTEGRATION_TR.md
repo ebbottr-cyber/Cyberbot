@@ -127,7 +127,18 @@ CYBERBOT_DEXTERM_ARCHIVE ile aynı ayrı arşiv yolu gerekli. Tek döngü:
 Varsayılan kapalı. Döngü sadece tarama ve aday incelemesini arşivler; panel
 mevcut arşiv okuyucusu ile görür. Likidite araştırma eşiği 100000 USD olarak
 önceki aday politikasından korunur; güvenlik veya işlem uygunluğu kanıtı değil.
-Havuz köprüsü, kesin miktar çıkış kotasyonu doğrulayıcısı, replay üretimi ve
-sürekli öğrenme motoru eski sağlayıcı bağımlılıkları nedeniyle aktarılmadı.
-Bu checkout yeni exit_quote raporlarının içe alımını reddeder; mevcut arşiv
-okunabilir. Canlı veri, gerçek cihaz ve çalışma zamanı henüz doğrulanmadı.
+Havuz köprüsü ve canlı kotasyon toplama ayrı sağlayıcı uyarlaması gerektirir.
+Aşağıdaki güncelleme ile arşiv doğrulayıcısı ve çevrimdışı replay aktarıldı.
+
+## DexTerm çevrimdışı pozisyon motoru (güncelleme)
+
+Sadece DexTerm arşiv kayıtlarını okuyan dexterm_paper_positions, dexterm_paper_replay,
+dexterm_exit_validation, dexterm_exit_history ve dexterm_route_accounting modülleri
+aktarıldı. Eski sağlayıcıya ağ çağrısı veya işlem motoru bağlantısı yoktur. Kesin
+miktarlı çıkış kayıtları arşivde doğrulanabilir; yeni canlı çıkış kotasyonu çekilmez.
+Mevcut hak onayı ve giriş freni ile, ayrı CYBERBOT_DEXTERM_ARCHIVE ve
+CYBERBOT_DEXTERM_REPLAY_REPORT yolları tanımlıyken `python -m tools.dexterm_publish_replay --enable`
+çevrimdışı deney raporunu atomik yazar. Varsayılan kapalı, veri kapsamı kesilmişse
+rapor yayımlanmaz. İki arşiv okuması tek atomik anlık görüntü değildir; rapor
+üretirken arşiv yazıcısını durdurun. Geçerli açık pozisyon fiyatı yoksa değer boş
+kalır. Canlı sanal yürütme, süreklilik ve ileri öğrenme kanıtı değildir.
