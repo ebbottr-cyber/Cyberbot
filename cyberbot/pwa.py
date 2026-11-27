@@ -1,4 +1,5 @@
 """Installable shell only. No financial data or credential caching."""
+import hashlib
 import struct
 import zlib
 from functools import lru_cache
@@ -43,3 +44,14 @@ def icon(size:int):
 def worker():
     return Response((WEB/"sw.js").read_text(encoding="utf-8"),media_type="application/javascript",
                     headers={"Service-Worker-Allowed":"/"})
+
+@router.get("/pwa/version")
+def panel_version():
+    # Fingerprint deployed UI assets, not a guessed Git commit or machine metadata.
+    digest=hashlib.sha256()
+    for path in sorted(WEB.iterdir()):
+        if path.is_file() and path.suffix in (".html",".css",".js"):
+            digest.update(path.name.encode("utf-8")+b"\x00")
+            digest.update(hashlib.sha256(path.read_bytes()).digest())
+    digest.update(hashlib.sha256(Path(__file__).read_bytes()).digest())
+    return JSONResponse({"ui_revision":digest.hexdigest()[:16]},headers={"Cache-Control":"no-store"})
