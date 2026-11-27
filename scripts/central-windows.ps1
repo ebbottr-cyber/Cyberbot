@@ -2,7 +2,8 @@
 [CmdletBinding()]
 param(
     [ValidateSet('Preview','Prepare','Status','StartPanel')]
-    [string]$Mode = 'Preview'
+    [string]$Mode = 'Preview',
+    [switch]$ConnectNotifications
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -52,6 +53,12 @@ try {
     $keep = @('CYBERBOT_EBBOT_DB','CYBERBOT_EQUITY_RESEARCH_RIGHTS_CONFIRMED','CYBERBOT_FX_FILE','CYBERBOT_DEXTERM_ARCHIVE','CYBERBOT_DEXTERM_REPLAY_REPORT','CYBERBOT_NOTIFICATION_HEALTH_FILE','CYBERBOT_NOTIFICATION_DB','CYBERBOT_RESEARCH_NEWS_DB','CYBERBOT_AI_PANEL_ENABLED','CYBERBOT_OBSERVED_PILOT_ENABLED','CYBERBOT_OBSERVED_PRICE_RIGHTS_CONFIRMED','CYBERBOT_FUTURES_PILOT_ENABLED','CYBERBOT_FUTURES_PILOT_SYMBOL','CYBERBOT_OBSERVED_FX_RIGHTS_CONFIRMED','CYBERBOT_PILOT_DB')
     foreach ($e in @(Get-ChildItem Env: | Where-Object { ($_.Name -like 'CYBERBOT_*' -and $_.Name -notin $keep) -or $_.Name -in @('PYTHONPATH','PYTHONHOME') })) {
         Set-ScopedEnv $e.Name $null
+    }
+    if ($ConnectNotifications) {
+        $state = Join-Path $HOME '.cyberbot-private'
+        Set-ScopedEnv 'CYBERBOT_NOTIFICATION_HEALTH_FILE' (Join-Path $state 'notification-health.json')
+        Set-ScopedEnv 'CYBERBOT_NOTIFICATION_DB' (Join-Path $state 'notifications.sqlite3')
+        Set-ScopedEnv 'CYBERBOT_RESEARCH_NEWS_DB' (Join-Path $state 'research-news.sqlite3')
     }
     Set-ScopedEnv 'CYBERBOT_PILOT_KILL_SWITCH' '1'
     Set-ScopedEnv 'CYBERBOT_DB' (Join-Path $root 'var\paper.sqlite3')
