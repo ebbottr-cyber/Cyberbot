@@ -67,5 +67,7 @@ def panel_version():
         for path in sorted((WEB.parent.parent / "tools").glob("notification_*.css")):
             digest.update(path.name.encode("utf-8") + b"\x00")
             digest.update(hashlib.sha256(path.read_bytes()).digest())
-        digest.update(hashlib.sha256((WEB.parent / "api.py").read_bytes()).digest())
+        for name in ("api.py", "knowledge_api.py"):
+            digest.update(name.encode("utf-8") + b"\x00")
+            digest.update(hashlib.sha256((WEB.parent / name).read_bytes()).digest())
     return JSONResponse({"ui_revision":digest.hexdigest()[:16]},headers={"Cache-Control":"no-store"})
