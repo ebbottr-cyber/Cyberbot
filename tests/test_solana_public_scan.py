@@ -144,3 +144,37 @@ class PublicScanTests(unittest.TestCase):
         self.assertEqual(d["identity_conflicts"][0]["mint"],wrong["mint"])
         self.assertFalse(d["token_identity_verified"])
         self.assertFalse(d["security_verified"])
+
+    def test_reference_first_keeps_unknown_diagnostics_separate(self):
+        from tools.solana_public_scan import REFERENCE_MINTS
+        refs=list(REFERENCE_MINTS.values())
+        rows=[candidate("unknown1","p"),candidate(refs[0],"q"),candidate("unknown2","r"),candidate(refs[1],"s")]
+        calls=[]
+        def inspect(m,p):
+            calls.append(m)
+            return {"status":"diagnostic_complete" if m in refs else "diagnostic_sell_quote_rejected"}
+        with patch.dict(os.environ,{"CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED":"1"}):
+            d=run(limit=3,max_candidates=4,reference_first=True,discoverer=lambda:rows,inspect=inspect,sleep=lambda n:None)
+        self.assertEqual(calls,refs+["unknown1","unknown2"])
+        self.assertEqual(d["reference_completed_mints"],2)
+        self.assertEqual(d["nonreference_completed_mints"],0)
+        self.assertEqual(d["stop_reason"],"repeated_sell_quote_http_400")
+        self.assertFalse(d["target_reached"])
+        self.assertFalse(d["security_verified"])
+        self.assertFalse(d["pilot_applied"])
+
+    def test_discovery_retains_reference_outside_general_cap(self):
+        from tools.solana_public_scan import discover,REFERENCE_MINTS
+        mint=REFERENCE_MINTS["BONK"]
+        def addr(i):
+            return "1"*30+"2"+"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"[i]
+        from cyberbot.providers.solana_observed import USDC
+        pairs=[{"chainId":"solana","baseToken":{"address":addr(i),"symbol":"X"},
+                "quoteToken":{"address":USDC},"pairAddress":addr(i+25),"liquidity":{"usd":200000}}
+               for i in range(21)]
+        pairs.append({"chainId":"solana","baseToken":{"address":mint,"symbol":"BONK"},
+                      "quoteToken":{"address":USDC},"pairAddress":addr(50),"liquidity":{"usd":100001}})
+        with patch("tools.solana_public_scan.fetch",side_effect=lambda c,u:{"data":[]} if "geckoterminal" in u else {"pairs":pairs}):
+            d=discover(sleep=lambda n:None)
+        self.assertEqual(len(d),21)
+        self.assertTrue(any(r["mint"]==mint for r in d))

@@ -29,9 +29,19 @@ def discover(*,sleep=time.sleep):
             try:rows.extend(list(parse(fetch(c,url))))
             except httpx.HTTPStatusError as e:
                 raise PilotError("Discovery HTTP "+str(e.response.status_code)+"; no_retry") from None
-    return candidates(rows)
+    # Retain one best eligible pool for each reference even if the general
+    # liquidity-ranked top 20 would otherwise crowd it out.
+    general=candidates(rows)
+    reference_rows=[r for r in rows if r[0] in REFERENCE_MINTS.values()]
+    refs=candidates(reference_rows)
+    best={}
+    for row in refs:best.setdefault(row["mint"],row)
+    retained=list(best.values())
+    # Keep general order here; reference priority is an explicit scan option.
+    merged=general+[r for r in retained if (r["mint"],r["pool"]) not in {(x["mint"],x["pool"]) for x in general}]
+    return merged
 
-def run(*,limit=2,max_candidates=None,discoverer=discover,inspect=snapshot,sleep=time.sleep):
+def run(*,limit=2,max_candidates=None,reference_first=False,discoverer=discover,inspect=snapshot,sleep=time.sleep):
     if os.getenv("CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED")!="1":
         raise PilotError("Explicit data usage permission required")
     if type(limit) is not int or not 1<=limit<=3:
@@ -50,6 +60,8 @@ def run(*,limit=2,max_candidates=None,discoverer=discover,inspect=snapshot,sleep
         mint=row["mint"]
         if mint in seen:continue
         seen.add(mint);selected.append(row)
+    references=set(REFERENCE_MINTS.values())
+    if reference_first:selected.sort(key=lambda row:row["mint"] not in references)
     selected=selected[:max_candidates]
     reports=[];quote_rejections=0;stop_reason=None
     for i,row in enumerate(selected):
@@ -76,7 +88,12 @@ def run(*,limit=2,max_candidates=None,discoverer=discover,inspect=snapshot,sleep
     exhausted=bool(selected) and (target_reached or len(reports)==len(selected)) and done+skipped+quote_rejections==len(reports)
     status=("scan_no_candidates" if not selected else "scan_partial" if stop_reason or not exhausted or (quote_rejections and not target_reached) else
             "scan_no_supported_candidates" if not done else "scan_complete_with_skips" if skipped or quote_rejections else "scan_complete")
+    ref_done=sum(r["candidate"]["mint"] in references and r["diagnostic"].get("status")=="diagnostic_complete" for r in reports)
     return {"status":status,"completed_mints":done,"unsupported_mints":skipped,
+            "reference_first":reference_first,"reference_completed_mints":ref_done,
+            "nonreference_completed_mints":done-ref_done,
+            "reference_mints_discovered":sorted({r["mint"] for r in pools if r["mint"] in references}),
+            "reference_mints_missing":sorted(references-{r["mint"] for r in pools}),
             "sell_quote_rejected_mints":quote_rejections,"stop_reason":stop_reason,
             "retrieved_at":utc().isoformat(),"scope":"geckoterminal_trending_and_top_page_1_plus_dex_search_direct_usdc",
             "target_completed_mints":limit,"target_reached":target_reached,"max_candidates":max_candidates,
@@ -89,9 +106,9 @@ def run(*,limit=2,max_candidates=None,discoverer=discover,inspect=snapshot,sleep
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--limit",type=int,default=2);p.add_argument("--max-candidates",type=int);a=p.parse_args()
+    p.add_argument("--limit",type=int,default=2);p.add_argument("--max-candidates",type=int);p.add_argument("--reference-first",action="store_true");a=p.parse_args()
     try:
-        d=run(limit=a.limit,max_candidates=a.max_candidates)
+        d=run(limit=a.limit,max_candidates=a.max_candidates,reference_first=a.reference_first)
         print(json.dumps(d,indent=2,allow_nan=False))
         return 0 if d["status"] in ("scan_complete","scan_complete_with_skips") else 2 if d["status"] in ("scan_no_candidates","scan_no_supported_candidates") else 1
     except (ValueError,KeyError,TypeError,OSError,ArithmeticError,AttributeError,httpx.HTTPError) as e:
