@@ -67,3 +67,8 @@ def chronos(mode:str="synthetic",market:str="BIST",symbol:str="THYAO.IS",windows
         raise HTTPException(422,str(e)) from None
     finally:
         _lock.release()
+
+@router.get("/api/models/local-research")
+def local_research():
+    from .ai_panel import read
+    return read()
