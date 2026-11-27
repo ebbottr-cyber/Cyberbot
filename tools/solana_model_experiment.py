@@ -1,0 +1,107 @@
+"""Explicit offline research-only logistic baseline; no saved model or production training."""
+import argparse
+import math
+import json
+import sqlite3
+from tools.solana_learning_dataset import run as dataset,FEATURE_NAMES
+from tools.solana_paper_replay import FALSE_FLAGS
+
+MIN_EARLIER=100
+MIN_LATER=50
+MIN_CLASS=15
+MIN_MINTS=5
+
+def sigmoid(x):
+    return 1/(1+math.exp(-max(-35,min(35,x))))
+
+def prepare(rows):
+    return [([float(r["features"][k]) for k in FEATURE_NAMES],int(r["label"]["positive_quote_net"])) for r in rows]
+
+def fit(train):
+    n=len(train);d=len(FEATURE_NAMES)
+    means=[sum(x[j] for x,y in train)/n for j in range(d)]
+    scales=[math.sqrt(sum((x[j]-means[j])**2 for x,y in train)/n) or 1 for j in range(d)]
+    def transform(x):
+        return [1.0]+[max(-10,min(10,(v-m)/s)) for v,m,s in zip(x,means,scales)]
+    prepared=[(transform(x),y) for x,y in train]
+    w=[0.0]*(d+1)
+    for _ in range(200):
+        gradient=[0.0]*(d+1)
+        for x,y in prepared:
+            error=sigmoid(sum(a*b for a,b in zip(w,x)))-y
+            for j,v in enumerate(x):gradient[j]+=error*v
+        for j in range(d+1):
+            w[j]-=0.05*(gradient[j]/n+(0.01*w[j] if j else 0))
+    def predict(x):return sigmoid(sum(a*b for a,b in zip(w,transform(x))))
+    return predict
+
+def metrics(data,predict):
+    tp=tn=fp=fn=0;brier=0.0;loss=0.0
+    for x,y in data:
+        p=predict(x)
+        positive=p>=0.5
+        tp+=positive and y==1;tn+=not positive and y==0
+        fp+=positive and y==0;fn+=not positive and y==1
+        brier+=(p-y)**2
+        q=max(1e-12,min(1-1e-12,p))
+        loss-=y*math.log(q)+(1-y)*math.log(1-q)
+    n=len(data)
+    return {"samples":n,"true_positive":tp,"true_negative":tn,"false_positive":fp,"false_negative":fn,
+            "accuracy":(tp+tn)/n,"balanced_accuracy":((tp/(tp+fn))+(tn/(tn+fp)))/2,
+            "brier_score":brier/n,"log_loss":loss/n}
+
+def evaluate(report,*,allow_experiment=False):
+    if type(allow_experiment) is not bool:raise ValueError("Explicit experiment flag required")
+    if report.get("source_scope")!="dexterm_bridge_only" or report.get("research_only") is not True:
+        raise ValueError("Unexpected dataset scope")
+    if any(report.get(k) is not False for k in ("training_allowed","training_performed","model_promoted","real_orders","labels_are_real_fills")):
+        raise ValueError("Unexpected dataset flags")
+    if report.get("feature_names")!=list(FEATURE_NAMES):raise ValueError("Unexpected feature schema")
+    rows=report["examples"]
+    if not isinstance(rows,list) or len(rows)>1500 or len(rows)!=report["example_count"]:raise ValueError("Invalid example count")
+    groups={k:[] for k in ("earlier","later")}
+    for r in rows:
+        if set(r["features"])!=set(FEATURE_NAMES) or any(type(v) is not int or abs(v)>10**24 for v in r["features"].values()):
+            raise ValueError("Invalid features")
+        if type(r["label"]["positive_quote_net"]) is not bool:raise ValueError("Invalid label")
+        groups[r["partition"]].append(r)
+    blockers=[]
+    for name,minimum in (("earlier",MIN_EARLIER),("later",MIN_LATER)):
+        group=groups[name];pos=sum(r["label"]["positive_quote_net"] for r in group)
+        if len(group)<minimum:blockers.append(name+"_sample_count")
+        if min(pos,len(group)-pos)<MIN_CLASS:blockers.append(name+"_class_support")
+        if len({r["mint"] for r in group})<MIN_MINTS:blockers.append(name+"_mint_diversity")
+    if report.get("bridge_history_truncated"):blockers.append("archive_window_truncated")
+    if not allow_experiment:blockers.append("explicit_experiment_opt_in_required")
+    out={"status":"experiment_blocked","research_only":True,"network_requests":False,
+         "dataset_sha256":report["dataset_sha256"],"blockers":blockers,
+         "experimental_fit_performed":False,"training_allowed":False,"production_training_performed":False,
+         "weights_updated":False,"model_saved":False,"model_promoted":False,
+         "independent_holdout_verified":False,"winner":None,"results":[],**FALSE_FLAGS}
+    if blockers:return out
+    train=prepare(groups["earlier"]);test=prepare(groups["later"])
+    prior=sum(y for x,y in train)/len(train)
+    predictor=fit(train)
+    out.update(status="experiment_complete",experimental_fit_performed=True,
+               results=[{"model":name,"later_window":metrics(test,p)}
+                        for name,p in (("constant_training_prior",lambda x:prior),
+                                       ("logistic_baseline",predictor))])
+    return out
+
+def run(database,*,limit=500,allow_experiment=False):
+    return evaluate(dataset(database,limit=limit),allow_experiment=allow_experiment)
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--database",required=True)
+    p.add_argument("--limit",type=int,default=500)
+    p.add_argument("--allow-experiment",action="store_true")
+    a=p.parse_args()
+    try:
+        print(json.dumps(run(a.database,limit=a.limit,allow_experiment=a.allow_experiment),indent=2,allow_nan=False))
+        return 0
+    except (ValueError,TypeError,KeyError,ArithmeticError,AttributeError,OSError,sqlite3.Error) as e:
+        print(json.dumps({"status":"rejected","error_type":type(e).__name__,"training_allowed":False,**FALSE_FLAGS}))
+        return 1
+
+if __name__=="__main__":raise SystemExit(main())
