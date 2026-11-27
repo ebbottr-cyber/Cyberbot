@@ -43,8 +43,10 @@ def summarize(m,events):
             opened=None
         recent.append(row)
     return {"closed":closed,"wins":wins,"losses":losses,"flat":closed-wins-losses,"win_pct":money(D(wins)*100/closed) if closed else None,"realized_pnl":money(net),"nominal_fees":money(fees),"unitemized_liquidation_fees":fee_unknown,"net_applied_funding":money(funding) if m=="FUTURES" else None,"liquidations":liqs,"open_event_exists":opened is not None},recent[-20:][::-1]
-def snapshot(*,clock=stocks.utc):
-    now=clock();result={"mode":"operator_observed_unverified","as_of":now.isoformat(),"markets":[base(m) for m in MARKETS],"real_orders":False,"live_data_verified":False,"profitability_verified":False,"combined_equity":None,"limits":["Sentetik kasalar dahil değil. Para birimleri ayrı; toplam üretilmez.","Komisyonlar modeldeki nominal ücretlerdir; kayma fiyatlara dahildir. Likidasyonda ayrıştırılamayan ücret olabilir.","Gerçekleşen K/Z model kapanış kayıtlarından, fonlama uygulanan olaylardan. Günlük K/Z UTC gününe ait ilk gözleme göredir; tam günlük veri değil.","Geçerli fiyat, derinlik veya fonlama yoksa güncel K/Z ve düşüş gösterilmez. En fazla 5000 muhasebe olayı/piyasa (dolum ve uygulanan fonlama); aşımda istatistik gösterilmez."]}
+def snapshot(*,clock=stocks.utc,markets=MARKETS):
+    markets=tuple(markets)
+    if len(set(markets))!=len(markets) or any(m not in MARKETS for m in markets):raise ValueError("Geçersiz piyasa kapsamı.")
+    now=clock();result={"mode":"operator_observed_unverified","as_of":now.isoformat(),"markets":[base(m) for m in markets],"real_orders":False,"live_data_verified":False,"profitability_verified":False,"combined_equity":None,"limits":["Sentetik kasalar dahil değil. Para birimleri ayrı; toplam üretilmez.","Komisyonlar modeldeki nominal ücretlerdir; kayma fiyatlara dahildir. Likidasyonda ayrıştırılamayan ücret olabilir.","Gerçekleşen K/Z model kapanış kayıtlarından, fonlama uygulanan olaylardan. Günlük K/Z UTC gününe ait ilk gözleme göredir; tam günlük veri değil.","Geçerli fiyat, derinlik veya fonlama yoksa güncel K/Z ve düşüş gösterilmez. En fazla 5000 muhasebe olayı/piyasa (dolum ve uygulanan fonlama); aşımda istatistik gösterilmez."]}
     p=stocks.path()
     if not stocks.permitted():return result
     with closing(sqlite3.connect(p.as_uri()+"?mode=ro",uri=True,timeout=3)) if p.is_file() else closing(sqlite3.connect(":memory:")) as db:
