@@ -32,3 +32,16 @@ class SolanaObservedTests(unittest.TestCase):
                 wrong=True
                 with self.assertRaises(PilotError):run(transport=mock,clock=lambda:t)
                 self.assertEqual(list(root.iterdir()),[])
+
+    def test_anonymous_opt_in_and_net_output(self):
+        from cyberbot.providers.solana_observed import configured,quote
+        inp=USDC;out="1"*31+"2";pool="1"*31+"3"
+        with patch.dict(os.environ,{"CYBERBOT_SOLANA_OBSERVED_ENABLED":"1","CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED":"1","CYBERBOT_JUPITER_KEY":"","CYBERBOT_JUPITER_ANONYMOUS_ENABLED":"0"}):
+            self.assertFalse(configured())
+            with patch.dict(os.environ,{"CYBERBOT_JUPITER_ANONYMOUS_ENABLED":"1"}):
+                self.assertTrue(configured())
+                with patch.dict(os.environ,{"CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED":"0"}):self.assertFalse(configured())
+        raw={"inputMint":inp,"outputMint":out,"swapMode":"ExactIn","inAmount":"100000000","outAmount":"7281385","transaction":None,"taker":None,"feeBps":2,"feeMint":inp,"platformFee":{"feeBps":2,"feeMint":inp},"routePlan":[{"bps":10000,"swapInfo":{"ammKey":pool,"inputMint":inp,"outputMint":out,"inAmount":"100000000","outAmount":"7282841"}}]}
+        self.assertEqual(quote(raw,inp,out,100000000,pool),7281385)
+        raw["outAmount"]="7280000"
+        with self.assertRaises(PilotError):quote(raw,inp,out,100000000,pool)

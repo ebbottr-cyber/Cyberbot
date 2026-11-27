@@ -12,7 +12,7 @@ LEGACY="TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 AMOUNT=100_000_000
 MAX_BYTES=262144
 def configured():
-    return os.getenv("CYBERBOT_SOLANA_OBSERVED_ENABLED")=="1" and os.getenv("CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED")=="1" and bool(os.getenv("CYBERBOT_JUPITER_KEY","").strip())
+    return os.getenv("CYBERBOT_SOLANA_OBSERVED_ENABLED")=="1" and os.getenv("CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED")=="1" and (bool(os.getenv("CYBERBOT_JUPITER_KEY","").strip()) or os.getenv("CYBERBOT_JUPITER_ANONYMOUS_ENABLED")=="1")
 def uint(v,positive=False):
     if not isinstance(v,str) or not re.fullmatch(r"[0-9]{1,20}",v):raise PilotError("Ham token miktarı geçersiz.")
     n=int(v)
@@ -51,7 +51,14 @@ def quote(raw,inp,out,amount,pool):
     n=uint(raw.get("outAmount"),True);routes=raw.get("routePlan")
     if not isinstance(routes,list) or len(routes)!=1:raise PilotError("Tek havuzlu rota gerekli.")
     route=routes[0];s=route["swapInfo"]
-    if (s.get("ammKey"),s.get("inputMint"),s.get("outputMint"))!=(pool,inp,out) or uint(s["inAmount"],True)!=amount or uint(s["outAmount"],True)!=n:raise PilotError("Kotasyon farklı havuz veya miktar kullanıyor.")
+    if (s.get("ammKey"),s.get("inputMint"),s.get("outputMint"))!=(pool,inp,out) or uint(s["inAmount"],True)!=amount:raise PilotError("Kotasyon farklı havuz veya miktar kullanıyor.")
+    gross=uint(s["outAmount"],True)
+    if gross!=n:
+        # Only accept a bounded, declared fee gap in diagnostic mode.
+        # This does not establish the provider's fee accounting semantics.
+        bps=raw.get("feeBps");fee=raw.get("platformFee")
+        if type(bps) is not int or not 1<=bps<=100 or not isinstance(fee,dict) or fee.get("feeBps")!=bps or raw.get("feeMint") not in (inp,out) or fee.get("feeMint")!=raw.get("feeMint") or not 0<gross-n<=(gross*bps+9999)//10000:
+            raise PilotError("Net rota miktarı doğrulanamadı.")
     if route.get("bps")!=10000 and route.get("percent")!=100:raise PilotError("Tam rota gerekli.")
     return n
 def request(client,kind,params,key):
@@ -63,7 +70,7 @@ def request(client,kind,params,key):
         if not sol.address(params):raise PilotError("Havuz kimliği geçersiz.")
         method_http,url,kw="GET",DEX+params,{}
     elif kind=="quote":
-        method_http,url,kw="GET",JUP,{"params":params,"headers":{"x-api-key":key}}
+        method_http,url,kw="GET",JUP,{"params":params,"headers":{"x-api-key":key} if key else {}}
     else:raise PilotError("İzinsiz kaynak.")
     try:
         with client.stream(method_http,url,**kw) as res:
@@ -77,8 +84,8 @@ def run(*,transport=None,clock=utc):
     if not configured():raise PilotError("Solana veri adaptörü veya kullanım izni/anahtarı eksik.")
     mint,pool=sol.config()
     if mint==USDC:raise PilotError("USDC baz token olamaz.")
-    key=os.environ["CYBERBOT_JUPITER_KEY"].strip()
-    if len(key)>256 or not re.fullmatch(r"[A-Za-z0-9_.-]+",key):raise PilotError("API anahtarı biçimi geçersiz.")
+    key=os.getenv("CYBERBOT_JUPITER_KEY","").strip()
+    if key and (len(key)>256 or not re.fullmatch(r"[A-Za-z0-9_.-]+",key)):raise PilotError("API anahtarı biçimi geçersiz.")
     started=clock()
     with httpx.Client(timeout=httpx.Timeout(8,connect=3),follow_redirects=False,trust_env=False) as c:
         def get(kind,params):return transport(kind,params) if transport else request(c,kind,params,key)
@@ -92,4 +99,4 @@ def run(*,transport=None,clock=utc):
     if not 0<=elapsed<=30:raise PilotError("Tanılama süresi aşıldı.")
     units=D(tokens)/D(10**info["decimals"])
     ask=D(100)/units;bid=(D(received)/D(10**6))/units
-    return {"status":"diagnostic_only","mint":mint,"pool":pool,"retrieved_at":clock().isoformat(),"quote_currency":"USDC","test_input_usdc":"100","quoted_tokens":str(units),"quoted_return_usdc":str(D(received)/D(10**6)),"indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),"roundtrip_indicative_pct":str((D(received)/D(AMOUNT)-1)*100),"pool":pooldata,"mint_checks":{**info,**holders},"quote_source_timestamp_verified":False,"usd_conversion_verified":False,"security_verified":False,"depth_verified":False,"pilot_applied":False,"live_data_verified":False,"real_orders":False,"transport_mocked":transport is not None,"blockers":["USDC/USD dönüşümü yok","Kaynak zaman damgası ve eşzamanlılık doğrulanmadı","Token hesabı yoğunlaşması cüzdan yoğunlaşması değildir","Kotasyon dolum ve derinlik garantisi değildir"]}
+    return {"status":"diagnostic_only","mint":mint,"pool":pool,"retrieved_at":clock().isoformat(),"quote_currency":"USDC","test_input_usdc":"100","quoted_tokens":str(units),"quoted_return_usdc":str(D(received)/D(10**6)),"indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),"roundtrip_indicative_pct":str((D(received)/D(AMOUNT)-1)*100),"pool":pooldata,"mint_checks":{**info,**holders},"quote_source_timestamp_verified":False,"usd_conversion_verified":False,"security_verified":False,"depth_verified":False,"pilot_applied":False,"live_data_verified":False,"real_orders":False,"transport_mocked":transport is not None,"api_key_used":bool(key),"blockers":["USDC/USD dönüşümü yok","Kaynak zaman damgası ve eşzamanlılık doğrulanmadı","Token hesabı yoğunlaşması cüzdan yoğunlaşması değildir","Kotasyon dolum ve derinlik garantisi değildir"]}
