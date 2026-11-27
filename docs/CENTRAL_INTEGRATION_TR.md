@@ -114,3 +114,20 @@ kurulum ve çalıştırma açık onay ister. Worker varsayılan olarak başlamaz
 arşiv köprüsü CYBERBOT_NOTIFICATION_NEWS_BRIDGE=1 ile ayrıca etkinleştirilir;
 canlı haber kaynakları ve veri hakları ayrıca doğrulanır. Push API, service
 worker ve gerçek cihaz teslimi henüz merkezi panelde etkin değildir.
+
+## DexTerm merkezi tarama motoru (seçici aktarım)
+
+DexTerm MCP tarama, aday değerlendirme ve arşiv modülleri aynı checkout'a
+aktarıldı. Eski Solana sağlayıcısı, genel havuz taraması ve pilot geri yüklenmedi.
+Ayrı, incelenmiş DexTerm checkout'u sabit PIN ve Node çalışma ortamı gerektirir.
+Önce kaynak ve bağımlılık haklarını doğrulayın; gerçek emir ve giriş yetkisi yok.
+Açık izin ve CYBERBOT_PILOT_KILL_SWITCH=1, CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED=1,
+CYBERBOT_DEXTERM_ARCHIVE ile aynı ayrı arşiv yolu gerekli. Tek döngü:
+`python -m tools.dexterm_central_cycle --dexterm-root PATH --database PATH --enable`.
+Varsayılan kapalı. Döngü sadece tarama ve aday incelemesini arşivler; panel
+mevcut arşiv okuyucusu ile görür. Likidite araştırma eşiği 100000 USD olarak
+önceki aday politikasından korunur; güvenlik veya işlem uygunluğu kanıtı değil.
+Havuz köprüsü, kesin miktar çıkış kotasyonu doğrulayıcısı, replay üretimi ve
+sürekli öğrenme motoru eski sağlayıcı bağımlılıkları nedeniyle aktarılmadı.
+Bu checkout yeni exit_quote raporlarının içe alımını reddeder; mevcut arşiv
+okunabilir. Canlı veri, gerçek cihaz ve çalışma zamanı henüz doğrulanmadı.
