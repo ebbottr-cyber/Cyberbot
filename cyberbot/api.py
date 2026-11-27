@@ -2,7 +2,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel
 from .engine import Ledger, PaperError
 from .lab import experiment
@@ -28,7 +28,7 @@ async def local_guard(request:Request, call_next):
     response.headers["Cache-Control"]="no-store"
     response.headers["X-Content-Type-Options"]="nosniff"
     response.headers["X-Frame-Options"]="DENY"
-    response.headers["Content-Security-Policy"]="default-src 'none'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; manifest-src 'self'; img-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    response.headers["Content-Security-Policy"]="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; manifest-src 'self'; img-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
     return response
 
 @app.exception_handler(PathCollision)
@@ -44,7 +44,12 @@ class Buy(BaseModel):
 
 @app.get("/",response_class=HTMLResponse)
 def home():
-    return (Path(__file__).parent/"web"/"index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).parent/"web"/"index.html").read_text(encoding="utf-8")
+    if getattr(app.state, "notification_panel_mounted", False):
+        html = html.replace("</head>", '<link rel="stylesheet" href="/ui/notifications/center.css"></head>', 1)
+        html = html.replace("</header>", '<div id="notificationBell" class="cyberbot-notifications"></div></header>', 1)
+        html = html.replace("</body>", '<script type="module" src="/ui/notifications/host.js"></script></body>', 1)
+    return html
 
 @app.get("/api/status")
 def status():
@@ -130,6 +135,26 @@ if os.getenv("CYBERBOT_NOTIFICATION_PANEL_ENABLED") == "1":
         scheme = "https" if os.getenv("CYBERBOT_TAILSCALE_ENABLED") == "1" else "http"
         if request.headers.get("origin") != scheme + "://" + host:
             raise HTTPException(403, "Bildirim kaynağı doğrulanamadı.")
+
+    @app.get("/ui/notifications/{asset}")
+    def notification_asset(asset: str):
+        assets = {"center.js": ("notification_center_ui.js", "application/javascript"),
+                  "center.css": ("notification_center_ui.css", "text/css")}
+        if asset == "host.js":
+            return Response("""import {mountNotificationCenter} from './center.js';
+const root = document.getElementById('notificationBell');
+if (root) {
+  const request = (url, options = {}) => fetch(url, {...options, credentials:'same-origin',
+    headers:{...options.headers, 'X-Cyberbot-Paper':'1'}});
+  const center = mountNotificationCenter(root, request);
+  const timer = setInterval(() => { if (!document.hidden) center.refresh(); }, 30000);
+  window.addEventListener('pagehide', event => { if (!event.persisted) { clearInterval(timer); center.destroy(); } });
+}
+""", media_type="application/javascript")
+        if asset not in assets:
+            raise HTTPException(404)
+        filename, media = assets[asset]
+        return Response((Path(__file__).resolve().parent.parent / "tools" / filename).read_text(encoding="utf-8"), media_type=media)
 
     notification_state = Path.home() / ".cyberbot-private"
     notification_state.mkdir(parents=True, exist_ok=True)
