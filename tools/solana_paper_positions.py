@@ -4,10 +4,11 @@ import json
 import sqlite3
 from itertools import groupby
 from tools.solana_paper_replay import collect,instant,fee,SCALE,FALSE_FLAGS
+from tools.solana_exit_history import bound,collect_exits
 
 def simulate(rows,*,initial_usdc=1000,stress_bps=25,hold_seconds=180,max_positions=3,
              risk_mode=False,stop_loss_bps=300,take_profit_bps=500,
-             exposure_bps=3500,position_bps=1500,loss_budget_bps=500):
+             exposure_bps=3500,position_bps=1500,loss_budget_bps=500,exit_quotes=()):
     for value,low,high in ((initial_usdc,100,1000000),(stress_bps,0,1000),
                            (hold_seconds,60,86400),(max_positions,1,10)):
         if type(value) is not int or not low<=value<=high:
@@ -29,13 +30,15 @@ def simulate(rows,*,initial_usdc=1000,stress_bps=25,hold_seconds=180,max_positio
     positions={};events=[];closed=[];skips={};last_time=None
     def skip(reason):
         skips[reason]=skips.get(reason,0)+1
-    ordered=sorted(rows,key=lambda r:(instant(r["timestamp"]),r["mint"],r["source_digest"],r["source_index"]))
+    exits=bound(rows,exit_quotes)
+    ordered=sorted(list(rows)+exits,key=lambda r:(instant(r["timestamp"]),r["mint"],r["source_digest"],r["source_index"]))
     # Each timestamp is a batch. Conflicting observations of a mint are not
     # used to pick whichever price happens to look best.
     for now,batch in groupby(ordered,key=lambda r:instant(r["timestamp"])):
         last_time=now
-        grouped={}
-        for r in batch:grouped.setdefault(r["mint"],[]).append(r)
+        grouped={};explicit={}
+        for r in batch:
+            (explicit if r.get("exit_only") is True else grouped).setdefault(r["mint"],[]).append(r)
         usable={}
         for mint,items in grouped.items():
             if len(items)!=1:
@@ -43,13 +46,21 @@ def simulate(rows,*,initial_usdc=1000,stress_bps=25,hold_seconds=180,max_positio
             usable[mint]=items[0]
         previously_open=set(positions)
         # Close first; no same-batch re-entry for a mint already held.
-        for mint,r in sorted(usable.items()):
+        for mint in sorted(set(usable)|set(explicit)):
             if mint not in positions:continue
             pos=positions[mint]
             elapsed=(now-instant(pos["opened_at"])).total_seconds()
             if not risk_mode and elapsed<hold_seconds:continue
-            if r["token_amount_raw"]!=pos["quantity_raw"]:
-                skip("exit_quantity_mismatch");continue
+            candidates=[r for r in explicit.get(mint,[]) if
+                        (r["entry_source_digest"],r["entry_source_index"])==(pos["entry_source_digest"],pos["entry_source_index"])]
+            if mint in usable and usable[mint]["token_amount_raw"]==pos["quantity_raw"]:
+                candidates.append(usable[mint])
+            if not candidates:
+                if mint in usable:skip("exit_quantity_mismatch")
+                continue
+            if len({r["return_raw"] for r in candidates})!=1:
+                skip("ambiguous_same_time_exit");continue
+            r=sorted(candidates,key=lambda r:(not r.get("exit_only",False),r["source_digest"],r["source_index"]))[0]
             proceeds=r["return_raw"]
             cost=fee(proceeds,stress_bps)
             pnl=proceeds-cost-pos["entry_total_raw"]
@@ -131,8 +142,9 @@ def simulate(rows,*,initial_usdc=1000,stress_bps=25,hold_seconds=180,max_positio
 def replay(database,*,initial_usdc=1000,stress_bps=25,hold_seconds=180,max_positions=3,limit=100,**risk):
 
     rows,stats=collect(database,limit)
-    return dict(simulate(rows,initial_usdc=initial_usdc,stress_bps=stress_bps,
-                         hold_seconds=hold_seconds,max_positions=max_positions,**risk),**stats)
+    exits,exit_stats=collect_exits(database,rows,limit)
+    return dict(simulate(rows,exit_quotes=exits,initial_usdc=initial_usdc,stress_bps=stress_bps,
+                         hold_seconds=hold_seconds,max_positions=max_positions,**risk),**stats,**exit_stats)
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)

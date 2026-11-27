@@ -7,6 +7,7 @@ from bisect import bisect_left
 from collections import Counter,defaultdict
 from datetime import timedelta
 from tools.solana_paper_replay import collect,instant,fee,FALSE_FLAGS
+from tools.solana_exit_history import bound,collect_exits
 
 FEATURE_NAMES=("entry_input_raw","entry_roundtrip_bps","previous_buy_price_change_bps","previous_observation_gap_seconds")
 HORIZON=180
@@ -17,7 +18,7 @@ def bps(n,d):
     if d<=0:raise ValueError("Invalid denominator")
     return n*10000//d
 
-def build(rows,*,stress_bps=25):
+def build(rows,*,stress_bps=25,exit_quotes=()):
     if type(stress_bps) is not int or not 0<=stress_bps<=1000:
         raise ValueError("Invalid stress assumption")
     ordered=sorted(rows,key=lambda r:(instant(r["timestamp"]),r["mint"],r["source_digest"],r["source_index"]))
@@ -25,7 +26,10 @@ def build(rows,*,stress_bps=25):
     usable=[r for r in ordered if counts[(r["mint"],instant(r["timestamp"]))]==1]
     times=sorted({instant(r["timestamp"]) for r in usable})
     cut=times[max(1,len(times)*7//10)] if len(times)>=2 else None
-    end=times[-1] if times else None
+    exits=bound(usable,exit_quotes)
+    end=max(times+[instant(r["timestamp"]) for r in exits],default=None)
+    explicit=defaultdict(list)
+    for r in exits:explicit[(r["entry_source_digest"],r["entry_source_index"])].append(r)
     groups=defaultdict(list)
     previous={}
     for r in usable:
@@ -51,9 +55,15 @@ def build(rows,*,stress_bps=25):
             skips["split_boundary_purged"]+=1;continue
         key=(mint,qty);group=groups[key]
         i=bisect_left(stamps[key],now+timedelta(seconds=HORIZON))
-        if i==len(group) or stamps[key][i]>now+timedelta(seconds=MAX_WAIT):
+        candidates=list(explicit[(r["source_digest"],r["source_index"])])
+        if i<len(group) and stamps[key][i]<=now+timedelta(seconds=MAX_WAIT):candidates.append(group[i])
+        if not candidates:
             skips["no_exact_quantity_exit"]+=1;continue
-        exit_row=group[i];exit_time=stamps[key][i]
+        exit_time=min(instant(q["timestamp"]) for q in candidates)
+        first=[q for q in candidates if instant(q["timestamp"])==exit_time]
+        if len({q["return_raw"] for q in first})!=1:
+            skips["ambiguous_first_exit"]+=1;continue
+        exit_row=sorted(first,key=lambda q:(not q.get("exit_only",False),q["source_digest"],q["source_index"]))[0]
         features={"entry_input_raw":n,
                   "entry_roundtrip_bps":bps(r["return_raw"]-n,n),
                   "previous_buy_price_change_bps":bps(n*old["token_amount_raw"]-old["input_raw"]*qty,old["input_raw"]*qty),
@@ -87,7 +97,8 @@ def build(rows,*,stress_bps=25):
 
 def run(database,*,limit=500,stress_bps=25):
     rows,stats=collect(database,limit)
-    return dict(build(rows,stress_bps=stress_bps),**stats)
+    exits,exit_stats=collect_exits(database,rows,limit)
+    return dict(build(rows,stress_bps=stress_bps,exit_quotes=exits),**stats,**exit_stats)
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
