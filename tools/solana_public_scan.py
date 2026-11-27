@@ -3,6 +3,7 @@ import argparse,json,os,time
 import httpx
 from urllib.parse import urlencode
 from cyberbot.observed_pilot import utc,PilotError
+from cyberbot.solana_pilot import address
 from tools.solana_pool_discovery import GECKO,DEX,QUERIES,fetch,gecko_rows,dex_rows,candidates
 from tools.solana_public_snapshot import run as snapshot
 
@@ -41,7 +42,7 @@ def discover(*,sleep=time.sleep):
     merged=general+[r for r in retained if (r["mint"],r["pool"]) not in {(x["mint"],x["pool"]) for x in general}]
     return merged
 
-def run(*,limit=2,max_candidates=None,reference_first=False,discoverer=discover,inspect=snapshot,sleep=time.sleep):
+def run(*,limit=2,max_candidates=None,reference_first=False,exclude_mints=(),discoverer=discover,inspect=snapshot,sleep=time.sleep):
     if os.getenv("CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED")!="1":
         raise PilotError("Explicit data usage permission required")
     if type(limit) is not int or not 1<=limit<=3:
@@ -49,8 +50,12 @@ def run(*,limit=2,max_candidates=None,reference_first=False,discoverer=discover,
     max_candidates=limit if max_candidates is None else max_candidates
     if type(max_candidates) is not int or not limit<=max_candidates<=8:
         raise PilotError("Candidate budget must be between target and 8")
+    references=set(REFERENCE_MINTS.values())
+    if not isinstance(exclude_mints,(tuple,list)) or len(exclude_mints)>8 or any(not address(m) or m in references for m in exclude_mints):
+        raise PilotError("Invalid temporary exclusions or reference mint exclusion")
+    excluded=set(exclude_mints)
     pools=discoverer()
-    selected=[];seen=set();conflicts=[]
+    selected=[];seen=set();conflicts=[];excluded_found=set()
     for row in pools:
         expected=reference_conflict(row)
         if expected:
@@ -58,9 +63,10 @@ def run(*,limit=2,max_candidates=None,reference_first=False,discoverer=discover,
                               "expected_reference_mint":expected,"reason":"known_label_mint_mismatch"})
             continue
         mint=row["mint"]
+        if mint in excluded:
+            excluded_found.add(mint);continue
         if mint in seen:continue
         seen.add(mint);selected.append(row)
-    references=set(REFERENCE_MINTS.values())
     if reference_first:selected.sort(key=lambda row:row["mint"] not in references)
     selected=selected[:max_candidates]
     reports=[];quote_rejections=0;stop_reason=None
@@ -91,6 +97,7 @@ def run(*,limit=2,max_candidates=None,reference_first=False,discoverer=discover,
     ref_done=sum(r["candidate"]["mint"] in references and r["diagnostic"].get("status")=="diagnostic_complete" for r in reports)
     return {"status":status,"completed_mints":done,"unsupported_mints":skipped,
             "reference_first":reference_first,"reference_completed_mints":ref_done,
+            "temporary_excluded_mints":sorted(excluded),"excluded_mints_found":sorted(excluded_found),
             "nonreference_completed_mints":done-ref_done,
             "reference_mints_discovered":sorted({r["mint"] for r in pools if r["mint"] in references}),
             "reference_mints_missing":sorted(references-{r["mint"] for r in pools}),
@@ -106,9 +113,9 @@ def run(*,limit=2,max_candidates=None,reference_first=False,discoverer=discover,
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--limit",type=int,default=2);p.add_argument("--max-candidates",type=int);p.add_argument("--reference-first",action="store_true");a=p.parse_args()
+    p.add_argument("--limit",type=int,default=2);p.add_argument("--max-candidates",type=int);p.add_argument("--reference-first",action="store_true");p.add_argument("--exclude-mint",action="append",default=[]);a=p.parse_args()
     try:
-        d=run(limit=a.limit,max_candidates=a.max_candidates,reference_first=a.reference_first)
+        d=run(limit=a.limit,max_candidates=a.max_candidates,reference_first=a.reference_first,exclude_mints=a.exclude_mint)
         print(json.dumps(d,indent=2,allow_nan=False))
         return 0 if d["status"] in ("scan_complete","scan_complete_with_skips") else 2 if d["status"] in ("scan_no_candidates","scan_no_supported_candidates") else 1
     except (ValueError,KeyError,TypeError,OSError,ArithmeticError,AttributeError,httpx.HTTPError) as e:

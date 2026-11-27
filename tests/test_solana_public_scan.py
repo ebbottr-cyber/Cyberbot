@@ -182,3 +182,23 @@ class PublicScanTests(unittest.TestCase):
             d=discover(sleep=lambda n:None)
         self.assertEqual(len(d),21)
         self.assertTrue(any(r["mint"]==mint for r in d))
+
+    def test_temporary_exclusions_do_not_hide_reference_or_bypass_stop(self):
+        from tools.solana_public_scan import REFERENCE_MINTS
+        dos="4QenztDMzbG4vhCGayZpLD9WVoUtbDgFVEq29vETtx8B"
+        iost="8ZFVUDYarzS4sUpDgnqAARtKzKQWifFzFHxPE2BZoQbF"
+        rows=[candidate(dos,"p"),candidate(iost,"q"),candidate("new1","r"),candidate("new2","s"),candidate("new3","t")]
+        calls=[]
+        def inspect(m,p):
+            calls.append(m);return {"status":"diagnostic_sell_quote_rejected"}
+        with patch.dict(os.environ,{"CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED":"1"}):
+            d=run(limit=2,max_candidates=5,exclude_mints=[dos,iost],discoverer=lambda:rows,inspect=inspect,sleep=lambda n:None)
+            self.assertEqual(calls,["new1","new2"])
+            self.assertEqual(set(d["excluded_mints_found"]),{dos,iost})
+            self.assertEqual(d["stop_reason"],"repeated_sell_quote_http_400")
+            self.assertFalse(d["target_reached"])
+            with self.assertRaises(PilotError):
+                run(exclude_mints=[REFERENCE_MINTS["BONK"]],discoverer=lambda:self.fail("network"))
+            with self.assertRaises(PilotError):
+                run(exclude_mints=["bad"],discoverer=lambda:self.fail("network"))
+        self.assertFalse(d["pilot_applied"])
