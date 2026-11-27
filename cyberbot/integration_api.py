@@ -1,0 +1,79 @@
+"""Read-only integration status for the existing local, guarded web/PWA."""
+import os
+import sqlite3
+from contextlib import closing
+from pathlib import Path
+from datetime import datetime, timezone
+
+from fastapi import APIRouter
+from .readiness import snapshot as readiness_snapshot
+
+router = APIRouter()
+APP_ID = 0x43594458
+KINDS = ("screener", "review", "bridge", "exit_quote", "token2022", "token2022_review")
+MARKETS = ("BIST", "NASDAQ", "XETRA", "FUTURES", "SOLANA")
+
+
+def dexterm_status(path=None, *, now=None):
+    result = {"source": "DexTerm", "status": "not_configured",
+              "reports": None, "last_import_utc": None, "archive_freshness": "unknown",
+              "live_data_verified": False, "paper_execution_verified": False,
+              "research_only": True, "real_orders": False}
+    path = path or os.getenv("CYBERBOT_DEXTERM_ARCHIVE")
+    if not path:
+        return result
+    try:
+        file = Path(path).resolve()
+        if not file.is_file():
+            result["status"] = "archive_missing"
+            return result
+        with closing(sqlite3.connect(file.as_uri() + "?mode=ro", uri=True, timeout=1)) as db:
+            db.execute("PRAGMA query_only=ON")
+            if db.execute("PRAGMA application_id").fetchone()[0] != APP_ID or db.execute("PRAGMA user_version").fetchone()[0] != 1:
+                raise ValueError("Not a DexTerm archive")
+            db.execute("BEGIN")
+            rows = db.execute("SELECT kind, COUNT(*), MAX(imported_utc) FROM research_reports GROUP BY kind").fetchall()
+            if any(kind not in KINDS for kind, _, _ in rows):
+                raise ValueError("Unexpected report kind")
+            count = sum(n for _, n, _ in rows)
+            times = [datetime.fromisoformat(t) for _, _, t in rows]
+            clock = now or datetime.now(timezone.utc)
+            if any(t.tzinfo is None or t > clock for t in times):
+                raise ValueError("Invalid archive time")
+            latest = max(times) if times else None
+        result.update(status="archive_available" if count else "archive_empty", reports=count,
+                      last_import_utc=latest.astimezone(timezone.utc).isoformat() if latest else None,
+                      archive_freshness=("recent_import" if (clock-latest).total_seconds() <= 3600 else "stale_import") if latest else "unknown")
+    except (OSError, RuntimeError, sqlite3.Error, ValueError, TypeError, OverflowError):
+        result["status"] = "archive_unavailable"
+    return result
+
+
+def integration_status():
+    try:
+        readiness = readiness_snapshot()
+    except (OSError, RuntimeError, sqlite3.Error, ValueError, KeyError, TypeError, ArithmeticError):
+        readiness = {"markets": [], "status": "unavailable"}
+    existing = {row["market"]: row for row in readiness.get("markets", [])}
+    dex = dexterm_status()
+    markets = []
+    for name in MARKETS:
+        if name == "SOLANA":
+            markets.append({"market": name, "source": "DexTerm", "data_status": dex["status"],
+                            "live_data_verified": False, "paper_execution_verified": False,
+                            "blockers": ["DexTerm arşivi yalnız araştırma kaydıdır; canlı veri ve sanal dolum doğrulanmadı."]})
+        else:
+            row = existing.get(name, {})
+            markets.append({"market": name, "source": "Binance USD-M" if name == "FUTURES" else name,
+                            "data_status": row.get("data", {}).get("status", "unavailable"),
+                            "live_data_verified": row.get("live_data_verified") is True,
+                            "paper_execution_verified": row.get("paper_execution_verified") is True,
+                            "blockers": row.get("blockers", ["Hazırlık kaydı okunamadı."])})
+    return {"version": "central-market-1", "markets": markets, "dexterm": dex,
+            "readiness_status": readiness.get("status", "unavailable"),
+            "real_orders": False, "automatic_entry_enabled": False}
+
+
+@router.get("/api/integration/status")
+def status():
+    return integration_status()
