@@ -2,7 +2,7 @@
 Description=Schedule Cyberbot chronos research
 
 [Timer]
-OnCalendar=*-*-* *:00,15,30,45:00
+OnCalendar=*-*-* 00..01,03..23:00,15,30,45:00 UTC
 Persistent=false
 Unit=cyberbot-chronos-research.service
 
