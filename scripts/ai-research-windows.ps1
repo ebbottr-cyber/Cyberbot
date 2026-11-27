@@ -1,6 +1,6 @@
 # Bounded local research launcher. Does not enable trading or download packages.
 param(
-    [Parameter(Mandatory=$true)][ValidateSet('Chronos','LightGBM','RiverReplay','RiverLive','Backup')][string]$Mode
+    [Parameter(Mandatory=$true)][ValidateSet('Chronos','LightGBM','RiverReplay','RiverLive','Backup','ResearchReview')][string]$Mode
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -49,13 +49,18 @@ try {
     $env:OMP_NUM_THREADS = '2'
     $env:MKL_NUM_THREADS = '2'
     $env:OPENBLAS_NUM_THREADS = '2'
-    $minimumFreeKiB = @{ Chronos = 4194304; LightGBM = 5242880; RiverReplay = 3145728; RiverLive = 3145728; Backup = 0 }
+    $minimumFreeKiB = @{ Chronos = 4194304; LightGBM = 5242880; RiverReplay = 3145728; RiverLive = 3145728; Backup = 0; ResearchReview = 5242880 }
     if ($minimumFreeKiB[$Mode] -gt 0) {
         $os = Get-CimInstance -ClassName Win32_OperatingSystem
         if ($null -eq $os.FreePhysicalMemory -or [uint64]$os.FreePhysicalMemory -lt $minimumFreeKiB[$Mode]) {
             Write-Host 'WAIT_MEMORY'
             exit 75
         }
+    }
+    if ($Mode -eq 'ResearchReview') {
+        $loads = @(Get-CimInstance -ClassName Win32_Processor | ForEach-Object { $_.LoadPercentage })
+        if ($loads.Count -eq 0 -or @($loads | Where-Object { $null -eq $_ -or $_ -lt 0 -or $_ -gt 100 }).Count -gt 0) { Write-Host 'WAIT_CPU_SAMPLE'; exit 75 }
+        if (($loads | Measure-Object -Average).Average -ge 70) { Write-Host 'WAIT_CPU'; exit 75 }
     }
     $runtime = Join-Path $env:LOCALAPPDATA 'Cyberbot'
     switch ($Mode) {
@@ -81,6 +86,10 @@ try {
             $env:OMP_NUM_THREADS = '1'
             $env:MKL_NUM_THREADS = '1'
             $env:OPENBLAS_NUM_THREADS = '1'
+        }
+        'ResearchReview' {
+            $python = Join-Path $runtime 'ReviewRuntime\Scripts\python.exe'
+            $arguments = @('-m','tools.local_research.ai_orchestrator','--root',$root,'--execute')
         }
         'Backup' {
             $python = Join-Path $root '.venv\Scripts\python.exe'
