@@ -12,6 +12,7 @@ from .adaptive_review import MODELS, readonly
 from .lightgbm_journal import FEATURES, MAX_ROWS, prepare, fit_lightgbm
 from .paired_ai_review import make_river, predict_value
 from .journal_capacity import safe_stat
+from .ai_regime_review import classify, VERSION as REGIME_VERSION
 
 NAMES=("chronos","lightgbm","river")
 # All candidates keep all three members. The equal blend is also eligible.
@@ -29,7 +30,57 @@ def score(records, weights):
     return mean(mean(v) for v in days.values())
 
 
-def compare(rows, *, batch_fit=fit_lightgbm, online_factory=make_river):
+def regime_key(payload):
+    p=json.loads(payload)
+    if "regime_context" not in p:
+        return None
+    r=p["regime_context"]
+    if r["version"]!=REGIME_VERSION or r["observations"]!=21:
+        raise ValueError("invalid regime metadata")
+    direction,volatility=classify(r["trend_log_pct"],r["volatility_log_pct"])
+    if (direction,volatility)!=(r["direction"],r["volatility"]):
+        raise ValueError("inconsistent regime metadata")
+    return direction+"/"+volatility
+
+
+def choose_regime_weights(records, keys, global_weights):
+    if len(records)!=len(keys):
+        raise ValueError("regime alignment mismatch")
+    groups=defaultdict(list)
+    for record,key in zip(records,keys):
+        if key is not None:
+            groups[key].append(record)
+    policies={}
+    for key,items in sorted(groups.items()):
+        if len(items)<30 or len({x[0] for x in items})<5:
+            continue
+        baseline=score(items,global_weights)
+        candidate=min(WEIGHTS,key=lambda w:score(items,w))
+        # Keep the simpler global policy unless calibration improvement is material.
+        if baseline>0 and score(items,candidate)<=.95*baseline:
+            policies[key]=candidate
+    return policies
+
+
+def adaptive_score(records,keys,global_weights,policies):
+    if len(records)!=len(keys):
+        raise ValueError("regime alignment mismatch")
+    days=defaultdict(list)
+    usage=defaultdict(int)
+    for (day,actual,predictions,_),key in zip(records,keys):
+        weights=policies.get(key,global_weights)
+        error=abs(actual-sum(w*p for w,p in zip(weights,predictions)))
+        if not math.isfinite(error):
+            raise ValueError("nonfinite adaptive error")
+        days[day].append(error)
+        usage[key if key in policies else "global_fallback"]+=1
+    return mean(mean(v) for v in days.values()),dict(usage)
+
+
+def compare(rows, *, batch_fit=fit_lightgbm, online_factory=make_river, adaptive=False):
+    if adaptive:
+        rows=list(rows)
+        keys={r[0]:regime_key(r[2]) for r in rows}
     early,late=prepare(rows)
     kept=early+late
     dates=sorted({r[1] for r in kept})
@@ -78,6 +129,8 @@ def compare(rows, *, batch_fit=fit_lightgbm, online_factory=make_river):
     # No holdout result participates in this selection.
     weights=min(WEIGHTS,key=lambda w:score(cal,w))
     calibration_mae=score(cal,weights)
+    if adaptive:
+        policies=choose_regime_weights(cal,[keys[r[0]] for r in calibration],weights)
     holdout=evaluate(test,batch[len(calibration):])
     days=defaultdict(list)
     for day,_,_,errors in holdout:
@@ -95,10 +148,25 @@ def compare(rows, *, batch_fit=fit_lightgbm, online_factory=make_river):
                   gain_vs_best_reference_pct=100*(1-scores["ensemble"]/reference)
                   if reference>0 and math.isfinite(scores["ensemble"]/reference) else None,
                   weights_frozen_before_holdout=True,independent_validation=False)
+    if adaptive:
+        adaptive_mae,usage=adaptive_score(holdout,[keys[r[0]] for r in test],weights,policies)
+        ref=min(reference,scores["ensemble"])
+        result["adaptive_regime_review"]={
+            "status":"REVIEW_ONLY" if policies and any(k!="global_fallback" for k in usage)
+                and ref>0 and adaptive_mae<=.95*ref else "NO_CLEAR_ADVANTAGE",
+            "regime_weights":{k:dict(zip(NAMES,v)) for k,v in policies.items()},
+            "global_fallback_weights":dict(zip(NAMES,weights)),
+            "holdout_usage":usage,"holdout_daily_weighted_mae_pct":adaptive_mae,
+            "global_holdout_mae_pct":scores["ensemble"],
+            "min_calibration_blocks_per_regime":30,"min_calibration_days_per_regime":5,
+            "min_calibration_improvement":.05,
+            "weights_frozen_before_holdout":True,
+            "metadata_independently_recomputed":False,"automatic_promotion":False,
+            "real_orders":False}
     return result
 
 
-def run(root):
+def run(root, *, adaptive=False):
     if os.getenv("CYBERBOT_LOCAL_RESEARCH_RIGHTS_CONFIRMED")!="1":
         raise RuntimeError("local research rights confirmation required")
     path=Path(root)/"var/ai/forward-models-v2.sqlite3"
@@ -113,10 +181,12 @@ def run(root):
             WHERE market='FUTURES' AND symbol='BTCUSDT'
             AND source='binance-usdm-public' AND status='measured'
             ORDER BY target_minute DESC LIMIT ?) ORDER BY target_minute""",(MAX_ROWS,)).fetchall()
-    return compare(rows)
+    return compare(rows,adaptive=adaptive)
 
 
 if __name__=="__main__":
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--root",type=Path,default=Path.cwd())
-    print(json.dumps(run(p.parse_args().root.resolve()),indent=2,allow_nan=False))
+    p.add_argument("--adaptive-regimes",action="store_true")
+    args=p.parse_args()
+    print(json.dumps(run(args.root.resolve(),adaptive=args.adaptive_regimes),indent=2,allow_nan=False))
