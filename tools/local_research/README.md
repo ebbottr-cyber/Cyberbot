@@ -41,3 +41,18 @@ repeated reports are not independent confirmation. Gemini is not a price predict
 At most 100 aggregate reports are retained locally; source records are untouched.
 The read-only ai_status module exposes the latest paired summary. The PWA route
 and recurring paired job are not enabled yet. No automatic selection or trading.
+
+## Market-isolated memory
+
+Run from repository root after confirming local data rights. Initialize with
+`python -m tools.local_research.market_memory --initialize` and import a reviewed
+full-universe-baselines JSON with `--archive-report PATH`. Use `--import-paired`
+for the existing Futures paired journal if available. No flags reads inventory
+without creating files. Writers require CYBERBOT_LOCAL_RESEARCH_RIGHTS_CONFIRMED=1.
+Files live under var/ai/market-memory, one SQLite journal per market. Historical
+equity aggregates are UNIVERSE scopes, not per-symbol training results. Futures
+paired replay remains retrospective. Solana mint identity is required for future
+per-token records; no Solana observations are imported by this adapter yet.
+Source/protocol/interval/symbol scopes must not be pooled as independent evidence.
+Imports are idempotent per report fingerprint and scope, not globally atomic across
+all five files. No source DB writes, model selection or trading. No model weights.
