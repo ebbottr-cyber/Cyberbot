@@ -66,3 +66,56 @@ class WindowsHealthTests(unittest.TestCase):
         report["real_orders"]=True
         self.write(report)
         self.assertEqual(windows_health(self.root,self.now)["status"],"DATA_REVIEW_REQUIRED")
+
+    def report_v2(self,status="EXIT_OK"):
+        report=self.report()
+        report["version"]="ai-watchdog-2"
+        report["tasks"].append({"name":"Cyberbot-AI-ResearchReview","status":status})
+        report["resources"]["cpu_load_pct"]=32.5
+        return report
+
+    def test_v2_cpu_and_review_task(self):
+        self.write(self.report_v2())
+        result=windows_health(self.root,self.now)
+        self.assertEqual(result["status"],"SCHEDULER_OK")
+        self.assertTrue(result["research_review_monitored"])
+        self.assertEqual(result["resources"]["cpu_load_pct"],32.5)
+        self.assertEqual(len(result["tasks"]),6)
+
+    def test_v2_optional_not_enabled(self):
+        for status in ("NOT_REGISTERED","DISABLED"):
+            self.write(self.report_v2(status))
+            self.assertEqual(windows_health(self.root,self.now)["status"],"SCHEDULER_OK")
+
+    def test_v2_failure_and_mismatched_summary(self):
+        report=self.report_v2("FAILED")
+        self.write(report)
+        self.assertEqual(windows_health(self.root,self.now)["status"],"DATA_REVIEW_REQUIRED")
+        report["status"]="REVIEW_REQUIRED"
+        self.write(report)
+        self.assertEqual(windows_health(self.root,self.now)["status"],"REVIEW_REQUIRED")
+
+    def test_v2_requires_all_tasks(self):
+        report=self.report_v2()
+        report["tasks"].pop()
+        self.write(report)
+        self.assertEqual(windows_health(self.root,self.now)["status"],"DATA_REVIEW_REQUIRED")
+
+    def test_legacy_missing_cpu_is_unknown(self):
+        self.write(self.report())
+        result=windows_health(self.root,self.now)
+        self.assertFalse(result["research_review_monitored"])
+        self.assertIsNone(result["resources"]["cpu_load_pct"])
+
+    def test_invalid_cpu_samples(self):
+        for value in (-1,101,True,float("nan")):
+            report=self.report_v2()
+            report["resources"]["cpu_load_pct"]=value
+            self.write(report)
+            self.assertEqual(windows_health(self.root,self.now)["status"],"DATA_REVIEW_REQUIRED")
+
+    def test_stale_v2_hides_cpu_and_current_monitoring(self):
+        self.write(self.report_v2())
+        result=windows_health(self.root,self.now+timedelta(minutes=16))
+        self.assertFalse(result["research_review_monitored"])
+        self.assertIsNone(result["resources"])
