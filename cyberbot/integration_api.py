@@ -152,3 +152,59 @@ def notification_status(path=None, *, now=None):
 @router.get("/api/integration/notifications")
 def notifications_status():
     return notification_status()
+
+from .pilot_performance import snapshot as pilot_performance_snapshot
+from .pilot_control import snapshot as pilot_control_snapshot
+
+OBSERVED_MARKETS = ("BIST", "NASDAQ", "XETRA", "FUTURES")
+PORTFOLIO_FIELDS = ("equity", "cash", "daily_pnl", "current_drawdown_pct", "position_open", "risk_gate")
+STAT_FIELDS = ("closed", "wins", "losses", "realized_pnl", "win_pct", "nominal_fees", "liquidations")
+CURRENCIES = {"BIST": "TRY", "NASDAQ": "USD", "XETRA": "USD", "FUTURES": "USDT", "SOLANA": "USDC"}
+
+
+def portfolio_risk_status():
+    """Report independent observed accounts; never merge demo, replay and observed balances."""
+    result = {"version": "central-portfolio-1", "mode": "operator_observed_unverified",
+              "as_of": None, "markets": [], "entry_halted": None,
+              "combined_equity": None, "real_orders": False, "automatic_entry_enabled": False,
+              "live_data_verified": False, "profitability_verified": False,
+              "cross_source_atomic_snapshot": False}
+    try:
+        data = pilot_performance_snapshot(markets=OBSERVED_MARKETS)
+        if data.get("mode") != result["mode"] or data.get("real_orders") is not False:
+            raise ValueError("Unexpected portfolio authority")
+        rows = {r["market"]: r for r in data["markets"]}
+        result["as_of"] = data["as_of"]
+    except (OSError, RuntimeError, sqlite3.Error, ValueError, KeyError, TypeError, ArithmeticError):
+        rows = {}
+    try:
+        value = pilot_control_snapshot()["halted"]
+        if type(value) is bool:
+            result["entry_halted"] = value
+    except (OSError, RuntimeError, sqlite3.Error, ValueError, KeyError, TypeError, ArithmeticError):
+        pass
+    for market in MARKETS:
+        item = {"market": market, "currency": CURRENCIES[market], "status": "unavailable",
+                "source": "observed_pilot", "statistics": None, **dict.fromkeys(PORTFOLIO_FIELDS)}
+        if market == "SOLANA":
+            item.update(source="DexTerm", status="dexterm_portfolio_not_connected")
+        elif market in rows:
+            row = rows[market]
+            if row.get("currency") == item["currency"]:
+                item.update(status=row.get("status", "unavailable"))
+                if item["status"] in ("recorded", "valuation_unavailable"):
+                    item.update({k: row.get(k) for k in PORTFOLIO_FIELDS})
+                    stats = row.get("statistics")
+                    if isinstance(stats, dict):
+                        item["statistics"] = {k: stats.get(k) for k in STAT_FIELDS}
+                    if item["status"] != "recorded":
+                        item.update(equity=None, daily_pnl=None, current_drawdown_pct=None, risk_gate=None)
+                    if result["entry_halted"] is not False:
+                        item["risk_gate"] = False if result["entry_halted"] is True else None
+        result["markets"].append(item)
+    return result
+
+
+@router.get("/api/integration/portfolio")
+def portfolio_status():
+    return portfolio_risk_status()
