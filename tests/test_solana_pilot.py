@@ -10,7 +10,7 @@ class SolanaPilotTests(unittest.TestCase):
             # Valid-length base58 fixture identities, not real asset recommendations.
             mint="1"*31+"2";pool="1"*31+"3"
             self.assertTrue(address(mint));self.assertFalse(address("1"*32))
-            env={"CYBERBOT_DB":str(p/"paper.sqlite3"),"CYBERBOT_LEARNING_DB":str(p/"learning.sqlite3"),"CYBERBOT_WORKER_DB":str(p/"worker.sqlite3"),"CYBERBOT_PILOT_DB":str(p/"pilot.sqlite3"),"CYBERBOT_EBBOT_DB":"","CYBERBOT_FX_FILE":"","CYBERBOT_OBSERVED_PILOT_ENABLED":"1","CYBERBOT_OBSERVED_PRICE_RIGHTS_CONFIRMED":"1","CYBERBOT_SOLANA_PILOT_ENABLED":"1","CYBERBOT_SOLANA_PILOT_MINT":mint,"CYBERBOT_SOLANA_PILOT_POOL":pool}
+            env={"CYBERBOT_DB":str(p/"paper.sqlite3"),"CYBERBOT_LEARNING_DB":str(p/"learning.sqlite3"),"CYBERBOT_WORKER_DB":str(p/"worker.sqlite3"),"CYBERBOT_PILOT_DB":str(p/"pilot.sqlite3"),"CYBERBOT_EBBOT_DB":"","CYBERBOT_FX_FILE":"","CYBERBOT_OBSERVED_PILOT_ENABLED":"1","CYBERBOT_OBSERVED_PRICE_RIGHTS_CONFIRMED":"1","CYBERBOT_PILOT_KILL_SWITCH":"0","CYBERBOT_SOLANA_PILOT_ENABLED":"1","CYBERBOT_SOLANA_PILOT_MINT":mint,"CYBERBOT_SOLANA_PILOT_POOL":pool}
             def quote(at,*,safe=True,depth="500",bid="1",ask="1.001"):
                 q={"market":"SOLANA","mint":mint,"pool":pool,"currency":"USD","source":"fixture","source_at":at.isoformat(),"bid":bid,"ask":ask,"liquidity_usd":"200000","bid_depth_usd":depth,"ask_depth_usd":"500"}
                 if safe:q["security"]={"mint":mint,"pool":pool,"observed_at":at.isoformat(),"legacy_token_program":True,"mint_authority_disabled":True,"freeze_authority_disabled":True,"transfer_restrictions_absent":True,"top10_holder_pct":"20","evidence_id":"fixture"}
@@ -19,7 +19,13 @@ class SolanaPilotTests(unittest.TestCase):
                 self.assertFalse(snapshot(clock=lambda:t)["initialized"]);self.assertEqual(list(p.iterdir()),[])
                 observe(quote(t,safe=False),clock=lambda:t)
                 with self.assertRaises(PilotError):request("buy",clock=lambda:t)
-                t+=timedelta(seconds=1);observe(quote(t),clock=lambda:t);request("buy",clock=lambda:t)
+                t+=timedelta(seconds=1);observe(quote(t),clock=lambda:t)
+                # The positive-flow fixture must not inherit a real operator's emergency brake.
+                # Explicitly verify the brake still rejects entries in the isolated ledger.
+                with patch.dict(os.environ,{"CYBERBOT_PILOT_KILL_SWITCH":"1"}):
+                    with self.assertRaisesRegex(PilotError,"risk kap"):
+                        request("buy",clock=lambda:t)
+                request("buy",clock=lambda:t)
                 with self.assertRaises(PilotError):observe(quote(t),clock=lambda:t)
                 t+=timedelta(seconds=1);self.assertEqual(observe(quote(t),clock=lambda:t)["status"],"buy_fill")
                 self.assertTrue(snapshot(clock=lambda:t)["position_open"])
