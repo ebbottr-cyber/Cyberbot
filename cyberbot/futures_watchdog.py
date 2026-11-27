@@ -35,6 +35,7 @@ class Health:
 
 def child_spec(symbol,minutes,paper,automatic,recovered,*,env=None):
     child_env=dict(os.environ if env is None else env)
+    child_env["CYBERBOT_FUTURES_DIAGNOSTICS_ENABLED"]="0"
     args=[sys.executable,"-u","-m","cyberbot.futures_supervisor","--symbol",symbol,"--minutes",str(minutes)]
     if paper:args.append("--paper")
     if automatic and not recovered:args.append("--automatic")
@@ -139,8 +140,9 @@ def main():
     p.add_argument("--paper",action="store_true");p.add_argument("--automatic",action="store_true")
     a=p.parse_args()
     try:
-        d=run(a.symbol,a.minutes,paper=a.paper,automatic=a.automatic,restarts=a.restarts)
-        print(json.dumps(d,ensure_ascii=True))
+        from . import futures_health as health
+        d=run(a.symbol,a.minutes,paper=a.paper,automatic=a.automatic,restarts=a.restarts,emit=health.sink)
+        health.sink(d)
         return 0 if d["status"]=="completed" else 130 if d["status"]=="interrupted" else 1
     except KeyboardInterrupt:return 130
     except supervisor.ERRORS as exc:

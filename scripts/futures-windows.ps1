@@ -1,7 +1,7 @@
 # Futures-only setup and foreground launch. Default mode is a read-only preview.
 [CmdletBinding()]
 param(
-    [ValidateSet('Preview','Prepare','Status','Probe','SafetyStatus','SafetyProbe','Collect','Evaluate','PaperObserve','Supervise','Watchdog')]
+    [ValidateSet('Preview','Prepare','Status','Probe','SafetyStatus','SafetyProbe','Health','Collect','Evaluate','PaperObserve','Supervise','Watchdog')]
     [string]$Mode = 'Preview',
     [ValidateSet('BTCUSDT','ETHUSDT')][string]$Symbol = 'BTCUSDT',
     [ValidateRange(1,1440)][int]$Cycles = 1200,
@@ -83,6 +83,10 @@ try {
         Invoke-PythonChecked -m cyberbot.futures_live_research --symbol $Symbol --status
         return
     }
+    if ($Mode -eq 'Health') {
+        Invoke-PythonChecked -m cyberbot.futures_health --symbol $Symbol
+        return
+    }
     if ($Mode -eq 'SafetyStatus') {
         Invoke-PythonChecked -m cyberbot.futures_safety --symbol $Symbol
         return
@@ -115,6 +119,7 @@ try {
     }
     foreach ($flag in $researchFlags) { Set-TemporaryEnv $flag '1' }
     if ($Mode -in @('Supervise','Watchdog')) {
+        Set-TemporaryEnv 'CYBERBOT_FUTURES_DIAGNOSTICS_ENABLED' '1'
         Set-TemporaryEnv 'CYBERBOT_FUTURES_SUPERVISOR_ENABLED' '1'
         Set-TemporaryEnv 'CYBERBOT_FUTURES_FORWARD_MEMORY_ENABLED' '1'
         $module = 'cyberbot.futures_supervisor'

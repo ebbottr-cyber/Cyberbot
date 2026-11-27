@@ -148,7 +148,10 @@ def main():
     p.add_argument("--symbol",required=True,choices=("BTCUSDT","ETHUSDT"));p.add_argument("--minutes",type=int,default=1440)
     p.add_argument("--paper",action="store_true");p.add_argument("--automatic",action="store_true")
     a=p.parse_args()
-    try:print(json.dumps(supervise(a.symbol,a.minutes,paper=a.paper,automatic=a.automatic),ensure_ascii=True));return 0
+    try:
+        from . import futures_health as health
+        d=supervise(a.symbol,a.minutes,paper=a.paper,automatic=a.automatic,emit=health.sink)
+        health.sink(d);return 0
     except KeyboardInterrupt:return 130
     except ERRORS as exc:
         print(json.dumps({"status":"rejected","type":type(exc).__name__,"real_orders":False}));return 1
