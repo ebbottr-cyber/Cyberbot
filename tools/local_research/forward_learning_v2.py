@@ -24,6 +24,7 @@ if not 1 <= cycles <= 10:
 sys.path.insert(0, str(root))
 
 from tools.local_research.vps_guard import MIB, MIN_FREE_DISK_MIB
+from tools.local_research.journal_capacity import require_capacity
 
 research_folder = root / "var/ai"
 memory = research_folder / "forward-models-v2.sqlite3"
@@ -32,6 +33,7 @@ memory = research_folder / "forward-models-v2.sqlite3"
 def require_disk_reserve():
     # Check the actual research filesystem, including on Windows.
     # Exit 75 is a deferred research run, not a trading failure.
+    require_capacity(root, 'Chronos')
     free = shutil.disk_usage(research_folder).free
     if free < MIN_FREE_DISK_MIB * MIB:
         print("WAIT_DISK:", free, "bytes free; research paused", flush=True)
