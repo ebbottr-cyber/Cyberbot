@@ -12,6 +12,15 @@ try {
         Write-Host 'WAIT_RIGHTS'
         exit 75
     }
+    # Leave a daily maintenance window for batch training and backup.
+    # Local wall clock, matching the Windows task triggers. Existing tasks
+    # are not stopped; mutex admission still protects against overruns.
+    $minuteOfDay = (Get-Date).TimeOfDay.TotalMinutes
+    if ($Mode -in @('Chronos','RiverLive','RiverReplay') -and
+        $minuteOfDay -ge 120 -and $minuteOfDay -lt 220) {
+        Write-Host 'WAIT_MAINTENANCE_WINDOW'
+        exit 75
+    }
     $folder = Join-Path $root 'var\ai'
     if (!(Test-Path -LiteralPath $folder -PathType Container)) {
         throw 'Local research folder missing.'
