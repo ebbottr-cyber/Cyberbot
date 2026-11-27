@@ -64,3 +64,33 @@ class PublicScanTests(unittest.TestCase):
             with patch("tools.solana_public_snapshot.request",return_value=raw({})) as req:
                 self.assertEqual(snapshot(mint,pool)["status"],"diagnostic_partial")
                 req.assert_called_once()
+
+    def test_extended_budget_counts_completed_not_skips(self):
+        rows=[candidate(str(i),"p") for i in range(6)]
+        calls=[]
+        def inspect(m,p):
+            calls.append(m)
+            return {"status":"diagnostic_unsupported_mint" if m in ("0","1") else "diagnostic_complete"}
+        with patch.dict(os.environ,{"CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED":"1"}):
+            d=run(limit=2,max_candidates=5,discoverer=lambda:rows,inspect=inspect,sleep=lambda n:None)
+            self.assertEqual(calls,["0","1","2","3"])
+            self.assertTrue(d["target_reached"])
+            self.assertEqual(d["status"],"scan_complete_with_skips")
+            self.assertEqual(d["completed_mints"],2)
+            with self.assertRaises(PilotError):run(limit=2,max_candidates=9,discoverer=lambda:self.fail("network"))
+    def test_discovery_uses_bounded_sources_and_stops_on_rate_limit(self):
+        import httpx
+        from tools.solana_public_scan import discover
+        from tools.solana_pool_discovery import QUERIES
+        urls=[];waits=[]
+        def fetch(c,url):
+            urls.append(url)
+            return {"data":[]} if "geckoterminal" in url else {"pairs":[]}
+        with patch("tools.solana_public_scan.fetch",side_effect=fetch):
+            self.assertEqual(discover(sleep=waits.append),[])
+        self.assertEqual(len(urls),2+len(QUERIES))
+        self.assertEqual(waits,[2]*(len(urls)-1))
+        error=httpx.HTTPStatusError("rate",request=httpx.Request("GET","https://example.invalid"),response=httpx.Response(429))
+        with patch("tools.solana_public_scan.fetch",side_effect=error) as mocked:
+            with self.assertRaisesRegex(PilotError,"HTTP 429"):discover(sleep=lambda n:self.fail("continued"))
+            mocked.assert_called_once()
