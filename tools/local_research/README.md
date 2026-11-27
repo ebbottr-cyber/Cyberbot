@@ -191,7 +191,12 @@ invoked scripts, other logon sessions, or subsequent resource spikes.
 Unexpected overlaps defer rather than queue. The paired journal has a
 16 MiB admission threshold in the coordinator. All activity remains local.
 
-The existing watchdog's five-task schema does not yet monitor this optional
-review task. Inspect that task separately in Windows Task Scheduler.
+Watchdog 2 monitors six work tasks including ResearchReview. An unregistered
+or disabled optional review task is reported without degrading core task health.
+Once enabled, its failures, deferrals and overruns enter the health summary.
+Legacy five-task reports remain readable, but cannot confirm review coverage.
+The optional CPU percentage is a sampled average of processor load readings,
+not per-process utilization or a hard limit. Missing CPU data remains null.
+The watchdog cannot certify its own completion; stale history is a warning.
 Windows CI checks script parsing and non-mutating previews, not actual
 task creation, native model performance or scheduled execution on the PC.
