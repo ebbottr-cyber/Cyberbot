@@ -44,6 +44,45 @@ def concentration(raw,info):
         seen.add(a);amounts.append(uint(x["amount"]))
     if amounts!=sorted(amounts,reverse=True) or sum(amounts)>info["supply"]:raise PilotError("Token hesap miktarı uyumsuz.")
     return {"slot":slot,"top10_token_account_pct":str(D(sum(amounts[:10]))*100/D(info["supply"])),"wallet_concentration_verified":False}
+def owner_sample(largest,raw,info,mint):
+    """Group the bounded largest-account sample by token-account authority.
+    Authorities may be vaults, PDAs or custodians, not individual wallets.
+    """
+    concentration(largest,info)
+    prior_slot,accounts=rpc_result(largest)
+    slot,rows=rpc_result(raw)
+    if not prior_slot<=slot<=prior_slot+20 or abs(slot-info["slot"])>20:
+        raise PilotError("Token hesap sahibi slot uyumsuz.")
+    if not isinstance(rows,list) or len(rows)!=len(accounts):
+        raise PilotError("Token hesap sahibi örneklemi eksik.")
+    grouped={}
+    for account,row in zip(accounts,rows):
+        if not isinstance(row,dict) or row.get("owner")!=LEGACY or row.get("executable") is not False:
+            raise PilotError("Token hesap programı geçersiz.")
+        data=row["data"]
+        parsed=data["parsed"]
+        if data.get("program")!="spl-token" or parsed.get("type")!="account":
+            raise PilotError("Token hesap türü geçersiz.")
+        item=parsed["info"]
+        owner=item.get("owner")
+        balance=item["tokenAmount"]
+        amount=uint(balance.get("amount"))
+        if (item.get("mint")!=mint or not sol.address(owner) or
+            type(balance.get("decimals")) is not int or balance["decimals"]!=info["decimals"] or
+            amount!=uint(account["amount"]) or item.get("state") not in ("initialized","frozen")):
+            raise PilotError("Token hesap kimliği veya bakiyesi değişti.")
+        grouped[owner]=grouped.get(owner,0)+amount
+    balances=sorted(grouped.values(),reverse=True)
+    def pct(amount):return str(D(amount)*100/D(info["supply"]))
+    return {"status":"sampled_authorities_only","slot":slot,
+            "sampled_accounts":len(accounts),"sampled_authorities":len(grouped),
+            "sample_supply_pct":pct(sum(balances)),
+            "largest_sampled_authority_pct_of_supply":pct(balances[0]),
+            "top10_sampled_authorities_pct_of_supply":pct(sum(balances[:10])),
+            "sampled_top10_above_30pct":D(pct(sum(balances[:10])))>D(30),
+            "beneficial_ownership_verified":False,"wallet_concentration_verified":False,
+            "pool_vaults_excluded":False,"security_verified":False,
+            "trade_eligible":False,"pilot_applied":False,"real_orders":False}
 def pool_info(raw,mint,pool):
     pairs=raw.get("pairs")
     if not isinstance(pairs,list):raise PilotError("DEX havuz verisi eksik.")
@@ -69,7 +108,7 @@ def quote(raw,inp,out,amount,pool):
 def request(client,kind,params,key,*,rpc_url=None):
     if kind=="rpc":
         method,args=params
-        if method not in ("getAccountInfo","getTokenLargestAccounts"):raise PilotError("RPC metodu izinli değil.")
+        if method not in ("getAccountInfo","getTokenLargestAccounts","getMultipleAccounts"):raise PilotError("RPC metodu izinli değil.")
         url=rpc_endpoint()[1] if rpc_url is None else rpc_url
         if url not in RPC_ENDPOINTS.values():raise PilotError("RPC endpoint not allowed")
         method_http,url,kw="POST",url,{"json":{"jsonrpc":"2.0","id":1,"method":method,"params":args}}
@@ -142,7 +181,7 @@ def quote_ladder(samples,decimals):
             "samples":rows,"source_synchronization_verified":False,
             "execution_slippage_verified":False,"depth_verified":False,
             "trade_eligible":False,"pilot_applied":False,"real_orders":False}
-def run(*,transport=None,clock=utc,depth_probe=False):
+def run(*,transport=None,clock=utc,depth_probe=False,owner_probe=False):
     if not configured():raise PilotError("Solana veri adaptörü veya kullanım izni/anahtarı eksik.")
     mint,pool=sol.config()
     if mint==USDC:raise PilotError("USDC baz token olamaz.")
@@ -153,7 +192,14 @@ def run(*,transport=None,clock=utc,depth_probe=False):
     with httpx.Client(timeout=httpx.Timeout(8,connect=6),follow_redirects=False,trust_env=False) as c:
         def get(kind,params):return transport(kind,params) if transport else request(c,kind,params,key,rpc_url=rpc_url)
         info=mint_info(get("rpc",("getAccountInfo",[mint,{"encoding":"jsonParsed","commitment":"finalized"}])))
-        holders=concentration(get("rpc",("getTokenLargestAccounts",[mint,{"commitment":"finalized"}])),info)
+        largest=get("rpc",("getTokenLargestAccounts",[mint,{"commitment":"finalized"}]))
+        holders=concentration(largest,info)
+        owners=None
+        if owner_probe:
+            if not 0<=(clock()-started).total_seconds()<30:raise PilotError("Tanılama süresi aşıldı.")
+            addresses=[item["address"] for item in rpc_result(largest)[1]]
+            raw=get("rpc",("getMultipleAccounts",[addresses,{"encoding":"jsonParsed","commitment":"finalized","minContextSlot":holders["slot"]}]))
+            owners=owner_sample(largest,raw,info,mint)
         pooldata=pool_info(get("pool",pool),mint,pool)
         def query(a,b,n):return quote(get("quote",{"inputMint":a,"outputMint":b,"amount":str(n)}),a,b,n,pool)
         samples=[]
@@ -167,4 +213,4 @@ def run(*,transport=None,clock=utc,depth_probe=False):
     if not 0<=elapsed<=30:raise PilotError("Tanılama süresi aşıldı.")
     units=D(tokens)/D(10**info["decimals"])
     ask=D(100)/units;bid=(D(received)/D(10**6))/units
-    return {"status":"diagnostic_only","mint":mint,"pool":pool,"retrieved_at":clock().isoformat(),"quote_currency":"USDC","test_input_usdc":"100","quoted_tokens":str(units),"quoted_return_usdc":str(D(received)/D(10**6)),"indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),"roundtrip_indicative_pct":str((D(received)/D(AMOUNT)-1)*100),"pool":pooldata,"mint_checks":{**info,**holders},"risk_screen":risk_screen(info,holders,pooldata,ask,bid),"depth_probe":quote_ladder(samples,info["decimals"]) if depth_probe else None,"quote_source_timestamp_verified":False,"usd_conversion_verified":False,"security_verified":False,"depth_verified":False,"pilot_applied":False,"live_data_verified":False,"real_orders":False,"transport_mocked":transport is not None,"api_key_used":bool(key),"rpc_provider":rpc_name,"blockers":["USDC/USD dönüşümü yok","Kaynak zaman damgası ve eşzamanlılık doğrulanmadı","Token hesabı yoğunlaşması cüzdan yoğunlaşması değildir","Kotasyon dolum ve derinlik garantisi değildir"]}
+    return {"status":"diagnostic_only","mint":mint,"pool":pool,"retrieved_at":clock().isoformat(),"quote_currency":"USDC","test_input_usdc":"100","quoted_tokens":str(units),"quoted_return_usdc":str(D(received)/D(10**6)),"indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),"roundtrip_indicative_pct":str((D(received)/D(AMOUNT)-1)*100),"pool":pooldata,"mint_checks":{**info,**holders},"risk_screen":risk_screen(info,holders,pooldata,ask,bid),"depth_probe":quote_ladder(samples,info["decimals"]) if depth_probe else None,"owner_probe":owners,"quote_source_timestamp_verified":False,"usd_conversion_verified":False,"security_verified":False,"depth_verified":False,"pilot_applied":False,"live_data_verified":False,"real_orders":False,"transport_mocked":transport is not None,"api_key_used":bool(key),"rpc_provider":rpc_name,"blockers":["USDC/USD dönüşümü yok","Kaynak zaman damgası ve eşzamanlılık doğrulanmadı","Token hesabı yoğunlaşması cüzdan yoğunlaşması değildir","Kotasyon dolum ve derinlik garantisi değildir"]}
