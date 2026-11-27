@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 from collections import Counter
 from tools.dexterm_research_archive import APP_ID,MAX_BYTES
-from tools.solana_paper_replay import instant,leg_amounts
+from tools.solana_paper_replay import instant,leg_amounts,window_filter
 from tools.solana_exact_exit_quotes import validate_report
 from cyberbot.providers.solana_observed import USDC
 
@@ -27,15 +27,16 @@ def bound(entries,exits):
         seen.add(key);valid.append(dict(r,exit_only=True))
     return valid
 
-def collect_exits(database,entries,limit=500):
+def collect_exits(database,entries,limit=500,*,window=None):
     if type(limit) is not int or not 1<=limit<=500:raise ValueError("Invalid exit report limit")
+    clause,params,selection=window_filter(window)
     path=Path(database).resolve(strict=True)
     con=sqlite3.connect(path.as_uri()+"?mode=ro",uri=True,timeout=10)
     rows=[];read=0;truncated=False
     try:
         if con.execute("PRAGMA application_id").fetchone()[0]!=APP_ID or con.execute("PRAGMA user_version").fetchone()[0]!=1:
             raise ValueError("Wrong research database")
-        cursor=con.execute("SELECT digest,CASE WHEN length(CAST(payload AS BLOB))<=? THEN payload ELSE NULL END FROM research_reports WHERE kind='exit_quote' ORDER BY imported_utc DESC,digest DESC LIMIT ?",(MAX_BYTES,limit+1))
+        cursor=con.execute("SELECT digest,CASE WHEN length(CAST(payload AS BLOB))<=? THEN payload ELSE NULL END FROM research_reports WHERE kind='exit_quote'"+clause+" ORDER BY imported_utc DESC,digest DESC LIMIT ?",(MAX_BYTES,*params,limit+1))
         for digest,body in cursor:
             if read==limit:truncated=True;break
             read+=1
@@ -50,4 +51,4 @@ def collect_exits(database,entries,limit=500):
     finally:con.close()
     valid=bound(entries,rows)
     return valid,{"exit_reports_read":read,"exit_history_truncated":truncated,
-                  "bound_exit_quotes":len(valid),"unbound_or_duplicate_exit_quotes":len(rows)-len(valid)}
+                  "bound_exit_quotes":len(valid),"unbound_or_duplicate_exit_quotes":len(rows)-len(valid),"exit_archive_import_window":selection}

@@ -4,7 +4,8 @@ import json
 import sqlite3
 from datetime import datetime,timezone
 from pathlib import Path
-from tools.solana_paper_replay import collect,FALSE_FLAGS
+from tools.solana_paper_replay import collect,FALSE_FLAGS,window_filter
+from tools.solana_exit_history import collect_exits
 from tools.solana_learning_readiness import evaluate as readiness
 from tools.solana_learning_dataset import build
 from tools.solana_model_experiment import evaluate as experiment
@@ -14,10 +15,11 @@ from tools.dexterm_research_cycle import permissions
 
 def run(database,history_database,*,limit=500,allow_experiment=False,
         include_lightgbm=False,include_river=False,include_adaptive=False,
-        dexterm_root=None,report_dir=None):
+        dexterm_root=None,report_dir=None,window=None):
     for v in (allow_experiment,include_lightgbm,include_river,include_adaptive):
         if type(v) is not bool:raise ValueError("Explicit boolean options required")
     if type(limit) is not int or not 1<=limit<=500:raise ValueError("Invalid archive limit")
+    _,_,selection=window_filter(window)
     source=Path(database).resolve();target=Path(history_database).resolve()
     if source==target or (source.exists() and target.exists() and source.samefile(target)):
         raise ValueError("Research and model history databases must be separate")
@@ -41,14 +43,19 @@ def run(database,history_database,*,limit=500,allow_experiment=False,
             return result
     # All downstream stages use the same immutable in-memory observation set.
     result["stage"]="archive_read"
-    rows,stats=collect(source,limit)
+    kwargs={"window":window} if window is not None else {}
+    rows,stats=collect(source,limit,**kwargs)
+    # Empty entry windows cannot bind a sell quote. No synthetic observations.
+    exits,exit_stats=collect_exits(source,rows,limit,**kwargs) if rows else ([],{"bound_exit_quotes":0,"exit_history_truncated":False,"exit_reports_read":0,"exit_scan_skipped_no_entries":True})
+    stats=dict(stats,**exit_stats)
     result["archive_stats"]=stats
+    result["archive_import_window"]=selection
     result["stage"]="readiness"
-    r=readiness(rows)
-    if stats["bridge_history_truncated"]:r["blockers"].append("archive_window_truncated")
+    r=readiness(rows,exit_quotes=exits)
+    if stats["bridge_history_truncated"] or stats["exit_history_truncated"]:r["blockers"].append("archive_window_truncated")
     result["readiness"]=r
     result["stage"]="dataset"
-    ds=dict(build(rows),**stats)
+    ds=dict(build(rows,exit_quotes=exits),**stats)
     result["dataset"]={k:ds[k] for k in ("status","dataset_sha256","example_count","partitions","skipped","split_timestamp")}
     result["stage"]="experiment"
     e=experiment(ds,allow_experiment=allow_experiment,include_lightgbm=include_lightgbm,
@@ -75,11 +82,15 @@ def main():
     p.add_argument("--include-adaptive",action="store_true")
     p.add_argument("--dexterm-root")
     p.add_argument("--report-dir")
+    p.add_argument("--window-start")
+    p.add_argument("--window-end")
     a=p.parse_args()
     try:
+        if (a.window_start is None)!=(a.window_end is None):raise ValueError("Both window endpoints required")
+        window=(a.window_start,a.window_end) if a.window_start is not None else None
         d=run(a.database,a.history_database,limit=a.limit,allow_experiment=a.allow_experiment,
               include_lightgbm=a.include_lightgbm,include_river=a.include_river,
-              include_adaptive=a.include_adaptive,dexterm_root=a.dexterm_root,report_dir=a.report_dir)
+              include_adaptive=a.include_adaptive,dexterm_root=a.dexterm_root,report_dir=a.report_dir,window=window)
         print(json.dumps(d,indent=2,allow_nan=False))
         return 0 if d["status"]=="learning_cycle_complete" else 2
     except (ValueError,TypeError,KeyError,ArithmeticError,AttributeError,OSError,sqlite3.Error) as e:

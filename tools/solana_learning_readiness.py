@@ -7,10 +7,11 @@ from collections import Counter,defaultdict
 from datetime import timedelta
 from tools.solana_paper_replay import collect,instant,FALSE_FLAGS
 from tools.solana_strategy_lab import compare
+from tools.solana_exit_history import bound,collect_exits
 
 STRESS_LEVELS=(25,50,100)
 
-def coverage(rows,*,horizon_seconds=180,max_wait_seconds=3600):
+def coverage(rows,*,horizon_seconds=180,max_wait_seconds=3600,exit_quotes=()):
     if type(horizon_seconds) is not int or type(max_wait_seconds) is not int or not 60<=horizon_seconds<=max_wait_seconds<=86400:
         raise ValueError("Invalid coverage horizon")
     counts=Counter((r["mint"],instant(r["timestamp"])) for r in rows)
@@ -26,7 +27,11 @@ def coverage(rows,*,horizon_seconds=180,max_wait_seconds=3600):
     for group in (exact,by_mint):
         for values in group.values():values.sort()
     matched=0;wrong_quantity=0;missing=0;censored=0
-    end=max((stamp for _,stamp in usable),default=None)
+    exits=bound(rows,exit_quotes)
+    explicit=defaultdict(list)
+    for q in exits:explicit[(q["entry_source_digest"],q["entry_source_index"])].append(instant(q["timestamp"]))
+    for values in explicit.values():values.sort()
+    end=max([stamp for _,stamp in usable]+[instant(q["timestamp"]) for q in exits],default=None)
     for r,stamp in usable:
         start=stamp+timedelta(seconds=horizon_seconds)
         deadline=stamp+timedelta(seconds=max_wait_seconds)
@@ -35,7 +40,7 @@ def coverage(rows,*,horizon_seconds=180,max_wait_seconds=3600):
             censored+=1;continue
         def exists(values):
             return bisect_left(values,start)<bisect_right(values,deadline)
-        if exists(exact[(r["mint"],r["token_amount_raw"])]):matched+=1
+        if exists(exact[(r["mint"],r["token_amount_raw"])]) or exists(explicit[(r["source_digest"],r["source_index"])]):matched+=1
         elif exists(by_mint[r["mint"]]):wrong_quantity+=1
         else:missing+=1
     eligible=matched+wrong_quantity+missing
@@ -47,13 +52,16 @@ def coverage(rows,*,horizon_seconds=180,max_wait_seconds=3600):
             "minimum_horizon_seconds":horizon_seconds,"maximum_wait_seconds":max_wait_seconds,
             "coverage_is_execution_verified":False}
 
-def evaluate(rows,*,initial_usdc=1000):
-    results=[compare(rows,initial_usdc=initial_usdc,stress_bps=bps) for bps in STRESS_LEVELS]
+def evaluate(rows,*,initial_usdc=1000,exit_quotes=()):
+    exits=bound(rows,exit_quotes)
+    results=[compare(rows,initial_usdc=initial_usdc,stress_bps=bps,exit_quotes=exits) for bps in STRESS_LEVELS]
     first=results[0]
     cut=instant(first["split_timestamp"]) if first["split_timestamp"] else None
     earlier=[r for r in rows if cut is not None and instant(r["timestamp"])<cut]
     later=[r for r in rows if cut is not None and instant(r["timestamp"])>=cut]
-    cov={"full_history":coverage(rows),"earlier_window":coverage(earlier),"later_window":coverage(later)}
+    early_exits=[q for q in exits if cut is not None and instant(q["timestamp"])<cut]
+    late_exits=[q for q in exits if cut is not None and instant(q["entry_timestamp"])>=cut]
+    cov={"full_history":coverage(rows,exit_quotes=exits),"earlier_window":coverage(earlier,exit_quotes=early_exits),"later_window":coverage(later,exit_quotes=late_exits)}
     blockers=["quote_timestamps_not_independently_verified","execution_and_depth_not_verified",
               "no_independent_holdout","exact_quantity_coverage_not_execution_evidence"]
     if not all(r["sample_gate_met"] for r in results):
@@ -78,8 +86,9 @@ def evaluate(rows,*,initial_usdc=1000):
 
 def run(database,*,initial_usdc=1000,limit=100):
     rows,stats=collect(database,limit)
-    result=dict(evaluate(rows,initial_usdc=initial_usdc),**stats)
-    if stats["bridge_history_truncated"]:result["blockers"].append("archive_window_truncated")
+    exits,exit_stats=collect_exits(database,rows,limit)
+    result=dict(evaluate(rows,initial_usdc=initial_usdc,exit_quotes=exits),**stats,**exit_stats)
+    if stats["bridge_history_truncated"] or exit_stats["exit_history_truncated"]:result["blockers"].append("archive_window_truncated")
     return result
 
 def main():

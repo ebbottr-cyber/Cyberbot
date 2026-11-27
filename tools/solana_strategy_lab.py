@@ -5,6 +5,7 @@ import json
 import sqlite3
 from tools.solana_paper_positions import simulate
 from tools.solana_paper_replay import collect,instant,FALSE_FLAGS
+from tools.solana_exit_history import bound,collect_exits
 
 # Predeclared research hypotheses, not calibrated or recommended settings.
 POLICIES=(
@@ -16,8 +17,8 @@ POLICIES=(
 MIN_CLOSED=30
 MIN_MINTS=5
 
-def summary(rows,settings,capital,stress):
-    r=simulate(rows,initial_usdc=capital,stress_bps=stress,max_positions=3,**settings)
+def summary(rows,settings,capital,stress,exits=()):
+    r=simulate(rows,initial_usdc=capital,stress_bps=stress,max_positions=3,exit_quotes=exits,**settings)
     closed=r["closed"]
     n=len(closed)
     mints=len({x["mint"] for x in closed})
@@ -31,7 +32,7 @@ def summary(rows,settings,capital,stress):
             "complete_equity_available":r["final_equity_raw"] is not None,
             "win_rate_pct":round(100*r["positive_closed_positions"]/n,4) if n else None}
 
-def compare(rows,*,initial_usdc=1000,stress_bps=25):
+def compare(rows,*,initial_usdc=1000,stress_bps=25,exit_quotes=()):
     ordered=sorted(rows,key=lambda r:(instant(r["timestamp"]),r["mint"],r["source_digest"],r["source_index"]))
     times=sorted({instant(r["timestamp"]) for r in ordered})
     # Fixed 70/30 split by distinct observation times. Entire timestamp batches
@@ -39,12 +40,15 @@ def compare(rows,*,initial_usdc=1000,stress_bps=25):
     cut=times[max(1,len(times)*7//10)] if len(times)>=2 else None
     early=[r for r in ordered if cut is not None and instant(r["timestamp"])<cut]
     late=[r for r in ordered if cut is not None and instant(r["timestamp"])>=cut]
-    fingerprint=hashlib.sha256(json.dumps(ordered,sort_keys=True,separators=(",",":"),allow_nan=False).encode()).hexdigest()
+    exits=sorted(bound(ordered,exit_quotes),key=lambda r:(instant(r["timestamp"]),r["mint"],r["source_digest"],r["source_index"]))
+    early_exits=[r for r in exits if cut is not None and instant(r["timestamp"])<cut]
+    late_exits=[r for r in exits if cut is not None and instant(r["entry_timestamp"])>=cut]
+    fingerprint=hashlib.sha256(json.dumps({"entries":ordered,"exits":exits},sort_keys=True,separators=(",",":"),allow_nan=False).encode()).hexdigest()
     results=[]
     for name,settings in POLICIES:
-        whole=summary(ordered,settings,initial_usdc,stress_bps)
-        first=summary(early,settings,initial_usdc,stress_bps)
-        second=summary(late,settings,initial_usdc,stress_bps)
+        whole=summary(ordered,settings,initial_usdc,stress_bps,exits)
+        first=summary(early,settings,initial_usdc,stress_bps,early_exits)
+        second=summary(late,settings,initial_usdc,stress_bps,late_exits)
         results.append({"policy":name,"settings":dict(settings),"full_history":whole,
                         "earlier_window":first,"later_window":second})
     enough=bool(cut) and all(r[w]["sample_threshold_met"] and r[w]["complete_equity_available"]
@@ -65,7 +69,8 @@ def compare(rows,*,initial_usdc=1000,stress_bps=25):
 
 def run(database,*,initial_usdc=1000,stress_bps=25,limit=100):
     rows,stats=collect(database,limit)
-    return dict(compare(rows,initial_usdc=initial_usdc,stress_bps=stress_bps),**stats)
+    exits,exit_stats=collect_exits(database,rows,limit)
+    return dict(compare(rows,initial_usdc=initial_usdc,stress_bps=stress_bps,exit_quotes=exits),**stats,**exit_stats)
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)

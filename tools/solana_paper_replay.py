@@ -77,8 +77,17 @@ def observation(item):
             "token_amount_raw":tokens,"return_raw":received,"buy_terminal_delta_raw":str(buy_delta),
             "sell_terminal_delta_raw":str(sell_delta),"fee_semantics_verified":False}
 
-def collect(database,limit):
+def window_filter(window):
+    if window is None:return "",(),None
+    if not isinstance(window,(tuple,list)) or len(window)!=2:raise ValueError("Both import window endpoints required")
+    start,end=map(instant,window)
+    if not 0<(end-start).total_seconds()<=30*86400:raise ValueError("Import window must be at most 30 days")
+    values=(start.isoformat(),end.isoformat())
+    return " AND imported_utc>=? AND imported_utc<?",values,{"basis":"archive_import_utc","start_inclusive":values[0],"end_exclusive":values[1]}
+
+def collect(database,limit,*,window=None):
     if type(limit) is not int or not 1<=limit<=500:raise ValueError("Bridge limit 1 to 500")
+    clause,params,selection=window_filter(window)
     path=Path(database).resolve(strict=True)
     con=sqlite3.connect(path.as_uri()+"?mode=ro",uri=True,timeout=10)
     observations=[];excluded=0;incomplete=0;duplicates=0;seen=set();read=0;truncated=False
@@ -87,7 +96,7 @@ def collect(database,limit):
             raise ValueError("Wrong research database")
         # Stream bounded reports instead of loading up to 500 multi-MiB
         # payloads at once. The extra row detects truncation.
-        cursor=con.execute("SELECT digest,CASE WHEN length(CAST(payload AS BLOB))<=? THEN payload ELSE NULL END FROM research_reports WHERE kind='bridge' ORDER BY imported_utc DESC,digest DESC LIMIT ?",(MAX_BYTES,limit+1))
+        cursor=con.execute("SELECT digest,CASE WHEN length(CAST(payload AS BLOB))<=? THEN payload ELSE NULL END FROM research_reports WHERE kind='bridge'"+clause+" ORDER BY imported_utc DESC,digest DESC LIMIT ?",(MAX_BYTES,*params,limit+1))
         for digest,body in cursor:
             if read==limit:
                 truncated=True;break
@@ -118,7 +127,7 @@ def collect(database,limit):
     finally:con.close()
     observations.sort(key=lambda o:(instant(o["timestamp"]),o["mint"],o["source_digest"],o["source_index"]))
     return observations,{"bridge_reports_read":read,"bridge_history_truncated":truncated,
-                         "incomplete_diagnostics":incomplete,"excluded_diagnostics":excluded,"duplicate_quotes":duplicates}
+                         "incomplete_diagnostics":incomplete,"excluded_diagnostics":excluded,"duplicate_quotes":duplicates,"archive_import_window":selection}
 
 def fee(amount,bps):
     return (amount*bps+9999)//10000

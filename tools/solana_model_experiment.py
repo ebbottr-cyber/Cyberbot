@@ -77,7 +77,7 @@ def evaluate(report,*,allow_experiment=False,include_lightgbm=False,include_rive
         if len(group)<minimum:blockers.append(name+"_sample_count")
         if min(pos,len(group)-pos)<MIN_CLASS:blockers.append(name+"_class_support")
         if len({r["mint"] for r in group})<MIN_MINTS:blockers.append(name+"_mint_diversity")
-    if report.get("bridge_history_truncated"):blockers.append("archive_window_truncated")
+    if report.get("bridge_history_truncated") or report.get("exit_history_truncated"):blockers.append("archive_window_truncated")
     if not allow_experiment:blockers.append("explicit_experiment_opt_in_required")
     out={"status":"experiment_blocked","research_only":True,"network_requests":False,
          "dataset_sha256":report["dataset_sha256"],"blockers":blockers,
