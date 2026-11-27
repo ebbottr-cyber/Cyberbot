@@ -11,7 +11,9 @@ function Add-Check($name,$state) {
 $plans = @(
     @{Name='Chronos'; Path=(Join-Path $base 'ChronosRuntime'); Module='chronos'; Dist='chronos-forecasting'; Version=''},
     @{Name='LightGBM'; Path=(Join-Path $base 'LightGBMRuntime'); Module='lightgbm'; Dist='lightgbm'; Version='4.6.0'},
-    @{Name='River'; Path=(Join-Path $base 'RiverRuntime'); Module='river'; Dist='river'; Version='0.23.0'}
+    @{Name='River'; Path=(Join-Path $base 'RiverRuntime'); Module='river'; Dist='river'; Version='0.23.0'},
+    @{Name='ReviewRuntime-LightGBM'; Path=(Join-Path $base 'ReviewRuntime'); Module='lightgbm'; Dist='lightgbm'; Version='4.6.0'},
+    @{Name='ReviewRuntime-River'; Path=(Join-Path $base 'ReviewRuntime'); Module='river'; Dist='river'; Version='0.23.0'}
 )
 foreach ($plan in $plans) {
     $py = Join-Path $plan.Path 'Scripts\python.exe'
@@ -35,7 +37,17 @@ $mainPython = Join-Path $root '.venv\Scripts\python.exe'
 Add-Check 'MainPython' $(if (Test-Path -LiteralPath $mainPython -PathType Leaf) {'PRESENT_NOT_TESTED'} else {'MISSING'})
 Add-Check 'ResearchRights' $(if ($env:CYBERBOT_LOCAL_RESEARCH_RIGHTS_CONFIRMED -eq '1') {'CONFIRMED_BY_OPERATOR'} else {'NOT_CONFIRMED'})
 $disk = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($root))
+$runtimeDisk = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($base))
 $os = Get-CimInstance -ClassName Win32_OperatingSystem
+Add-Check 'RuntimeInstallDisk' $(if ($runtimeDisk.AvailableFreeSpace -ge 10GB) {'OK'} else {'WAIT_DISK'})
+$cpuLoad = $null
+try {
+    $loads = @(Get-CimInstance -ClassName Win32_Processor -ErrorAction Stop | ForEach-Object { $_.LoadPercentage })
+    if ($loads.Count -gt 0 -and @($loads | Where-Object { $null -eq $_ -or $_ -lt 0 -or $_ -gt 100 }).Count -eq 0) {
+        $cpuLoad = [math]::Round(($loads | Measure-Object -Average).Average,2)
+    }
+} catch { }
+Add-Check 'CPUAdmission' $(if ($null -eq $cpuLoad) {'UNKNOWN'} elseif ($cpuLoad -lt 70) {'OK'} else {'WAIT_CPU'})
 Add-Check 'DiskReserve' $(if ($disk.AvailableFreeSpace -ge 5GB) {'OK'} else {'WAIT_DISK'})
 Add-Check 'RAMAdmission' $(if ($null -ne $os.FreePhysicalMemory -and [uint64]$os.FreePhysicalMemory -ge 5242880) {'OK'} else {'WAIT_MEMORY'})
 $runtimeState = 'MISSING'
@@ -58,15 +70,20 @@ if (Test-Path -LiteralPath $folder -PathType Container) {
 }
 Add-Check 'ChronosModel' $runtimeState
 Add-Check 'ForwardJournal' $(if (Test-Path -LiteralPath (Join-Path $folder 'forward-models-v2.sqlite3') -PathType Leaf) {'PRESENT_NOT_VALIDATED'} else {'MISSING'})
-foreach ($name in @('Chronos','RiverLive','RiverReplay','LightGBM','ForwardBackup','Watchdog')) {
+foreach ($name in @('Chronos','RiverLive','RiverReplay','LightGBM','ForwardBackup','Watchdog','ResearchReview')) {
     $task = Get-ScheduledTask -TaskPath '\' -TaskName ('Cyberbot-AI-'+$name) -ErrorAction SilentlyContinue
     Add-Check ('Task-'+$name) $(if ($null -eq $task) {'NOT_REGISTERED'} else {[string]$task.State})
 }
 [ordered]@{
+    version='ai-readiness-2'
     checked_at_utc=[DateTime]::UtcNow.ToString('o')
     status='MANUAL_REVIEW_REQUIRED'
     free_disk_gib=[math]::Round($disk.AvailableFreeSpace / 1GB,2)
     free_ram_gib=[math]::Round([double]$os.FreePhysicalMemory / 1MB,2)
+    runtime_disk_free_gib=[math]::Round($runtimeDisk.AvailableFreeSpace / 1GB,2)
+    cpu_load_pct=$cpuLoad
+    import_checks_requested=[bool]$CheckImports
+    imports_are_not_inference_tests=$true
     checks=$checks.ToArray()
     native_inference_verified=$false
     paper_readiness_verified=$false
