@@ -1,0 +1,8 @@
+[Unit]
+Description=Cyberbot bounded heavy AI jobs
+
+[Slice]
+MemoryHigh=5G
+MemoryMax=6G
+CPUQuota=200%
+TasksMax=96

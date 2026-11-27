@@ -6,6 +6,7 @@ from decimal import Decimal as D
 from . import observed_pilot as stocks,solana_pilot as sol,futures_pilot as fut
 from .strategy_lab import signal
 from .regimes import classify
+from .observed_regime import diagnose
 from .research_pipeline import research_path
 from .strategy_memory import VERSION as MEMORY_VERSION
 from .observed_pilot import PilotError,ts
@@ -81,6 +82,8 @@ def evaluate(db,m,now):
     prices,n=completed_minutes(db,m,q,now);d["observations"]=n
     if not prices:d["status"]="insufficient_contiguous_minutes";return d
     regime=classify(prices);d["regime"]=regime
+    # Independent diagnostic only. Keep the original strategy and gates unchanged.
+    d["regime_diagnostic"]=diagnose(m,prices,q,now)
     d["signals"]={name:signal(name,prices,WINDOW) for name in CANDIDATES}
     # Fixed rule for diagnostic consensus only; no optimization or prediction claim.
     candidate="trend" if regime["id"]=="bull" and d["signals"]["trend"] and d["signals"]["momentum"] else "reversion" if regime["id"]=="sideways" and d["signals"]["reversion"] else "cash"

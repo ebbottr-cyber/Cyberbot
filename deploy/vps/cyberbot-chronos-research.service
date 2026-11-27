@@ -1,0 +1,30 @@
+[Unit]
+Description=Cyberbot chronos offline research
+ConditionPathIsDirectory=/opt/cyberbot/var/ai
+
+[Service]
+Type=oneshot
+User=cyberbot
+Group=cyberbot
+Slice=cyberbot-ai.slice
+WorkingDirectory=/opt/cyberbot
+EnvironmentFile=/etc/cyberbot/research.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=HF_HUB_OFFLINE=1
+Environment=TRANSFORMERS_OFFLINE=1
+ExecCondition=/opt/cyberbot/.venv-chronos/bin/python -c "import os,sys; sys.exit(os.getenv('CYBERBOT_LOCAL_RESEARCH_RIGHTS_CONFIRMED') != '1')"
+ExecStart=/opt/cyberbot/.venv-chronos/bin/python -m tools.local_research.vps_guard --model chronos --state /opt/cyberbot/var/ai/heavy-lock -- /opt/cyberbot/.venv-chronos/bin/python /opt/cyberbot/tools/local_research/forward_learning_v2.py /opt/cyberbot 10
+SuccessExitStatus=75
+TimeoutStartSec=960
+KillMode=control-group
+Nice=10
+UMask=0077
+NoNewPrivileges=true
+PrivateNetwork=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/cyberbot/var/ai
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true

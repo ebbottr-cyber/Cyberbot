@@ -36,6 +36,26 @@ jobs:
           & .\scripts\register-pilot-windows.ps1
           & .\scripts\futures-windows.ps1
 
+      - name: Windows AI script parse and safe previews
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          foreach ($file in @('scripts/ai-research-windows.ps1','scripts/setup-ai-windows.ps1','scripts/ai-readiness-windows.ps1','scripts/register-ai-research-windows.ps1','scripts/ai-watchdog-windows.ps1','scripts/register-ai-review-windows.ps1')) {
+            $tokens = $null; $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file).Path,[ref]$tokens,[ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) { throw ($errors | Out-String) }
+          }
+          & .\scripts\register-ai-research-windows.ps1
+          & .\scripts\register-ai-review-windows.ps1
+          & .\scripts\setup-ai-windows.ps1 -IncludeReviewRuntime
+          $readiness = & .\scripts\ai-readiness-windows.ps1 | ConvertFrom-Json
+          if ($readiness.version -ne 'ai-readiness-2' -or $readiness.tasks_modified -ne $false -or $readiness.real_orders -ne $false -or $readiness.paper_readiness_verified -ne $false -or $readiness.native_inference_verified -ne $false) { throw 'Unsafe readiness report.' }
+          $required = @('Chronos','LightGBM','River','ReviewRuntime-LightGBM','ReviewRuntime-River','CPUAdmission','RuntimeInstallDisk','Task-ResearchReview')
+          foreach ($name in $required) {
+            if (@($readiness.checks | Where-Object { $_.name -eq $name }).Count -ne 1) { throw ('Missing or duplicate readiness check: ' + $name) }
+          }
+          if (Get-ScheduledTask -TaskPath '\' -TaskName 'Cyberbot-AI-ResearchReview' -ErrorAction SilentlyContinue) { throw 'Preview unexpectedly registered a task.' }
+
       - name: Extended synthetic stress suite
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
         run: python -m tools.stress --steps 240

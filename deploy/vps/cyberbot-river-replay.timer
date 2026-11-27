@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh Cyberbot River research replay every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00,30:00
+Persistent=true
+RandomizedDelaySec=30
+Unit=cyberbot-river-replay.service
+
+[Install]
+WantedBy=timers.target
