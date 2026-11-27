@@ -42,6 +42,9 @@ try {
         '--dexterm-root',$DexTermRoot,'--window-hours','24','--publish-pwa')
     if ($EnableModels) { $arguments += @('--allow-experiment','--include-lightgbm','--include-river','--include-adaptive') }
     $log = Join-Path $logs ('cycle-' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N') + '.log')
+    $healthLog = $log + '.health.json'
+    & $Python -m tools.solana_pc_health --data-root $DataRoot --preflight *> $healthLog
+    if ($LASTEXITCODE -ne 0) { throw 'Research resource preflight blocked. See health report.' }
     & $Python @arguments *> $log
     $code = $LASTEXITCODE
     if ($code -ne 0) { throw ('Research cycle exit code: ' + $code) }
