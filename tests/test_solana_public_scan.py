@@ -202,3 +202,41 @@ class PublicScanTests(unittest.TestCase):
             with self.assertRaises(PilotError):
                 run(exclude_mints=["bad"],discoverer=lambda:self.fail("network"))
         self.assertFalse(d["pilot_applied"])
+
+    def test_holder_inconsistency_skips_only_once_and_never_promotes(self):
+        rows=[candidate(str(i),"p") for i in range(4)]
+        calls=[]
+        def inspect(m,p):
+            calls.append(m)
+            return {"status":"diagnostic_holder_percentages_invalid" if m=="0" else "diagnostic_complete"}
+        with patch.dict(os.environ,{"CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED":"1"}):
+            d=run(limit=2,max_candidates=4,discoverer=lambda:rows,inspect=inspect,sleep=lambda n:None)
+            self.assertEqual(calls,["0","1","2"])
+            self.assertEqual(d["holder_percentages_rejected_mints"],1)
+            self.assertEqual(d["completed_mints"],2)
+            self.assertFalse(d["security_verified"])
+            calls.clear()
+            def reject(m,p):
+                calls.append(m);return {"status":"diagnostic_holder_percentages_invalid"}
+            d=run(limit=2,max_candidates=4,discoverer=lambda:rows,inspect=reject,sleep=lambda n:None)
+            self.assertEqual(calls,["0","1"])
+            self.assertEqual(d["stop_reason"],"repeated_holder_percentage_inconsistency")
+            self.assertFalse(d["pilot_applied"])
+
+    def test_holder_percentage_rejection_class_and_snapshot_short_circuit(self):
+        from cyberbot.providers.solana_observed import reported_holders,HolderPercentagesInvalid
+        from tools.solana_public_snapshot import run as snapshot
+        mint="1"*31+"2";pool="1"*31+"3"
+        from cyberbot.solana_pilot import ALPHABET
+        rug={"mint":mint,"topHolders":[{"address":"1"*31+ALPHABET[i+3],"pct":11} for i in range(10)]}
+        gecko={"data":{"attributes":{"address":mint}}}
+        with self.assertRaises(HolderPercentagesInvalid):
+            reported_holders(rug,gecko,mint)
+        with patch.dict(os.environ,{"CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED":"1"}):
+            with patch("tools.solana_public_snapshot.request",return_value={}) as req, patch("tools.solana_public_snapshot.mint_info",return_value={}), patch("tools.solana_public_snapshot.reported_holders",side_effect=HolderPercentagesInvalid("Invalid holder report percentages")), patch("tools.solana_public_snapshot.preview") as quote:
+                d=snapshot(mint,pool)
+                self.assertEqual(d["status"],"diagnostic_holder_percentages_invalid")
+                self.assertEqual(set(d["stages"]),{"mint","holders"})
+                self.assertEqual(req.call_count,3)
+                quote.assert_not_called()
+                self.assertFalse(d["security_verified"])

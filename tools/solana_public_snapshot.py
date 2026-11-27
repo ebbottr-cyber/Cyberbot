@@ -3,7 +3,7 @@ import argparse,json,os
 from decimal import Decimal as D
 import httpx
 from cyberbot.solana_pilot import address
-from cyberbot.providers.solana_observed import request,mint_info,reported_holders,pool_info,USDC,PilotError,RPC_ENDPOINTS,UnsupportedMint,SellQuoteRejected
+from cyberbot.providers.solana_observed import request,mint_info,reported_holders,pool_info,USDC,PilotError,RPC_ENDPOINTS,UnsupportedMint,SellQuoteRejected,HolderPercentagesInvalid
 from cyberbot.observed_pilot import utc,ts
 from tools.solana_route_preview import run as preview
 
@@ -15,6 +15,8 @@ def run(mint,pool):
     stages={}
     def stage(name,fn):
         try:stages[name]={"status":"ok","data":fn()}
+        except HolderPercentagesInvalid as e:
+            stages[name]={"status":"invalid_percentages","reason":str(e)}
         except SellQuoteRejected as e:
             stages[name]={"status":"quote_rejected","reason":str(e)}
         except UnsupportedMint as e:
@@ -37,7 +39,8 @@ def run(mint,pool):
             x["reported_concentration_over_pilot_limit"]=max(D(x["rugcheck_reported_top10_account_pct"]),D(x["geckoterminal_reported_top10_pct"]))>30
             return x
         stage("holders",holders)
-        if stages["holders"]["status"]!="ok":return finish("diagnostic_partial")
+        if stages["holders"]["status"]!="ok":
+            return finish("diagnostic_holder_percentages_invalid" if stages["holders"]["status"]=="invalid_percentages" else "diagnostic_partial")
         stage("reference_pool",lambda:pool_info(request(c,"pool",pool,""),mint,pool))
         if stages["reference_pool"]["status"]!="ok":return finish("diagnostic_partial")
     stage("route_preview",lambda:preview(mint))

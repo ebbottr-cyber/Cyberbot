@@ -34,6 +34,9 @@ def rpc_result(d):
 class SellQuoteRejected(PilotError):
     """HTTP 400 on a read-only sell quote; cause not established."""
 
+class HolderPercentagesInvalid(PilotError):
+    """Reported account percentages exceed the allowed total; no risk clearance."""
+
 class UnsupportedMint(PilotError):
     """Well-shaped account that does not satisfy the legacy-only policy."""
 
@@ -75,7 +78,7 @@ def reported_holders(rug,gecko,mint):
         addr=row.get("address")
         if not sol.address(addr) or addr in seen:raise PilotError("Invalid holder report account")
         seen.add(addr);pcts.append(sol.number(row.get("pct"),high="100"))
-    if sum(pcts)>100:raise PilotError("Invalid holder report percentages")
+    if sum(pcts)>100:raise HolderPercentagesInvalid("Invalid holder report percentages")
     top=sum(sorted(pcts,reverse=True)[:10],D(0))
     g=gecko["data"]["attributes"]["holders"]
     pct=sol.number(g["distribution_percentage"]["top_10"],high="100")

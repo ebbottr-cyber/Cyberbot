@@ -69,12 +69,18 @@ def run(*,limit=2,max_candidates=None,reference_first=False,exclude_mints=(),dis
         seen.add(mint);selected.append(row)
     if reference_first:selected.sort(key=lambda row:row["mint"] not in references)
     selected=selected[:max_candidates]
-    reports=[];quote_rejections=0;stop_reason=None
+    reports=[];quote_rejections=0;holder_rejections=0;stop_reason=None
     for i,row in enumerate(selected):
         if i:sleep(10)
         try:
             report=inspect(row["mint"],row["pool"])
             reports.append({"candidate":row,"diagnostic":report})
+            if report.get("status")=="diagnostic_holder_percentages_invalid":
+                holder_rejections+=1
+                # Only a specifically identified data inconsistency is skippable.
+                if holder_rejections>=2:
+                    stop_reason="repeated_holder_percentage_inconsistency";break
+                continue
             if report.get("status")=="diagnostic_sell_quote_rejected":
                 quote_rejections+=1
                 # Permit a single distinct-candidate continuation, not a retry.
@@ -91,9 +97,9 @@ def run(*,limit=2,max_candidates=None,reference_first=False,exclude_mints=(),dis
     done=sum(r["diagnostic"].get("status")=="diagnostic_complete" for r in reports)
     skipped=sum(r["diagnostic"].get("status")=="diagnostic_unsupported_mint" for r in reports)
     target_reached=done>=limit
-    exhausted=bool(selected) and (target_reached or len(reports)==len(selected)) and done+skipped+quote_rejections==len(reports)
-    status=("scan_no_candidates" if not selected else "scan_partial" if stop_reason or not exhausted or (quote_rejections and not target_reached) else
-            "scan_no_supported_candidates" if not done else "scan_complete_with_skips" if skipped or quote_rejections else "scan_complete")
+    exhausted=bool(selected) and (target_reached or len(reports)==len(selected)) and done+skipped+quote_rejections+holder_rejections==len(reports)
+    status=("scan_no_candidates" if not selected else "scan_partial" if stop_reason or not exhausted or ((quote_rejections or holder_rejections) and not target_reached) else
+            "scan_no_supported_candidates" if not done else "scan_complete_with_skips" if skipped or quote_rejections or holder_rejections else "scan_complete")
     ref_done=sum(r["candidate"]["mint"] in references and r["diagnostic"].get("status")=="diagnostic_complete" for r in reports)
     return {"status":status,"completed_mints":done,"unsupported_mints":skipped,
             "reference_first":reference_first,"reference_completed_mints":ref_done,
@@ -101,7 +107,7 @@ def run(*,limit=2,max_candidates=None,reference_first=False,exclude_mints=(),dis
             "nonreference_completed_mints":done-ref_done,
             "reference_mints_discovered":sorted({r["mint"] for r in pools if r["mint"] in references}),
             "reference_mints_missing":sorted(references-{r["mint"] for r in pools}),
-            "sell_quote_rejected_mints":quote_rejections,"stop_reason":stop_reason,
+            "sell_quote_rejected_mints":quote_rejections,"holder_percentages_rejected_mints":holder_rejections,"stop_reason":stop_reason,
             "retrieved_at":utc().isoformat(),"scope":"geckoterminal_trending_and_top_page_1_plus_dex_search_direct_usdc",
             "target_completed_mints":limit,"target_reached":target_reached,"max_candidates":max_candidates,
             "available_pools":len(pools),"selected_mints":len(selected),"inspected_mints":len(reports),
