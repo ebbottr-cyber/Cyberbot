@@ -1,2 +1,3 @@
 # Optional Futures research; standard runtime and CI installation unchanged.
 lightgbm>=4.6,<5
+river>=0.22,<0.24
