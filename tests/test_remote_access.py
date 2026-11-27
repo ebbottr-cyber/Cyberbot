@@ -33,3 +33,13 @@ class RemoteTests(unittest.TestCase):
     def test_missing_config(self):
         with patch.dict(os.environ,{**ENV,"CYBERBOT_TAILSCALE_LOGIN":""}):
             self.assertEqual(self.client().get("/",headers=HEAD).status_code,403)
+    def test_separate_https_port(self):
+        with patch.dict(os.environ,{**ENV,"CYBERBOT_TAILSCALE_PORT":"8444"}):
+            c=self.client("pc.example.ts.net:8444")
+            self.assertEqual(c.get("/",headers=HEAD).status_code,200)
+            self.assertEqual(c.get("/manifest.webmanifest",headers=HEAD).status_code,200)
+            self.assertEqual(c.get("/",headers={}).status_code,403)
+            self.assertEqual(self.client().get("/",headers=HEAD).status_code,403)
+            self.assertEqual(c.post("/not-a-route",headers={**HEAD,"X-Cyberbot-Paper":"1","Origin":"https://pc.example.ts.net:8444"}).status_code,403)
+        with patch.dict(os.environ,{**ENV,"CYBERBOT_TAILSCALE_PORT":"8445"}):
+            self.assertEqual(self.client("pc.example.ts.net:8445").get("/",headers=HEAD).status_code,403)

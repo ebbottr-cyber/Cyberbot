@@ -19,7 +19,7 @@ def authorize(request):
         if not re.fullmatch(r"[a-z0-9-]+(?:\.[a-z0-9-]+)+\.ts\.net",allowed_host) or not allowed_login:
             return "Tailscale erişimi yapılandırılmadı."
         port=os.getenv("CYBERBOT_TAILSCALE_PORT","8443")
-        if port not in ("443","8443"):
+        if port not in ("443","8443","8444"):
             return "Tailscale portu geçersiz."
         authority=allowed_host if port=="443" else allowed_host+":"+port
         if host.lower() not in ((allowed_host,allowed_host+":443") if port=="443" else (authority,)):

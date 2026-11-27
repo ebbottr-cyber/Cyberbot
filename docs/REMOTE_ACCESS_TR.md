@@ -36,3 +36,5 @@ Kapatmak için sadece bu özel dinleyiciyi kaldırın: `tailscale serve --https=
 Loopback erişimi ve `--no-proxy-headers` zorunludur. Uygulama Tailscale'in eklediği kullanıcı kimliğini ve tam host adını doğrular, izinli yazmalarda HTTPS Origin ve özel başlık ister. Yerel makinedeki güvenilmeyen süreçler bu güven sınırının dışındadır. Funnel kimlik başlığı sağlamaz ve erişim reddedilir. Başka proxy, port yönlendirme veya 0.0.0.0 kullanmayın. API verileri önbelleğe alınmaz. Tailscale CLI/kimlik entegrasyonu gerçek cihazda henüz denenmemiştir.
 
 Resmî belgeler: https://tailscale.com/docs/features/tailscale-serve ve https://tailscale.com/docs/reference/tailscale-cli/serve
+
+Mevcut 443/8443 yönlendirmeleri kullanılıyorsa 8444 alternatifi: önceden boş olduğunu Serve/Funnel ve TCP dinleyici kontrolleriyle doğrulayın. Sunucu ortamında `CYBERBOT_TAILSCALE_PORT=8444` ayarlayın ve yalnız `tailscale serve --bg --https=8444 http://127.0.0.1:8765` kullanın. Erişim adresi `https://<MagicDNS>:8444`; kapatma `tailscale serve --https=8444 off`. Diğer yönlendirmeler korunur.
