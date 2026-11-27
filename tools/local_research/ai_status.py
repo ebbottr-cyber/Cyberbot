@@ -116,6 +116,26 @@ def paired_status(folder):
         return {**base,"status":"DATA_REVIEW_REQUIRED"}
 
 
+def live_river_status(folder):
+    path=folder/"river-live-shadow.sqlite3"
+    base={"protocol":"prospective_shadow","evidence_status":"FORWARD_SHADOW_UNVERIFIED",
+          "automatic_promotion":False}
+    if not path.is_file():
+        return {**base,"status":"NOT_AVAILABLE"}
+    try:
+        import math
+        from .river_live_shadow import status
+        with closing(readonly(path)) as db:
+            result=status(db)
+        if (not set(result["counts"])<={"pending","measured","unmeasurable"}
+                or any(not math.isfinite(v) or v<0 for v in result["mae_pct"].values())):
+            raise ValueError("invalid shadow metrics")
+        return {**base,"status":"RECORDED_NOT_REVALIDATED","counts":result["counts"],
+                "scored_after_warmup":result["scored_after_warmup"],"mae_pct":result["mae_pct"]}
+    except (OSError,sqlite3.Error,ValueError,TypeError,KeyError):
+        return {**base,"status":"DATA_REVIEW_REQUIRED"}
+
+
 def run(root):
     folder = root/"var/ai"
     return {"version":"ai-status-1","models":{
@@ -124,6 +144,7 @@ def run(root):
         "lightgbm":journal_status(folder,"lightgbm"),
         "gemini":gemini_status(folder)},
         "paired_research":paired_status(folder),
+        "river_forward_shadow":live_river_status(folder),
         "market_memory":market_inventory(root)["markets"],
         "shared_ranking_available":False,"automatic_promotion":False,
         "profitability_verified":False,"real_orders":False}
