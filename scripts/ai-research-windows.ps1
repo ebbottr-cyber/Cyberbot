@@ -79,6 +79,10 @@ try {
         }
     }
     if (!(Test-Path -LiteralPath $python -PathType Leaf)) { throw ('Research runtime missing: ' + $Mode) }
+    $runtimeRoot = Split-Path -Parent (Split-Path -Parent $python)
+    if (Test-Path -LiteralPath (Join-Path $runtimeRoot '.setup-incomplete')) {
+        throw ('Incomplete research runtime: ' + $Mode)
+    }
     & $python @arguments
     exit $LASTEXITCODE
 } finally {
