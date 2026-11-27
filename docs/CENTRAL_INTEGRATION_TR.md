@@ -88,3 +88,16 @@ karar hafızası, model yaşam döngüsü, Windows görev ve risk denetimi göst
 diğer piyasalara genellenmez. Ham tahminler, yollar ve kimlik bilgileri gösterilmez.
 AI PR #1 ve bağımlılıkları aynı checkout'ta doğrulanmadan bağlantı aktif olmaz.
 Varsayılan kapalıdır; panel eğitim, zamanlanmış görev veya emir başlatmaz.
+
+## Ortak haber ve bildirim arşivi
+
+CYBERBOT_NOTIFICATION_DB ve CYBERBOT_RESEARCH_NEWS_DB, ayrı bildirim çalışanın
+ürettiği notifications.sqlite3 ve research-news.sqlite3 dosyalarına işaret eder.
+Mevcut Haber Merkezi /api/integration/inbox ve /api/integration/news üzerinden
+son 50 uygun kaydı salt okunur gösterir. BINANCE_FUTURES kaynak etiketi FUTURES
+olarak eşlenir; küresel kayıtlar seçilen piyasa ile gösterilir. Okunmamış sayısı
+sadece görünen pencereyi kapsar. Ham olay anahtarları, abonelik bilgisi ve URL'ler
+aktarılmaz. Haber içeriği ve fiyat etkisi doğrulanmış kabul edilmez.
+Bu bağlantı ayrı çalışanın kurulumunu, kaynak yetkilerini, bildirim kuyruğunu,
+push aboneliğini, VAPID yapılandırmasını veya cihaz teslim testini yapmaz.
+Mobil erişim mevcut güvenli erişim korumasına tabidir; mutasyon açılmaz.
