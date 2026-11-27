@@ -1,6 +1,6 @@
 # Bounded local research launcher. Does not enable trading or download packages.
 param(
-    [Parameter(Mandatory=$true)][ValidateSet('Chronos','Backup')][string]$Mode
+    [Parameter(Mandatory=$true)][ValidateSet('Chronos','LightGBM','RiverReplay','Backup')][string]$Mode
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -32,20 +32,35 @@ try {
     $env:OMP_NUM_THREADS = '2'
     $env:MKL_NUM_THREADS = '2'
     $env:OPENBLAS_NUM_THREADS = '2'
-    if ($Mode -eq 'Chronos') {
+    $minimumFreeKiB = @{ Chronos = 4194304; LightGBM = 5242880; RiverReplay = 3145728; Backup = 0 }
+    if ($minimumFreeKiB[$Mode] -gt 0) {
         $os = Get-CimInstance -ClassName Win32_OperatingSystem
-        if ([uint64]$os.FreePhysicalMemory -lt 4194304) {
+        if ($null -eq $os.FreePhysicalMemory -or [uint64]$os.FreePhysicalMemory -lt $minimumFreeKiB[$Mode]) {
             Write-Host 'WAIT_MEMORY'
             exit 75
         }
-        $python = Join-Path $env:LOCALAPPDATA 'Cyberbot\ChronosRuntime\Scripts\python.exe'
-        if (!(Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Chronos runtime missing.' }
-        & $python (Join-Path $root 'tools\local_research\forward_learning_v2.py') $root 10
-    } else {
-        $python = Join-Path $root '.venv\Scripts\python.exe'
-        if (!(Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Main Python runtime missing.' }
-        & $python -m tools.local_research.forward_backup --root $root
     }
+    $runtime = Join-Path $env:LOCALAPPDATA 'Cyberbot'
+    switch ($Mode) {
+        'Chronos' {
+            $python = Join-Path $runtime 'ChronosRuntime\Scripts\python.exe'
+            $arguments = @((Join-Path $root 'tools\local_research\forward_learning_v2.py'), $root, '10')
+        }
+        'LightGBM' {
+            $python = Join-Path $runtime 'LightGBMRuntime\Scripts\python.exe'
+            $arguments = @('-m','tools.local_research.lightgbm_journal','--root',$root)
+        }
+        'RiverReplay' {
+            $python = Join-Path $runtime 'RiverRuntime\Scripts\python.exe'
+            $arguments = @('-m','tools.local_research.river_journal','--root',$root)
+        }
+        'Backup' {
+            $python = Join-Path $root '.venv\Scripts\python.exe'
+            $arguments = @('-m','tools.local_research.forward_backup','--root',$root)
+        }
+    }
+    if (!(Test-Path -LiteralPath $python -PathType Leaf)) { throw ('Research runtime missing: ' + $Mode) }
+    & $python @arguments
     exit $LASTEXITCODE
 } finally {
     if ($owned) { $mutex.ReleaseMutex() }
