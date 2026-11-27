@@ -40,3 +40,13 @@ başlatıcı ayarları ayrıca kontrol edilmelidir.
 
 Yalnızca mevcut durum kayıtları. Birleşik canlı yürütme veya tamamlanmış cihaz
 kurulumu anlamına gelmez.
+
+## Ortak gözlem portföyü ve risk
+
+GET /api/integration/portfolio, BIST/NASDAQ/XETRA/FUTURES gözlem kasalarını
+mevcut pilot muhasebesinden okur. TRY, USD ve USDT ayrı gösterilir; XETRA pilotu
+EUR fiyatını USD hesabına dönüştürür. Eski Solana pilotu bu kapsamdan çıkarılır;
+DexTerm USDC portföyü bağlanana kadar değerler boş kalır. Sentetik demo bakiyeleri,
+araştırma replay sonuçları ve gözlem kasaları birleştirilmez. Taze değerleme yoksa
+kasa değeri, günlük K/Z ve düşüş bilinmez. Giriş freni salt okunur; yerel risk
+koşulları emir yetkisi değildir. Ayrı okuma anları atomik değildir.
