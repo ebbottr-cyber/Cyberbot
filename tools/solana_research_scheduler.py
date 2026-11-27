@@ -13,6 +13,7 @@ from tools.dexterm_research_archive import archive
 from tools.solana_exact_exit_quotes import run as exit_cycle
 from tools.solana_learning_cycle import run as learning_cycle
 from tools.solana_paper_replay import FALSE_FLAGS
+from tools.solana_pwa_publish import publish
 
 class StopRequested(ValueError):
     pass
@@ -39,8 +40,8 @@ def save(folder,kind,data):
 
 def run(root,database,history_database,report_dir,*,enabled=False,cycles=1,interval=300,
         window_hours=24,allow_experiment=False,include_lightgbm=False,include_river=False,
-        include_adaptive=False,sleep=time.sleep,clock=lambda:datetime.now(timezone.utc)):
-    for v in (enabled,allow_experiment,include_lightgbm,include_river,include_adaptive):
+        include_adaptive=False,publish_pwa=False,sleep=time.sleep,clock=lambda:datetime.now(timezone.utc)):
+    for v in (enabled,allow_experiment,include_lightgbm,include_river,include_adaptive,publish_pwa):
         if type(v) is not bool:raise ValueError("Explicit boolean options required")
     if not enabled:raise ValueError("Explicit scheduler opt-in required")
     for value,low,high in ((cycles,1,12),(interval,180,3600),(window_hours,1,48)):
@@ -63,6 +64,8 @@ def run(root,database,history_database,report_dir,*,enabled=False,cycles=1,inter
          "research_only":True,"service_installed":False,"production_training_performed":False,
          "weights_updated":False,"model_promoted":False,"training_allowed":False,**FALSE_FLAGS}
     with exclusive(lock):
+        def announce(state,report=None):
+            if publish_pwa:publish(folder,state,report)
         try:
             for i in range(cycles):
                 if i:
@@ -71,6 +74,7 @@ def run(root,database,history_database,report_dir,*,enabled=False,cycles=1,inter
                         guard()
                         step=min(remaining,5);sleep(step);remaining-=step
                 guard()
+                announce("running")
                 item={"stage":"collection"}
                 out["runs"].append(item)
                 collected=collect_cycle(root,source,folder,cycles=1)
@@ -98,13 +102,19 @@ def run(root,database,history_database,report_dir,*,enabled=False,cycles=1,inter
                 item["report"]=str(save(folder,"solana-learning",learned))
                 item["learning_status"]=learned["status"]
                 item["experiment_blocked"]=learned["experiment_blocked"]
+                announce("ready",learned)
                 if learned["status"]!="learning_cycle_complete":
                     out["stop_reason"]="learning_partial";break
                 item["stage"]="complete"
                 out["completed_cycles"]+=1
             if out["completed_cycles"]==cycles:out["status"]="scheduler_complete"
+            elif out.get("stop_reason")!="learning_partial":announce("partial")
         except StopRequested:
             out["status"]="scheduler_stopped";out["stop_reason"]="stop_marker"
+            announce("stopped")
+        except Exception:
+            announce("error")
+            raise
     return out
 
 def main():
@@ -121,11 +131,12 @@ def main():
     p.add_argument("--include-lightgbm",action="store_true")
     p.add_argument("--include-river",action="store_true")
     p.add_argument("--include-adaptive",action="store_true")
+    p.add_argument("--publish-pwa",action="store_true")
     a=p.parse_args()
     try:
         d=run(a.dexterm_root,a.database,a.history_database,a.report_dir,enabled=a.enable_research_scheduler,
               cycles=a.cycles,interval=a.interval,window_hours=a.window_hours,allow_experiment=a.allow_experiment,
-              include_lightgbm=a.include_lightgbm,include_river=a.include_river,include_adaptive=a.include_adaptive)
+              include_lightgbm=a.include_lightgbm,include_river=a.include_river,include_adaptive=a.include_adaptive,publish_pwa=a.publish_pwa)
         print(json.dumps(d,indent=2,allow_nan=False))
         return 0 if d["status"]=="scheduler_complete" else 2
     except (ValueError,TypeError,KeyError,ArithmeticError,AttributeError,OSError,sqlite3.Error) as e:

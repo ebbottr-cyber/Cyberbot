@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Obsidian | Solana Araştırma</title><style>
+body{background:#0b1018;color:#e2e8f0;font:15px system-ui;margin:0}main{max-width:1050px;margin:auto;padding:20px}a,h1{color:#2dd4bf}section{background:#151e2b;border:1px solid #263449;border-radius:12px;padding:16px;margin:14px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}.tile{background:#0b1018;border-radius:8px;padding:12px}small,p{color:#a0aec0}strong{display:block;font-size:23px;margin-top:8px}button{background:#193e42;color:#e2e8f0;border:1px solid #327a76;border-radius:8px;padding:10px}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid #263449;padding:8px}.scroll{overflow:auto}#notice{color:#fbbf24}
+</style></head><body><main><a href="/">← Ana panel</a><h1>SOLANA ARAŞTIRMA</h1><p>Yalnız kotasyon temelli araştırma. Gerçek emir ve üretim eğitimi kapalı.</p>
+<section><h2 id="state">Rapor bekleniyor</h2><p id="notice"></p><p id="stamp"></p><button id="refresh">Yenile</button></section>
+<section class="grid"><div class="tile"><small>Gözlem</small><strong id="obs">—</strong></div><div class="tile"><small>Eğitim örneği</small><strong id="examples">—</strong></div><div class="tile"><small>Miktar eşleşmesi</small><strong id="match">—</strong></div><div class="tile"><small>Uzlaşma kapsamı</small><strong id="agreement">—</strong></div></section>
+<section><h2>Model performansı</h2><div class="scroll"><table><thead><tr><th>Model</th><th>Dengeli doğruluk</th><th>Brier</th><th>Yöntem</th></tr></thead><tbody id="models"></tbody></table></div><p id="gemini"></p></section><section><h2>Eğitim engelleri</h2><ul id="blockers"></ul></section></main>
+<script>
+const el=id=>document.getElementById(id),names={constant_training_prior:'Sabit referans',logistic_baseline:'Logistic Regression',lightgbm:'LightGBM',river_logistic:'River'};
+const reasons={earlier_sample_count:'Eğitim örneği yetersiz',later_sample_count:'Test örneği yetersiz',earlier_class_support:'Eğitim sınıf dengesi yetersiz',later_class_support:'Test sınıf dengesi yetersiz',earlier_mint_diversity:'Eğitim token çeşitliliği yetersiz',later_mint_diversity:'Test token çeşitliliği yetersiz',archive_window_truncated:'Arşiv penceresi eksik',explicit_experiment_opt_in_required:'Deney izni kapalı'};
+const pct=x=>typeof x==='number'&&Number.isFinite(x)?x.toFixed(1)+'%':'—';
+function put(id,v){el(id).textContent=v??'—'}
+function clear(){for(const id of ['obs','examples','match','agreement','stamp','gemini'])put(id,'—');el('models').replaceChildren();el('blockers').replaceChildren()}
+let busy=false;
+async function refresh(){if(busy)return;busy=true;try{
+ const response=await fetch('/api/solana/research-status',{cache:'no-store'});if(!response.ok)throw Error('HTTP');
+ const d=await response.json();clear();put('state',d.status_label_tr);
+ const stale=d.publication_stale||d.report_freshness==='stale';
+ put('notice',stale?'Rapor eski — canlı piyasa verisi değildir.':'Piyasa verisinin güncelliği doğrulanmamıştır.');
+ put('stamp',d.published_utc);
+ if(d.publication_state!=='ready'||stale)return;
+ put('obs',d.coverage?.observations);put('examples',d.dataset?.examples);put('match',pct(d.coverage?.exact_match_pct));
+ const c=d.consensus;put('agreement',c?.sample_count?pct(100*c.covered_samples/c.sample_count):'—');
+ for(const m of d.models||[]){const tr=document.createElement('tr');for(const v of [names[m.model]||m.model,pct(100*m.balanced_accuracy),m.brier_score,m.evaluation_mode==='delayed_prequential'?'Gecikmeli çevrimiçi':'Sabit test']){const td=document.createElement('td');td.textContent=v;tr.append(td)}el('models').append(tr)}
+ put('gemini',d.gemini_status==='manual_packet_ready'?'Gemini: manuel değerlendirme paketi hazır.':'Gemini: rapor bekleniyor.');
+ for(const b of d.blockers||[]){const li=document.createElement('li');li.textContent=reasons[b]||b;el('blockers').append(li)}
+ }catch(_){clear();put('state','Bağlantı veya rapor hatası');put('notice','Önceki değerler gösterilmiyor.')}finally{busy=false}}
+el('refresh').addEventListener('click',refresh);refresh();setInterval(refresh,30000);
+</script></body></html>

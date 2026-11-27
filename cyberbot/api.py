@@ -109,3 +109,6 @@ app.include_router(development_router)
 
 from .knowledge_api import router as knowledge_router
 app.include_router(knowledge_router)
+
+from .solana_research_api import router as solana_research_router
+app.include_router(solana_research_router)
