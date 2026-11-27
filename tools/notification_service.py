@@ -2,12 +2,13 @@
 from datetime import datetime, timezone
 from contextlib import closing
 from tools.notification_news_sources import poll_source
+from tools.notification_news_retry import drain_news
 from tools.notification_calendar import emit_reminders
 from tools.notification_policy import route
 from tools.notification_preferences import morning_digest
 
 def run_cycle(store, push_store, queue, *, events=(), sources=(), user_agent=None,
-              sender=None, preferences=None, enabled=False, push_enabled=False, now=None):
+              sender=None, preferences=None, enabled=False, push_enabled=False, now=None, news_store=None):
     if not enabled:
         return {"status": "disabled"}
     now = now or datetime.now(timezone.utc)
@@ -17,6 +18,13 @@ def run_cycle(store, push_store, queue, *, events=(), sources=(), user_agent=Non
             result["sources"][source] = poll_source(store, source, enabled=True, user_agent=user_agent)
         except Exception as exc:
             result["sources"][source] = {"status": "error", "type": type(exc).__name__}
+    if news_store is not None:
+        try:
+            result["research_news"] = drain_news(news_store, store, enabled=True)
+        except Exception as exc:
+            result["research_news"] = {"status":"error","type":type(exc).__name__}
+    else:
+        result["research_news"] = {"status":"disabled"}
     result["calendar"] = emit_reminders(store, events, now)
     result["digest_created"] = morning_digest(store, now)
     settings = preferences.load() if preferences is not None else {}
