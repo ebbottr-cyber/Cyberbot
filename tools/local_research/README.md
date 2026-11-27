@@ -93,3 +93,20 @@ pool liquidity. Missing or stale data are unknown, and pool TVL is not depth.
 Thresholds are research-only; neither execution nor data provenance is verified.
 No changes to automatic entry, strategy selection or execution. Regime-specific
 forward outcome scoring and policy calibration remain pending.
+
+## Conditional strategy review
+
+With the existing observed pilot and shadow permissions enabled, run from the
+repository root: python -m tools.local_research.conditional_strategy_report.
+It reads at most 500 recent outcomes per market in a 30-day window and joins
+matching logged decisions. It requires the same scope and diagnostic regime,
+nonoverlapping measurement windows, at least 30 measured cases across 10 UTC
+days and 80% measurement coverage, with at least 20 development and 10 holdout
+cases. Both normal and doubled modeled costs must have positive equal-day
+mean outcomes in both segments. These thresholds are provisional research
+criteria, not statistical significance or proof of executable profitability.
+Only the existing signalled pair may be marked REVIEW_ONLY. The available
+outcomes are selectively observed, not a comparison of all possible strategies.
+All actual actions remain HOLD; no existing strategy policy is replaced.
+Legacy decisions without the new diagnostic are excluded. The report is not
+scheduled, and prospective strategy optimization remains pending.
