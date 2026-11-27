@@ -6,7 +6,7 @@ from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 from tools.notification_center import CATEGORIES
 
-DEFAULTS = {"quiet_start":"12:30", "quiet_end":"08:00", "muted":[], "push_enabled":False}
+DEFAULTS = {"quiet_start":"00:30", "quiet_end":"08:00", "muted":[], "push_enabled":False}
 
 class Preferences:
     def __init__(self, path):
@@ -36,7 +36,7 @@ def morning_digest(store, now=None):
     if now.tzinfo is None:
         raise ValueError("Timezone required")
     local = now.astimezone(ZoneInfo("Europe/Istanbul"))
-    if not time(8) <= local.time() < time(12,30):
+    if local.time() < time(8):
         return False
     end = local.replace(hour=8, minute=0, second=0, microsecond=0)
     start = end - timedelta(days=1)
