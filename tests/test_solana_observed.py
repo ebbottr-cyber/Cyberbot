@@ -14,7 +14,7 @@ class SolanaObservedTests(unittest.TestCase):
                 if p[0]=="getAccountInfo":return rpc({"owner":LEGACY,"executable":False,"data":{"program":"spl-token","parsed":{"type":"mint","info":{"decimals":6,"supply":"1000000000","isInitialized":True,"mintAuthority":None,"freezeAuthority":None}}}})
                 return rpc([{"address":holder,"amount":"100000000","decimals":6}])
             if kind=="pool":return {"pairs":[{"chainId":"solana","pairAddress":pool,"baseToken":{"address":mint},"quoteToken":{"address":USDC},"liquidity":{"usd":"200000"},"priceUsd":"1"}]}
-            amount=p["amount"];out="100000000" if p["inputMint"]==USDC else "99000000"
+            amount=p["amount"];out=amount if p["inputMint"]==USDC else str(int(amount)*99//100)
             return {"inputMint":p["inputMint"],"outputMint":p["outputMint"],"swapMode":"ExactIn","inAmount":amount,"outAmount":out,"transaction":None,"routePlan":[{"percent":100,"swapInfo":{"ammKey":holder if wrong else pool,"inputMint":p["inputMint"],"outputMint":p["outputMint"],"inAmount":amount,"outAmount":out}}]}
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)
@@ -32,6 +32,14 @@ class SolanaObservedTests(unittest.TestCase):
                 self.assertEqual(d["mint_checks"]["top10_token_account_pct"],"10")
                 self.assertFalse(d["mint_checks"]["wallet_concentration_verified"])
                 self.assertEqual(calls,["rpc","rpc","pool","quote","quote"])
+                self.assertIsNone(d["depth_probe"])
+                calls.clear()
+                probe=run(transport=mock,clock=lambda:t,depth_probe=True)["depth_probe"]
+                self.assertEqual(calls,["rpc","rpc","pool"]+["quote"]*6)
+                self.assertEqual([row["input_usdc"] for row in probe["samples"]],["25","50","100"])
+                self.assertFalse(probe["depth_verified"])
+                self.assertFalse(probe["trade_eligible"])
+                self.assertFalse(probe["real_orders"])
                 wrong=True
                 with self.assertRaises(PilotError):run(transport=mock,clock=lambda:t)
                 self.assertEqual(list(root.iterdir()),[])
@@ -113,3 +121,24 @@ class SolanaObservedTests(unittest.TestCase):
         self.assertEqual(crossed["failed_checks"],["indicative_spread_at_most_2pct"])
         with self.assertRaises(PilotError):risk_screen(info,holders,pool,"1","0")
         with self.assertRaises(PilotError):risk_screen(info,{"top10_token_account_pct":"NaN"},pool,"1","1")
+
+    def test_quote_ladder_adverse_price_change(self):
+        from decimal import Decimal
+        from cyberbot.providers.solana_observed import quote_ladder
+        probe=quote_ladder([(25,25000000,24750000),(50,49000000,48000000),
+                            (100,95000000,90000000)],6)
+        rows=probe["samples"]
+        self.assertEqual(Decimal(rows[0]["ask_change_vs_smallest_pct"]),0)
+        self.assertGreater(Decimal(rows[2]["ask_change_vs_smallest_pct"]),
+                           Decimal(rows[1]["ask_change_vs_smallest_pct"]))
+        self.assertGreater(Decimal(rows[2]["bid_deterioration_vs_smallest_pct"]),0)
+        self.assertEqual(Decimal(rows[2]["roundtrip_loss_pct"]),10)
+        self.assertFalse(probe["source_synchronization_verified"])
+        self.assertFalse(probe["execution_slippage_verified"])
+
+    def test_quote_ladder_crossed_quote_not_execution_evidence(self):
+        from cyberbot.providers.solana_observed import quote_ladder
+        probe=quote_ladder([(25,25000000,26000000)],6)
+        self.assertTrue(probe["samples"][0]["crossed_quote"])
+        self.assertFalse(probe["trade_eligible"])
+        self.assertFalse(probe["pilot_applied"])
