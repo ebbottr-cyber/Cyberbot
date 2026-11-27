@@ -12,7 +12,8 @@ from pathlib import Path
 CATEGORIES = ("news", "market", "data", "system", "risk", "ai", "trade", "github")
 LEVELS = ("info", "warning", "critical")
 MARKETS = ("BIST", "NASDAQ", "XETRA", "FUTURES", "SOLANA", "GLOBAL")
-PRIORITIES = ("low", "medium", "high", "critical")
+PRIORITIES = ("low", "medium", "high")
+WORKER_MARKETS = tuple("BINANCE_FUTURES" if m == "FUTURES" else m for m in MARKETS)
 LIMIT = 50
 
 
@@ -83,21 +84,22 @@ def read_news(path=None, market="ALL"):
     try:
         if not Path(path).is_file():
             return {**base, "status": "missing"}
+        worker_market = "BINANCE_FUTURES" if market == "FUTURES" else market
         with closing(connect(path)) as db:
             rows = db.execute("""SELECT market,priority,substr(published_at,1,65),
                 substr(payload,1,32769) FROM research_news
                 WHERE (?='ALL' OR market=? OR market='GLOBAL')
-                ORDER BY published_at DESC,event_key LIMIT ?""",(market,market,LIMIT)).fetchall()
+                ORDER BY published_at DESC,event_key LIMIT ?""",(worker_market,worker_market,LIMIT)).fetchall()
         items = []
         for scope, priority, published, payload in rows:
-            if scope not in MARKETS or priority not in PRIORITIES:
+            if scope not in WORKER_MARKETS or priority not in PRIORITIES:
                 raise ValueError("Invalid news scope")
             data = json.loads(text(payload,32768))
             if any(data.get(k) is not False for k in ("content_verified","impact_verified","orders_enabled")) or data.get("research_only") is not True:
                 raise ValueError("Unexpected news authority")
             if data.get("market") != scope or data.get("priority") != priority or stamp(data["published_at"]) != stamp(published):
                 raise ValueError("Inconsistent news record")
-            items.append({"market": scope, "priority": priority,
+            items.append({"market": "FUTURES" if scope == "BINANCE_FUTURES" else scope, "priority": priority,
                           "published_at": stamp(published), "title": text(data["title"],4096),
                           "source": text(data["source"],4096), "summary_tr": text(data.get("summary_tr",""),2000)})
         return {**base, "status": "available" if items else "empty", "items": items}
