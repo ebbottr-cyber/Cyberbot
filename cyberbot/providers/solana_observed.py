@@ -72,14 +72,26 @@ def request(client,kind,params,key):
     elif kind=="quote":
         method_http,url,kw="GET",JUP,{"params":params,"headers":{"x-api-key":key} if key else {}}
     else:raise PilotError("İzinsiz kaynak.")
+    stage=("solana_rpc."+method if kind=="rpc" else "dexscreener.pool" if kind=="pool" else "jupiter.buy" if params.get("inputMint")==USDC else "jupiter.sell")
     try:
         with client.stream(method_http,url,**kw) as res:
             res.raise_for_status();data=bytearray()
             for chunk in res.iter_bytes():
                 data.extend(chunk)
-                if len(data)>MAX_BYTES:raise PilotError("Kaynak yanıt sınırı.")
-        return json.loads(data)
-    except (httpx.HTTPError,ValueError,OSError):raise PilotError("Salt okunur sağlayıcı sorgusu başarısız; tekrar yok.") from None
+                if len(data)>MAX_BYTES:raise PilotError(stage+": response_too_large")
+        raw=json.loads(data)
+    except httpx.HTTPStatusError as e:
+        raise PilotError(stage+": HTTP "+str(e.response.status_code)+"; no_retry") from None
+    except httpx.RequestError as e:
+        raise PilotError(stage+": "+type(e).__name__+"; no_retry") from None
+    except PilotError:raise
+    except (ValueError,OSError) as e:
+        raise PilotError(stage+": "+type(e).__name__+"; no_retry") from None
+    if kind=="rpc" and isinstance(raw,dict) and "error" in raw:
+        error=raw["error"]
+        code=error.get("code") if isinstance(error,dict) else None
+        raise PilotError(stage+": RPC "+str(code if type(code) is int else "unknown")+"; no_retry")
+    return raw
 def run(*,transport=None,clock=utc):
     if not configured():raise PilotError("Solana veri adaptörü veya kullanım izni/anahtarı eksik.")
     mint,pool=sol.config()

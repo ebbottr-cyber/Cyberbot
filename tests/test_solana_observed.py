@@ -45,3 +45,23 @@ class SolanaObservedTests(unittest.TestCase):
         self.assertEqual(quote(raw,inp,out,100000000,pool),7281385)
         raw["outAmount"]="7280000"
         with self.assertRaises(PilotError):quote(raw,inp,out,100000000,pool)
+
+    def test_provider_failure_identifies_stage_without_secret(self):
+        import httpx
+        from cyberbot.providers.solana_observed import request
+        def rate_limit(req):
+            return httpx.Response(429,text="private response")
+        with httpx.Client(transport=httpx.MockTransport(rate_limit)) as c:
+            for kind,params,stage in (
+                ("rpc",("getTokenLargestAccounts",[]),"solana_rpc.getTokenLargestAccounts"),
+                ("pool","1"*31+"3","dexscreener.pool"),
+                ("quote",{"inputMint":USDC},"jupiter.buy"),
+                ("quote",{"inputMint":"1"*31+"2"},"jupiter.sell"),
+            ):
+                with self.assertRaises(PilotError) as ctx:request(c,kind,params,"secret-fixture")
+                self.assertEqual(str(ctx.exception),stage+": HTTP 429; no_retry")
+        def rpc_error(req):
+            return httpx.Response(200,json={"jsonrpc":"2.0","id":1,"error":{"code":-32005,"message":"private"}})
+        with httpx.Client(transport=httpx.MockTransport(rpc_error)) as c:
+            with self.assertRaises(PilotError) as ctx:request(c,"rpc",("getAccountInfo",[]),"")
+            self.assertEqual(str(ctx.exception),"solana_rpc.getAccountInfo: RPC -32005; no_retry")
