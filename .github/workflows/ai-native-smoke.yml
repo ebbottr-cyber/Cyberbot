@@ -1,12 +1,24 @@
 name: AI native runtime smoke
 on:
+  push:
+    branches:
+      - integration/central-market-panel-20261127
+      - main
+    paths:
+      - '.github/workflows/ai-native-smoke.yml'
+      - 'tools/local_research/river*.py'
+      - 'tools/dexterm_river_experiment.py'
   pull_request:
     branches:
       - main
     paths:
       - '.github/workflows/ai-native-smoke.yml'
       - 'tools/local_research/river*.py'
+      - 'tools/dexterm_river_experiment.py'
   workflow_dispatch:
+concurrency:
+  group: ai-native-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
