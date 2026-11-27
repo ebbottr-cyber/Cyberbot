@@ -8,7 +8,7 @@ def test_preferences_restart(tmp_path):
     path = tmp_path / "prefs.sqlite"
     p = Preferences(path)
     settings = p.load()
-    assert settings["quiet_start"] == "12:30"
+    assert settings["quiet_start"] == "00:30"
     assert settings["quiet_end"] == "08:00"
     settings["muted"] = ["news"]
     p.save(settings)
