@@ -25,8 +25,16 @@ def scope(market, symbol, interval, source, protocol):
         raise ValueError("invalid market interval")
     if not isinstance(symbol,str) or not re.fullmatch(r"[A-Za-z0-9._-]{1,80}",symbol):
         raise ValueError("invalid symbol")
-    if market == "SOLANA" and not re.fullmatch(r"[1-9A-HJ-NP-Za-km-z]{32,44}",symbol):
-        raise ValueError("Solana mint required")
+    if market == "SOLANA":
+        alphabet="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+        if not re.fullmatch(r"[1-9A-HJ-NP-Za-km-z]{32,44}",symbol):
+            raise ValueError("Solana mint required")
+        value=0
+        for ch in symbol:
+            value=value*58+alphabet.index(ch)
+        size=(value.bit_length()+7)//8+len(symbol)-len(symbol.lstrip("1"))
+        if size!=32:
+            raise ValueError("invalid Solana mint length")
     for value in (source,protocol):
         if not isinstance(value,str) or not re.fullmatch(r"[a-z0-9_-]{1,80}",value):
             raise ValueError("invalid scope identifier")
@@ -101,7 +109,8 @@ def path_for(root, market):
 def save(root, records):
     if os.environ.get("CYBERBOT_LOCAL_RESEARCH_RIGHTS_CONFIRMED")!="1":
         raise RuntimeError("research rights confirmation required")
-    protected=[*checked(root/"var/paper.sqlite3").values(),pilot_path(root/"var/paper.sqlite3")]
+    protected=[*checked().values(),pilot_path(),
+               *checked(root/"var/paper.sqlite3").values(),pilot_path(root/"var/paper.sqlite3")]
     protected += [root/"var/learning.sqlite3",root/"var/ai/forward-models-v2.sqlite3",
                   root/"var/ai/paired-ai-review.sqlite3"]
     paths=[path_for(root,m) for m in MARKETS]
