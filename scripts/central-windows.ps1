@@ -49,7 +49,7 @@ try {
     if (-not (Test-Path -LiteralPath $marker -PathType Leaf) -or ((Get-Content -LiteralPath $marker -Raw).Trim() -ne $head)) { throw 'Run -Mode Prepare for this exact commit.' }
     # No automatic worker, network provider or remote access starts from this launcher.
     # Preserve only reviewed local read inputs, not inherited activation flags.
-    $keep = @('CYBERBOT_EBBOT_DB','CYBERBOT_EQUITY_RESEARCH_RIGHTS_CONFIRMED','CYBERBOT_FX_FILE','CYBERBOT_DEXTERM_ARCHIVE','CYBERBOT_NOTIFICATION_HEALTH_FILE','CYBERBOT_AI_PANEL_ENABLED','CYBERBOT_OBSERVED_PILOT_ENABLED','CYBERBOT_OBSERVED_PRICE_RIGHTS_CONFIRMED','CYBERBOT_FUTURES_PILOT_ENABLED','CYBERBOT_FUTURES_PILOT_SYMBOL','CYBERBOT_XETRA_FX_RIGHTS_CONFIRMED','CYBERBOT_PILOT_DB')
+    $keep = @('CYBERBOT_EBBOT_DB','CYBERBOT_EQUITY_RESEARCH_RIGHTS_CONFIRMED','CYBERBOT_FX_FILE','CYBERBOT_DEXTERM_ARCHIVE','CYBERBOT_NOTIFICATION_HEALTH_FILE','CYBERBOT_AI_PANEL_ENABLED','CYBERBOT_OBSERVED_PILOT_ENABLED','CYBERBOT_OBSERVED_PRICE_RIGHTS_CONFIRMED','CYBERBOT_FUTURES_PILOT_ENABLED','CYBERBOT_FUTURES_PILOT_SYMBOL','CYBERBOT_OBSERVED_FX_RIGHTS_CONFIRMED','CYBERBOT_PILOT_DB')
     foreach ($e in @(Get-ChildItem Env: | Where-Object { ($_.Name -like 'CYBERBOT_*' -and $_.Name -notin $keep) -or $_.Name -in @('PYTHONPATH','PYTHONHOME') })) {
         Set-ScopedEnv $e.Name $null
     }
@@ -60,7 +60,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Dependency conflict.' }
     & $python -c 'from cyberbot.db_paths import checked; checked()'
     if ($LASTEXITCODE -ne 0) { throw 'Database path validation failed.' }
-    & (Join-Path $PSScriptRoot 'start-windows.ps1')
+    & powershell.exe -NoProfile -File (Join-Path $PSScriptRoot 'start-windows.ps1')
     if ($LASTEXITCODE -ne 0) { throw 'Panel stopped with error.' }
 } finally {
     foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name,$saved[$name],'Process') }
