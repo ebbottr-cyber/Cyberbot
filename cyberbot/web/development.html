@@ -21,6 +21,21 @@
  b("aiMemoryRefresh").onclick=memory;b("aiLearningRefresh").onclick=learning;memory();
 })();
 </script>
+<section><h2>DexTerm AI öğrenme hafızası</h2><p>Yalnız geçmiş kotasyon araştırması. Canlı ileri performans veya gerçek dolum doğrulanmadı.</p><button id="dexLearningRefresh" type="button">DexTerm hafızasını oku</button><p id="dexLearningStatus" role="status">Henüz okunmadı.</p><div id="dexLearningRows" class="grid"></div></section>
+<script>
+(function(){
+ const b=id=>document.getElementById(id),node=(tag,v)=>{const n=document.createElement(tag);n.textContent=v;return n};
+ const states={not_configured:"Arşiv yolu yapılandırılmadı",not_initialized:"Hafıza başlatılmadı",empty:"Kayıt yok",history_available:"Araştırma hafızası okundu",unavailable:"Hafıza okunamadı",experiment_blocked:"Deney engellendi",experiment_complete:"Araştırma deneyi tamamlandı",experiment_partial:"Araştırma deneyi kısmi"};
+ const blockers={earlier_sample_count:"Erken dönem örnek sayısı yetersiz",later_sample_count:"Geç dönem örnek sayısı yetersiz",earlier_class_support:"Erken dönem sınıf desteği yetersiz",later_class_support:"Geç dönem sınıf desteği yetersiz",earlier_mint_diversity:"Erken dönem token çeşitliliği yetersiz",later_mint_diversity:"Geç dönem token çeşitliliği yetersiz",archive_window_truncated:"Arşiv kapsamı kesilmiş",explicit_experiment_opt_in_required:"Açık deney izni gerekli"};
+ const models={constant_training_prior:"Sabit referans",logistic_baseline:"Lojistik referans",lightgbm:"LightGBM",river_logistic:"River"};
+ async function load(){
+  const button=b("dexLearningRefresh"),root=b("dexLearningRows"),message=b("dexLearningStatus");if(button.disabled)return;button.disabled=true;root.replaceChildren();message.textContent="Okunuyor…";
+  try{const r=await fetch("/api/integration/ai/dexterm",{cache:"no-store"});if(!r.ok)throw Error("API");const d=await r.json();message.textContent=(states[d.status]||"Bilinmiyor")+(d.latest_status?" · "+states[d.latest_status]:"");if(d.total_experiments!=null){root.append(node("p","Deney kaydı: "+d.total_experiments+" · Farklı veri özeti: "+d.distinct_dataset_digests));}for(const v of d.blockers||[])root.append(node("p",blockers[v]||"İnceleme gerekli"));for(const m of d.models||[]){const c=node("article","");c.className="card";c.append(node("strong",models[m.model]||m.model),node("p",m.evaluation_mode==="delayed_prequential"?"Gecikmeli çevrimiçi replay":"Sabit geçmiş dönem modeli"),node("p","Örnek: "+m.samples+" · Dengeli doğruluk: "+(100*m.balanced_accuracy).toFixed(2)+"% · Brier: "+m.brier_score));root.append(c);}}
+  catch(e){root.replaceChildren();message.textContent="Hafıza okunamadı.";}finally{button.disabled=false;}
+ }
+ b("dexLearningRefresh").onclick=load;
+})();
+</script>
 <section><h2>Ölçüm sınırları</h2><ul id="limits"></ul></section></main><script>
 const b=id=>document.getElementById(id),node=(t,s,cls)=>{const n=document.createElement(t);n.textContent=s;if(cls)n.className=cls;return n},fmt=x=>x===null||x===undefined?'—':typeof x==='number'?x.toLocaleString('tr-TR',{maximumFractionDigits:5}):String(x),pct=x=>x===null||x===undefined?'—':'%'+fmt(x);
 const names={BIST:'BIST',NASDAQ:'NASDAQ',XETRA:'XETRA',SOLANA:'Solana Meme',FUTURES:'Kripto Futures'},regimes={bull:'Yükseliş',bear:'Düşüş',sideways:'Yatay',volatile:'Yüksek volatilite'},strategies={trend:'Trend',momentum:'Momentum',reversion:'Ortalamaya dönüş',cash:'Nakit / bekle'},statuses={reference:'Referans',research_candidate:'Araştırma adayı',weak:'Zayıf',insufficient_sample:'Yetersiz örneklem'},reasons={no_evidence:'Başlangıç',drawdown_limit:'Düşüş sınırı',liquidation:'Likidasyon',two_losing_blocks:'İki zararlı blok',three_recovery_blocks:'Üç olumlu blok'},modelNames={zero:'Sıfır getiri',mean:'Ortalama',ar1:'AR(1)'};
