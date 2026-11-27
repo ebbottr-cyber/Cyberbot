@@ -17,6 +17,39 @@ from cyberbot.db_paths import checked, pilot_path, same
 NAME = "forward-models-v2.sqlite3"
 COLUMNS = ("market","symbol","source","target_minute","created_at","payload","status","outcome")
 MAX_BYTES = 2 * 1024**3
+MAX_BACKUPS = 7
+MAX_BACKUP_TOTAL = 4 * 1024**3
+MANIFEST_ALLOWANCE = 8192
+
+
+class BackupCapacityDeferred(RuntimeError):
+    pass
+
+
+def unsafe(path):
+    return path.is_symlink() or bool(getattr(path.lstat(), 'st_file_attributes', 0) & 1024)
+
+
+def inventory(destination, lock):
+    copies = []
+    total = 0
+    for entry in destination.iterdir():
+        if entry == lock:
+            continue
+        if unsafe(entry) or not entry.is_dir() or not entry.name.startswith('forward-'):
+            raise ValueError('unexpected backup directory entry; manual review required')
+        files = list(entry.iterdir())
+        if {p.name for p in files} != {NAME, 'manifest.json'}:
+            raise ValueError('unexpected backup contents; manual review required')
+        for file in files:
+            if unsafe(file) or not file.is_file() or file.stat().st_nlink != 1:
+                raise ValueError('unsafe backup contents')
+            size = file.stat().st_size
+            if not 0 < size <= (MAX_BYTES if file.name == NAME else MANIFEST_ALLOWANCE):
+                raise ValueError('invalid backup size')
+            total += size
+        copies.append(entry)
+    return copies, total
 
 
 def digest(path):
@@ -59,7 +92,7 @@ def verify(folder):
     return data
 
 
-def backup(root):
+def backup(root, *, skip_identical=False):
     if os.getenv("CYBERBOT_LOCAL_RESEARCH_RIGHTS_CONFIRMED")!="1":
         raise RuntimeError("local research rights confirmation required")
     root=Path(root).resolve(strict=True)
@@ -78,18 +111,34 @@ def backup(root):
     destination.mkdir(mode=0o700,exist_ok=True)
     if not destination.is_dir():
         raise ValueError("backup directory required")
-    reserve=MIN_FREE_DISK_MIB*MIB
-    stage=Path(tempfile.mkdtemp(prefix=".partial-",dir=destination))
+    if unsafe(destination):
+        raise ValueError("unsafe backup directory")
+    lock=destination/".backup-lock"
     try:
-        target=stage/NAME
+        lock.mkdir(mode=0o700)
+    except FileExistsError as exc:
+        raise BackupCapacityDeferred("backup lock exists; review if stale") from exc
+    stage=None
+    try:
+        copies,total_bytes=inventory(destination,lock)
+        if len(copies)>=MAX_BACKUPS or total_bytes>=MAX_BACKUP_TOTAL:
+            raise BackupCapacityDeferred("backup capacity reached; review existing copies")
+        reserve=MIN_FREE_DISK_MIB*MIB
         started=time.monotonic()
         with closing(connect_readonly(source.resolve())) as src:
             src.execute("PRAGMA query_only=ON")
             logical_size=src.execute("PRAGMA page_count").fetchone()[0]*src.execute("PRAGMA page_size").fetchone()[0]
-            if logical_size>MAX_BYTES or shutil.disk_usage(destination).free<reserve+logical_size:
+            if logical_size>MAX_BYTES or shutil.disk_usage(destination).free<reserve+logical_size+MANIFEST_ALLOWANCE:
                 raise RuntimeError("insufficient backup capacity")
+            if total_bytes+logical_size+MANIFEST_ALLOWANCE>MAX_BACKUP_TOTAL:
+                raise BackupCapacityDeferred("backup byte budget reached")
+            stage=Path(tempfile.mkdtemp(prefix=".partial-",dir=destination))
+            target=stage/NAME
+            page_size=src.execute("PRAGMA page_size").fetchone()[0]
             def progress(status,remaining,total):
-                if time.monotonic()-started>120 or shutil.disk_usage(destination).free<reserve:
+                if (time.monotonic()-started>120 or shutil.disk_usage(destination).free<reserve
+                        or total*page_size>MAX_BYTES
+                        or total_bytes+total*page_size+MANIFEST_ALLOWANCE>MAX_BACKUP_TOTAL):
                     raise RuntimeError("backup resource limit reached")
             with closing(sqlite3.connect(target)) as dst:
                 src.backup(dst,pages=128,progress=progress,sleep=.05)
@@ -101,14 +150,24 @@ def backup(root):
               "automatic_deletion":False,"activated":False,"real_orders":False}
         (stage/"manifest.json").write_text(json.dumps(data,indent=2,allow_nan=False),encoding="utf-8")
         verify(stage)
+        if skip_identical and copies:
+            latest=max(copies,key=lambda p:p.name)
+            if (latest/NAME).stat().st_size==data["bytes"] and verify(latest)["sha256"]==data["sha256"]:
+                return None
+        if total_bytes+data["bytes"]+(stage/"manifest.json").stat().st_size>MAX_BACKUP_TOTAL:
+            raise BackupCapacityDeferred("backup byte budget reached")
         final=destination/("forward-"+datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ"))
         if final.exists():
             raise ValueError("backup target already exists")
         stage.rename(final)
+        stage=None
         return final
-    except BaseException:
-        shutil.rmtree(stage,ignore_errors=True)
-        raise
+    finally:
+        try:
+            if stage is not None:
+                shutil.rmtree(stage,ignore_errors=True)
+        finally:
+            lock.rmdir()
 
 
 def recover(root, folder):
@@ -161,13 +220,19 @@ def main():
     action=p.add_mutually_exclusive_group()
     action.add_argument("--verify",type=Path)
     action.add_argument("--recover",type=Path)
+    action.add_argument("--scheduled",action="store_true")
     args=p.parse_args()
     if args.verify:
         print(json.dumps(verify(args.verify),indent=2))
     elif args.recover:
         print(str(recover(args.root,args.recover)))
     else:
-        print(str(backup(args.root)))
+        try:
+            result=backup(args.root,skip_identical=args.scheduled)
+        except BackupCapacityDeferred as exc:
+            print("WAIT_BACKUP_CAPACITY:",str(exc))
+            raise SystemExit(75)
+        print("UNCHANGED_SNAPSHOT" if result is None else str(result))
 
 
 if __name__=="__main__":
