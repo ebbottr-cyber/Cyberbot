@@ -268,3 +268,27 @@ class PublicScanTests(unittest.TestCase):
             partial=run(limit=2,discoverer=lambda:rows[:2],inspect=inspect,sleep=lambda n:None)
             self.assertEqual(partial["status"],"scan_partial")
             self.assertFalse(partial["target_reached"])
+
+    def test_authority_policy_precheck_is_opt_in_and_short_circuits(self):
+        from tools.solana_public_snapshot import run as snapshot
+        mint="1"*31+"2";pool="1"*31+"3"
+        with patch.dict(os.environ,{"CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED":"1"}):
+            for data in ({"mint_authority_disabled":False,"freeze_authority_disabled":True},
+                         {"mint_authority_disabled":True,"freeze_authority_disabled":False},{}):
+                with patch("tools.solana_public_snapshot.request",return_value={}) as req, patch("tools.solana_public_snapshot.mint_info",return_value=data), patch("tools.solana_public_snapshot.preview") as quote:
+                    d=snapshot(mint,pool,require_disabled_authorities=True)
+                    self.assertEqual(d["status"],"diagnostic_authority_policy_excluded")
+                    self.assertEqual(set(d["stages"]),{"mint","authority_policy"})
+                    req.assert_called_once()
+                    quote.assert_not_called()
+                    self.assertFalse(d["security_verified"])
+    def test_authority_policy_exhaustion_and_provider_stop(self):
+        rows=[candidate("a","p"),candidate("b","q")]
+        with patch.dict(os.environ,{"CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED":"1"}):
+            d=run(limit=1,max_candidates=2,discoverer=lambda:rows,inspect=lambda m,p:{"status":"diagnostic_authority_policy_excluded" if m=="a" else "diagnostic_unsupported_mint"},sleep=lambda n:None)
+            self.assertEqual(d["status"],"scan_no_policy_candidates")
+            self.assertEqual(d["authority_excluded_mints"],1)
+            self.assertFalse(d["target_reached"])
+            d=run(limit=1,max_candidates=2,discoverer=lambda:rows,inspect=lambda m,p:{"status":"diagnostic_authority_policy_excluded" if m=="a" else "diagnostic_partial"},sleep=lambda n:None)
+            self.assertEqual(d["stop_reason"],"diagnostic_failure")
+            self.assertEqual(d["status"],"scan_partial")

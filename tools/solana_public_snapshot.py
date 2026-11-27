@@ -7,7 +7,7 @@ from cyberbot.providers.solana_observed import request,mint_info,reported_holder
 from cyberbot.observed_pilot import utc,ts
 from tools.solana_route_preview import run as preview
 
-def run(mint,pool):
+def run(mint,pool,*,require_disabled_authorities=False):
     if os.getenv("CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED")!="1":
         raise PilotError("Explicit data usage permission required")
     if not address(mint) or not address(pool) or mint in (pool,USDC):
@@ -32,6 +32,12 @@ def run(mint,pool):
         stage("mint",lambda:mint_info(request(c,"rpc",("getAccountInfo",[mint,{"encoding":"jsonParsed","commitment":"finalized"}]),"",rpc_url=RPC_ENDPOINTS["rpcnode"])))
         if stages["mint"]["status"]!="ok":
             return finish("diagnostic_unsupported_mint" if stages["mint"]["status"]=="unsupported" else "diagnostic_partial")
+        if require_disabled_authorities:
+            data=stages["mint"]["data"]
+            blocked=[k for k in ("mint_authority_disabled","freeze_authority_disabled") if data.get(k) is not True]
+            if blocked:
+                stages["authority_policy"]={"status":"excluded","reason":"required_authorities_not_confirmed_disabled","blocked_fields":blocked}
+                return finish("diagnostic_authority_policy_excluded")
         def holders():
             x=reported_holders(request(c,"rugcheck",mint,""),request(c,"gecko_holders",mint,""),mint)
             age=(utc()-ts(x["geckoterminal_holder_source_at"])).total_seconds()

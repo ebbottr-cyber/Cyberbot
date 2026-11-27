@@ -36,6 +36,20 @@ def unsupported_only(data):
             and 0<len(reports)==s.get("unsupported_mints")==s.get("inspected_mints")==s.get("selected_mints")
             and all(r["diagnostic"].get("status")=="diagnostic_unsupported_mint" for r in reports))
 
+def authority_exhausted(data):
+    s=data.get("scan") or {}
+    reports=s.get("reports") or []
+    allowed={"diagnostic_unsupported_mint","diagnostic_authority_policy_excluded"}
+    count=sum(r["diagnostic"].get("status")=="diagnostic_authority_policy_excluded" for r in reports)
+    return (data.get("status")=="diagnostic_partial"
+            and s.get("status")=="scan_no_policy_candidates"
+            and s.get("stop_reason") is None
+            and s.get("target_reached") is False
+            and s.get("completed_mints")==0
+            and count>0 and count==s.get("authority_excluded_mints")
+            and len(reports)==s.get("inspected_mints")==s.get("selected_mints")
+            and all(r["diagnostic"].get("status") in allowed for r in reports))
+
 def cycle(root,database,report_dir,*,probe_fn=probe,review_fn=review,bridge_fn=bridge,archive_fn=archive):
     permissions()
     folder=Path(report_dir)
@@ -66,6 +80,7 @@ def cycle(root,database,report_dir,*,probe_fn=probe,review_fn=review,bridge_fn=b
     result.update(stage="bridge",bridge_status=data["status"],matched_pool_count=data["matched_pool_count"],
                   completed_mints=details.get("completed_mints",0),
                   unsupported_mints=details.get("unsupported_mints",0),
+                  authority_excluded_mints=details.get("authority_excluded_mints",0),
                   stop_reason=details.get("stop_reason"))
     if data["status"]=="diagnostic_complete":result["status"]="cycle_complete"
     elif data["status"] in ("no_eligible_pools","no_nonreference_candidates"):result["status"]="cycle_no_candidates"
@@ -73,6 +88,8 @@ def cycle(root,database,report_dir,*,probe_fn=probe,review_fn=review,bridge_fn=b
         # Expected unsupported-mint exhaustion is not a provider outage.
         # Preserve the underlying scan report and do not count a completed diagnostic.
         result["status"]="cycle_no_supported_candidates"
+    elif authority_exhausted(data):
+        result["status"]="cycle_no_policy_candidates"
     return result
 
 def run(root,database,report_dir,*,cycles=1,interval=180,cycle_fn=cycle,sleep=time.sleep):
@@ -90,6 +107,8 @@ def run(root,database,report_dir,*,cycles=1,interval=180,cycle_fn=cycle,sleep=ti
             "requested_cycles":cycles,"completed_cycles":len(runs),
             "successful_diagnostics":sum(r.get("completed_mints",0) for r in runs),
             "unsupported_mint_observations":sum(r.get("unsupported_mints",0) for r in runs),
+            "authority_excluded_observations":sum(r.get("authority_excluded_mints",0) for r in runs),
+            "policy_exhausted_cycles":sum(r["status"]=="cycle_no_policy_candidates" for r in runs),
             "unsupported_only_cycles":sum(r["status"]=="cycle_no_supported_candidates" for r in runs),
             "runs":runs,**FLAGS}
 

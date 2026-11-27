@@ -23,7 +23,10 @@ def match_pool(raw,mint):
 def lookup(client,mint):
     return match_pool(fetch(client,DEX+urlencode({"q":mint})),mint)
 
-def run(report,*,lookup_limit=3,priority_mints=(),lookup_fn=lookup,inspect=snapshot,sleep=time.sleep):
+def policy_snapshot(mint,pool):
+    return snapshot(mint,pool,require_disabled_authorities=True)
+
+def run(report,*,lookup_limit=3,priority_mints=(),lookup_fn=lookup,inspect=policy_snapshot,sleep=time.sleep):
     if os.getenv("CYBERBOT_PILOT_KILL_SWITCH")!="1":
         raise PilotError("Kill switch must be active")
     if os.getenv("CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED")!="1":

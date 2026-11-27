@@ -60,3 +60,11 @@ class DexTermCycleTests(unittest.TestCase):
         self.assertEqual(r["unsupported_mint_observations"],3)
         self.assertEqual(r["unsupported_only_cycles"],1)
         self.assertFalse(r["security_verified"])
+    def test_policy_exhaustion_is_not_provider_failure(self):
+        from tools.dexterm_research_cycle import authority_exhausted
+        s={"status":"scan_no_policy_candidates","stop_reason":None,"target_reached":False,
+           "completed_mints":0,"authority_excluded_mints":1,"inspected_mints":2,"selected_mints":2,
+           "reports":[{"diagnostic":{"status":"diagnostic_authority_policy_excluded"}},
+                      {"diagnostic":{"status":"diagnostic_unsupported_mint"}}]}
+        self.assertTrue(authority_exhausted({"status":"diagnostic_partial","scan":s}))
+        self.assertFalse(authority_exhausted({"status":"diagnostic_partial","scan":{**s,"stop_reason":"diagnostic_failure"}}))

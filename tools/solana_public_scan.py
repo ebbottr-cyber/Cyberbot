@@ -95,7 +95,7 @@ def run(*,limit=2,max_candidates=None,reference_first=False,exclude_mints=(),dis
                 if quote_rejections>=2:
                     stop_reason="repeated_sell_quote_http_400";break
                 continue
-            if report.get("status") not in ("diagnostic_complete","diagnostic_unsupported_mint"):
+            if report.get("status") not in ("diagnostic_complete","diagnostic_unsupported_mint","diagnostic_authority_policy_excluded"):
                 stop_reason="diagnostic_failure";break
             if sum(r["diagnostic"].get("status")=="diagnostic_complete" for r in reports)>=limit:break
         except (ValueError,KeyError,TypeError,OSError,ArithmeticError,AttributeError,httpx.HTTPError) as e:
@@ -103,12 +103,13 @@ def run(*,limit=2,max_candidates=None,reference_first=False,exclude_mints=(),dis
             break
     done=sum(r["diagnostic"].get("status")=="diagnostic_complete" for r in reports)
     skipped=sum(r["diagnostic"].get("status")=="diagnostic_unsupported_mint" for r in reports)
+    authority_excluded=sum(r["diagnostic"].get("status")=="diagnostic_authority_policy_excluded" for r in reports)
     target_reached=done>=limit
-    exhausted=bool(selected) and (target_reached or len(reports)==len(selected)) and done+skipped+quote_rejections+holder_rejections==len(reports)
+    exhausted=bool(selected) and (target_reached or len(reports)==len(selected)) and done+skipped+authority_excluded+quote_rejections+holder_rejections==len(reports)
     status=("scan_no_candidates" if not selected else "scan_partial" if stop_reason or not exhausted or (not target_reached and (done or quote_rejections or holder_rejections)) else
-            "scan_no_supported_candidates" if not done else "scan_complete_with_skips" if skipped or quote_rejections or holder_rejections else "scan_complete")
+            "scan_no_policy_candidates" if not done and authority_excluded else "scan_no_supported_candidates" if not done else "scan_complete_with_skips" if skipped or authority_excluded or quote_rejections or holder_rejections else "scan_complete")
     ref_done=sum(r["candidate"]["mint"] in references and r["diagnostic"].get("status")=="diagnostic_complete" for r in reports)
-    return {"status":status,"completed_mints":done,"unsupported_mints":skipped,
+    return {"status":status,"completed_mints":done,"unsupported_mints":skipped,"authority_excluded_mints":authority_excluded,
             "reference_first":reference_first,"reference_completed_mints":ref_done,
             "temporary_excluded_mints":sorted(excluded),"excluded_mints_found":sorted(excluded_found),
             "nonreference_completed_mints":done-ref_done,
@@ -133,7 +134,7 @@ def main():
     try:
         d=run(limit=a.limit,max_candidates=a.max_candidates,reference_first=a.reference_first,exclude_mints=a.exclude_mint)
         print(json.dumps(d,indent=2,allow_nan=False))
-        return 0 if d["status"] in ("scan_complete","scan_complete_with_skips") else 2 if d["status"] in ("scan_no_candidates","scan_no_supported_candidates") else 1
+        return 0 if d["status"] in ("scan_complete","scan_complete_with_skips") else 2 if d["status"] in ("scan_no_candidates","scan_no_supported_candidates","scan_no_policy_candidates") else 1
     except (ValueError,KeyError,TypeError,OSError,ArithmeticError,AttributeError,httpx.HTTPError) as e:
         print(json.dumps({"status":"rejected","reason":str(e) if isinstance(e,PilotError) else type(e).__name__,"pilot_applied":False,"real_orders":False}));return 1
 if __name__=="__main__":raise SystemExit(main())
