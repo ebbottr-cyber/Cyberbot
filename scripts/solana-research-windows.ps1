@@ -48,6 +48,9 @@ try {
     & $Python @arguments *> $log
     $code = $LASTEXITCODE
     if ($code -ne 0) { throw ('Research cycle exit code: ' + $code) }
+    $backupLog = $log + '.backup.json'
+    & $Python -m tools.solana_research_backup backup --data-root $DataRoot --daily *> $backupLog
+    if ($LASTEXITCODE -ne 0) { throw 'Research backup failed. Review backup log.' }
     exit 0
 } catch {
     # No automatic retries after a failed research cycle or changed checkout.
