@@ -10,6 +10,7 @@ from pathlib import Path
 import sqlite3
 
 from .adaptive_review import readonly
+from .market_memory import inventory as market_inventory
 
 JOURNALS = {
     "river": ("river-replay-journal.sqlite3", "replay_reports",
@@ -123,6 +124,7 @@ def run(root):
         "lightgbm":journal_status(folder,"lightgbm"),
         "gemini":gemini_status(folder)},
         "paired_research":paired_status(folder),
+        "market_memory":market_inventory(root)["markets"],
         "shared_ranking_available":False,"automatic_promotion":False,
         "profitability_verified":False,"real_orders":False}
 
