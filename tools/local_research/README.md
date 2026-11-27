@@ -130,3 +130,32 @@ are not independent evidence. Daily continuity and large price changes are
 screened, but exchange sessions and corporate actions remain unverified.
 Futures and Solana are deliberately excluded from this equity simulator.
 No real orders, automatic promotion, or claims of executable profitability.
+
+## Windows dashboard handoff
+
+Use `python -m tools.local_research.ai_dashboard --root PATH` from the reviewed
+checkout, or consume `snapshot(Path(root))` in a future authenticated,
+read-only panel handler. Schema: ai-dashboard-1. No HTTP route is installed by
+this module; no files are uploaded. Keep access local or behind the existing
+authenticated remote panel.
+
+- research: existing ai-status-1 model and market inventory. Forecast counts
+  are recorded, not independently revalidated; paired holdout metrics must
+  not be mixed with prospective shadow results.
+- windows_health: latest bounded watchdog history sample with five task names
+  and allowlisted statuses. NOT_AVAILABLE or DATA_REVIEW_REQUIRED is not
+  healthy. A sample older than 900 seconds becomes STALE and resource values
+  are withheld. Task statuses in a stale sample are historical only.
+- windows_health.resources: optional free/total host RAM and disk bytes at the
+  sample time. They are not model process usage, hard resource caps or VRAM.
+  No sample means unknown, never zero.
+- paper_readiness_verified, automatic_promotion, real_orders remain false.
+  SCHEDULER_OK describes scheduler exit status, not inference quality or
+  profitability. The snapshot is not atomic across the independent journals.
+
+The Windows watchdog must be registered and explicitly enabled before scheduled
+samples become available. It retains at most 288 diagnostic snapshots, not
+market records. Native runtime and Windows scheduling tests remain separate.
+Do not display local file paths, raw forecasts, environment variables, secrets
+or model weights in the panel. The PWA team owns frontend and authenticated
+route integration; this module does not alter either.
