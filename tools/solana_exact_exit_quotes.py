@@ -67,10 +67,19 @@ def validate_report(report):
         seen.add(key)
     return rows
 
-def run(database,*,limit=3,archive_limit=500,transport=None,clock=utc,sleep=time.sleep):
+def run(database,*,limit=3,archive_limit=500,transport=None,clock=utc,sleep=time.sleep,skip_quoted=False):
     permissions()
     if type(limit) is not int or not 1<=limit<=MAX_QUOTES:raise ValueError("Invalid quote budget")
     rows,stats=collect(database,archive_limit)
+    if type(skip_quoted) is not bool:raise ValueError("Invalid selection policy")
+    if skip_quoted and rows:
+        from tools.solana_exit_history import collect_exits
+        existing,_=collect_exits(database,rows,archive_limit)
+        quoted={(r["entry_source_digest"],r["entry_source_index"]) for r in existing}
+        # Preserve ambiguity checks before filtering out already quoted entries.
+        counts=Counter((r["mint"],instant(r["timestamp"])) for r in rows)
+        rows=[r for r in rows if counts[(r["mint"],instant(r["timestamp"]))]==1 and
+              (r["source_digest"],r["source_index"]) not in quoted]
     chosen=select(rows,clock(),limit)
     out={"source":SOURCE,"status":"no_due_entries","research_only":True,
          "quotes":[],"attempted_quotes":0,"selected_entries":len(chosen),
