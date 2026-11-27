@@ -12,11 +12,11 @@ bağlı); CYBERBOT_FUTURES_TRAINING_DB ile ayrı yol belirlenebilir.
 $env:CYBERBOT_BINANCE_OBSERVED_ENABLED="1"
 $env:CYBERBOT_BINANCE_DATA_RIGHTS_CONFIRMED="1"
 $env:CYBERBOT_FUTURES_TRAINING_ENABLED="1"
-python -m cyberbot.futures_training --symbol BTCUSDT --cycles 240
+python -m cyberbot.futures_training --symbol BTCUSDT --cycles 1200
 ```
 
 Veri kullanım hakkı gerçekten doğrulandıysa ilgili değişkeni etkinleştirin.
-Bir oturum en fazla 240 döngü çalıştırır. PC açık ve internet erişilebilir
+Bir oturum en fazla 1440 döngü çalıştırır. PC açık ve internet erişilebilir
 olmalıdır. Sonraki oturumu bitişten sonra başlatın; otomatik zamanlanmış görev
 henüz yoktur. Ayrı terminalde durum sorgulanabilir:
 

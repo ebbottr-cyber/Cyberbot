@@ -15,7 +15,7 @@ from .providers import binance_observed as b,futures_timeframes as tf,futures_mo
 
 VERSION="futures-training-1"
 KEEP=10080
-MAX_CYCLES=240
+MAX_CYCLES=1440
 TABLE="futures_training_minutes_v1"
 STEP=timedelta(minutes=1)
 def enabled():

@@ -94,6 +94,11 @@ class TrainingTests(unittest.TestCase):
         with patch.dict(os.environ,{"CYBERBOT_FUTURES_TRAINING_DB":self.env["CYBERBOT_FUTURES_AI_MEMORY_DB"]}):
             with self.assertRaises(db_paths.PathCollision):t.save(fixture(),clock=lambda:END)
         self.assertEqual(list(self.root.iterdir()),[])
+    def test_session_bound_covers_initial_ai_window(self):
+        self.assertGreaterEqual(t.MAX_CYCLES,1200)
+        self.assertLessEqual(t.MAX_CYCLES,1440)
+        for count in (0,t.MAX_CYCLES+1):
+            with self.assertRaises(ValueError):t.run("BTCUSDT",count)
     def test_foreground_cycle_scheduling(self):
         state=[START.replace(second=0)];calls=[]
         def clock():return state[0]

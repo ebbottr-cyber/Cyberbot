@@ -19,11 +19,11 @@ $env:CYBERBOT_FUTURES_LIGHTGBM_ENABLED="1"
 $env:CYBERBOT_FUTURES_RIVER_ENABLED="1"
 $env:CYBERBOT_FUTURES_AI_MEMORY_ENABLED="1"
 $env:CYBERBOT_FUTURES_STRATEGY_OPTIMIZER_ENABLED="1"
-python -m cyberbot.futures_live_research --symbol BTCUSDT --collect-cycles 240
+python -m cyberbot.futures_live_research --symbol BTCUSDT --collect-cycles 1200
 ```
 
 Veri kullanım hakkı doğrulanmadan ilgili izin etkinleştirilmemelidir.
-Her oturum en fazla 240 dakika döngüsü çalıştırır; otomatik tekrar başlatma
+Her oturum en fazla 1440 dakika döngüsü çalıştırır; otomatik tekrar başlatma
 ve Windows görevi yoktur. Ayrı oturumlar arasında kesinti olursa eğitim
 verisindeki boşluklar doldurulmaz.
 
@@ -33,7 +33,8 @@ python -m cyberbot.futures_live_research --symbol BTCUSDT --evaluate
 ```
 
 Ortak değerlendirme için son 1200 kesintisiz dakika (yaklaşık 20 saat)
-gereklidir. Son veri en fazla iki dakika eski olmalıdır. Yeni test aralığı
+gereklidir. Örnek 1200 döngülük oturum, hiç veri kaybı olmazsa bu eşiği
+karşılar; kaçırılan dakikalar dolmaz. Son veri en fazla iki dakika eski olmalıdır. Yeni test aralığı
 önceki kalıcı kanıtla örtüşürse değerlendirme bekler. LightGBM ve River
 ortak dönemde ölçülür; strateji optimizasyonu aynı gözlemleri kullandığından
 bağımsız kanıt sayılmaz. Önceki hafıza aday seçimini sınırlar, yeni karantina
