@@ -12,6 +12,10 @@ class SolanaObservedTests(unittest.TestCase):
             calls.append(kind)
             if kind=="rpc":
                 if p[0]=="getAccountInfo":return rpc({"owner":LEGACY,"executable":False,"data":{"program":"spl-token","parsed":{"type":"mint","info":{"decimals":6,"supply":"1000000000","isInitialized":True,"mintAuthority":None,"freezeAuthority":None}}}})
+                if p[0]=="getMultipleAccounts":
+                    self.assertEqual(p[1][0],[holder])
+                    self.assertEqual(p[1][1]["minContextSlot"],100)
+                    return rpc([{"owner":LEGACY,"executable":False,"data":{"program":"spl-token","parsed":{"type":"account","info":{"mint":mint,"owner":holder,"state":"initialized","tokenAmount":{"amount":"100000000","decimals":6}}}}}])
                 return rpc([{"address":holder,"amount":"100000000","decimals":6}])
             if kind=="pool":return {"pairs":[{"chainId":"solana","pairAddress":pool,"baseToken":{"address":mint},"quoteToken":{"address":USDC},"liquidity":{"usd":"200000"},"priceUsd":"1"}]}
             amount=p["amount"];out=amount if p["inputMint"]==USDC else str(int(amount)*99//100)
@@ -33,6 +37,7 @@ class SolanaObservedTests(unittest.TestCase):
                 self.assertFalse(d["mint_checks"]["wallet_concentration_verified"])
                 self.assertEqual(calls,["rpc","rpc","pool","quote","quote"])
                 self.assertIsNone(d["depth_probe"])
+                self.assertIsNone(d["owner_probe"])
                 calls.clear()
                 probe=run(transport=mock,clock=lambda:t,depth_probe=True)["depth_probe"]
                 self.assertEqual(calls,["rpc","rpc","pool"]+["quote"]*6)
@@ -40,6 +45,13 @@ class SolanaObservedTests(unittest.TestCase):
                 self.assertFalse(probe["depth_verified"])
                 self.assertFalse(probe["trade_eligible"])
                 self.assertFalse(probe["real_orders"])
+                calls.clear()
+                owner=run(transport=mock,clock=lambda:t,owner_probe=True)["owner_probe"]
+                self.assertEqual(calls,["rpc","rpc","rpc","pool","quote","quote"])
+                self.assertEqual(owner["sampled_accounts"],1)
+                self.assertEqual(owner["sampled_authorities"],1)
+                self.assertFalse(owner["wallet_concentration_verified"])
+                self.assertFalse(owner["trade_eligible"])
                 wrong=True
                 with self.assertRaises(PilotError):run(transport=mock,clock=lambda:t)
                 self.assertEqual(list(root.iterdir()),[])
@@ -142,3 +154,35 @@ class SolanaObservedTests(unittest.TestCase):
         self.assertTrue(probe["samples"][0]["crossed_quote"])
         self.assertFalse(probe["trade_eligible"])
         self.assertFalse(probe["pilot_applied"])
+
+    def test_owner_sample_groups_same_authority_and_rejects_invalid_evidence(self):
+        from copy import deepcopy
+        from cyberbot.providers.solana_observed import owner_sample
+        mint="1"*31+"2"; authority="1"*31+"3"; other="1"*31+"4"
+        info={"slot":100,"decimals":6,"supply":1000}
+        def rpc(v,slot=100):
+            return {"jsonrpc":"2.0","id":1,"result":{"context":{"slot":slot},"value":v}}
+        def account(owner,amount):
+            return {"owner":LEGACY,"executable":False,"data":{"program":"spl-token",
+                    "parsed":{"type":"account","info":{"mint":mint,"owner":owner,
+                    "state":"initialized","tokenAmount":{"amount":str(amount),"decimals":6}}}}}
+        largest=rpc([{"address":"1"*31+a,"amount":str(n),"decimals":6}
+                     for a,n in (("5",200),("6",150),("7",100))])
+        raw=rpc([account(authority,200),account(authority,150),account(other,100)])
+        result=owner_sample(largest,raw,info,mint)
+        self.assertEqual(result["sampled_accounts"],3)
+        self.assertEqual(result["sampled_authorities"],2)
+        self.assertEqual(result["largest_sampled_authority_pct_of_supply"],"35")
+        self.assertEqual(result["top10_sampled_authorities_pct_of_supply"],"45")
+        self.assertTrue(result["sampled_top10_above_30pct"])
+        for flag in ("beneficial_ownership_verified","wallet_concentration_verified",
+                     "pool_vaults_excluded","security_verified","trade_eligible","pilot_applied","real_orders"):
+            self.assertIs(result[flag],False)
+        for bad in (None,account(authority,199)):
+            altered=deepcopy(raw);altered["result"]["value"][0]=bad
+            with self.assertRaises(PilotError):owner_sample(largest,altered,info,mint)
+        altered=deepcopy(raw);altered["result"]["value"][0]["data"]["parsed"]["info"]["mint"]=other
+        with self.assertRaises(PilotError):owner_sample(largest,altered,info,mint)
+        for slot in (99,121):
+            with self.assertRaises(PilotError):owner_sample(largest,rpc(raw["result"]["value"],slot),info,mint)
+        with self.assertRaises(PilotError):owner_sample(largest,rpc([]),info,mint)
