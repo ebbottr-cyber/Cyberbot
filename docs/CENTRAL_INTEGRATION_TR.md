@@ -170,3 +170,25 @@ izinli kotasyon ve seans, XETRA için EUR/USD kaynağı, Futures için bağlant�
 fonlama, DexTerm için yeni kotasyon ve aynı motorla ileri gözlem PC'de ayrıca
 denenir. Ön denetim ağ sorgusu, test çalıştırma veya otomatik işlem izni değildir.
 CI ve yerel çalışma zamanı doğrulanmadan ana dala birleştirilmez.
+
+## Tek Windows yönetim komutu
+
+Aynı temiz, test edilmiş geliştirme checkout'unda:
+
+- `scripts/central-windows.ps1` yalnız önizleme.
+- `scripts/central-windows.ps1 -Mode Prepare -IncludeAI -IncludeNotifications`
+  açık kurulum talebidir; paket indirme yapar. Önce temel izole testler,
+  sonra isteğe bağlı çalışma ortamları. AI için 64-bit Python 3.11 ve 10 GiB
+  boş alan gerekli. Mevcut 3.12 ortamı silinmez; ayrı inceleme gerekir.
+  Chronos ve DexTerm dış çalışma ortamları kurulmaz; mevcut AI ortamları
+  korunur ve ayrıca doğrulanır.
+- `scripts/central-windows.ps1 -Mode StatusAll -ConnectAI -ConnectNotifications`
+  merkezi yerel raporu okur; ağ ve servis başlatma yok.
+- `scripts/central-windows.ps1 -Mode StartPanel -ConnectAI -ConnectNotifications`
+  aynı test edilmiş HEAD ile localhost panelini çalıştırır. AI/yerel bildirim
+  arşivi okunur; eğitim, push, uzaktan erişim ve piyasa motoru başlatılmaz.
+- `scripts/central-windows.ps1 -Mode StartNotifications` ayrı terminalde açık
+  istekle bildirim çalışanını başlatır. Push ve RSS kaynak toplama kapalı.
+
+Yerel test, kurulum ve gerçek bağlantı kontrolü henüz PC üzerinde yapılmadı.
+Bu komutlar otomatik görev veya canlı emir açmaz.
