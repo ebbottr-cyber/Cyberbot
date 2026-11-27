@@ -23,7 +23,7 @@ def match_pool(raw,mint):
 def lookup(client,mint):
     return match_pool(fetch(client,DEX+urlencode({"q":mint})),mint)
 
-def run(report,*,lookup_limit=3,lookup_fn=lookup,inspect=snapshot,sleep=time.sleep):
+def run(report,*,lookup_limit=3,priority_mints=(),lookup_fn=lookup,inspect=snapshot,sleep=time.sleep):
     if os.getenv("CYBERBOT_PILOT_KILL_SWITCH")!="1":
         raise PilotError("Kill switch must be active")
     if os.getenv("CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED")!="1":
@@ -33,6 +33,10 @@ def run(report,*,lookup_limit=3,lookup_fn=lookup,inspect=snapshot,sleep=time.sle
     reviewed=review(report)
     refs=set(REFERENCE_MINTS.values())
     novel=[m for m in reviewed["shortlist_mints"] if m not in refs]
+    if not isinstance(priority_mints,(list,tuple)) or len(set(priority_mints))!=len(priority_mints) or any(m not in novel for m in priority_mints):
+        raise PilotError("Invalid candidate priority")
+    priority={m:i for i,m in enumerate(priority_mints)}
+    novel.sort(key=lambda m:priority.get(m,len(priority)))
     selected=novel[:lookup_limit]
     result={"status":"no_nonreference_candidates","source":"dexterm_historical_shortlist_exact_mint_lookup",
             "shortlist_count":reviewed["shortlist_count"],"nonreference_shortlist_count":len(novel),
