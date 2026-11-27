@@ -1,4 +1,5 @@
 """Explicit service cycle; no automatic startup or trading integration."""
+import os
 from datetime import datetime, timezone
 from contextlib import closing
 from tools.notification_news_sources import poll_source
@@ -18,6 +19,13 @@ def run_cycle(store, push_store, queue, *, events=(), sources=(), user_agent=Non
             result["sources"][source] = poll_source(store, source, enabled=True, user_agent=user_agent)
         except Exception as exc:
             result["sources"][source] = {"status": "error", "type": type(exc).__name__}
+    result["existing_news_bridge"] = {"status": "disabled"}
+    if news_store is not None and os.getenv("CYBERBOT_NOTIFICATION_NEWS_BRIDGE") == "1":
+        try:
+            from tools.notification_existing_news_bridge import sync_existing_news
+            result["existing_news_bridge"] = sync_existing_news(news_store, enabled=True)
+        except Exception as exc:
+            result["existing_news_bridge"] = {"status": "error", "type": type(exc).__name__}
     if news_store is not None:
         try:
             result["research_news"] = drain_news(news_store, store, enabled=True)
