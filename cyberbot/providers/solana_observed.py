@@ -130,6 +130,16 @@ def request(client,kind,params,key,*,rpc_url=None):
     limit=RUG_MAX_BYTES if kind=="rugcheck" else MAX_BYTES
     try:
         with client.stream(method_http,url,**kw) as res:
+            if stage=="jupiter.sell" and res.status_code==400:
+                # Read only a bounded diagnostic body. Never echo arbitrary provider text.
+                error_data=bytearray()
+                for chunk in res.iter_bytes(chunk_size=4096):
+                    if len(error_data)+len(chunk)>8192:break
+                    error_data.extend(chunk)
+                try:err=json.loads(error_data)
+                except (ValueError,UnicodeError):err={}
+                detail="; provider=Failed to get quotes" if isinstance(err,dict) and err.get("error")=="Failed to get quotes" else ""
+                raise SellQuoteRejected(stage+": HTTP 400; no_retry"+detail)
             res.raise_for_status();data=bytearray()
             for chunk in res.iter_bytes(chunk_size=65536):
                 if len(data)+len(chunk)>limit:raise PilotError(stage+": response_too_large")

@@ -6,11 +6,22 @@ from cyberbot.observed_pilot import utc,PilotError
 from tools.solana_pool_discovery import GECKO,DEX,QUERIES,fetch,gecko_rows,dex_rows,candidates
 from tools.solana_public_snapshot import run as snapshot
 
+# Narrow, reviewed reference identities; not a general verification registry.
+# POPCAT reference: https://www.bitcoin.com/price/popcat/
+# BONK reference: previously exercised diagnostic mint, not an endorsement.
+REFERENCE_MINTS={"POPCAT":"7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr",
+                 "BONK":"DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"}
+
+def reference_conflict(row):
+    label=str(row.get("label","")).split("/",1)[0].strip().upper()
+    expected=REFERENCE_MINTS.get(label)
+    return expected if expected and row["mint"]!=expected else None
+
 def discover(*,sleep=time.sleep):
     # Bounded public discovery, not a comprehensive market universe.
     sources=[(GECKO+"trending_pools?page=1",gecko_rows),
              (GECKO+"pools?page=1",gecko_rows)]
-    sources += [(DEX+urlencode({"q":q}),dex_rows) for q in QUERIES]
+    sources += [(DEX+urlencode({"q":REFERENCE_MINTS.get(q.split("/",1)[0],q)}),dex_rows) for q in QUERIES]
     rows=[]
     with httpx.Client(timeout=httpx.Timeout(8,connect=3),follow_redirects=False,trust_env=False) as c:
         for i,(url,parse) in enumerate(sources):
@@ -29,12 +40,17 @@ def run(*,limit=2,max_candidates=None,discoverer=discover,inspect=snapshot,sleep
     if type(max_candidates) is not int or not limit<=max_candidates<=8:
         raise PilotError("Candidate budget must be between target and 8")
     pools=discoverer()
-    selected=[];seen=set()
+    selected=[];seen=set();conflicts=[]
     for row in pools:
+        expected=reference_conflict(row)
+        if expected:
+            conflicts.append({"mint":row["mint"],"pool":row["pool"],"label":row.get("label"),
+                              "expected_reference_mint":expected,"reason":"known_label_mint_mismatch"})
+            continue
         mint=row["mint"]
         if mint in seen:continue
         seen.add(mint);selected.append(row)
-        if len(selected)>=max_candidates:break
+    selected=selected[:max_candidates]
     reports=[];quote_rejections=0;stop_reason=None
     for i,row in enumerate(selected):
         if i:sleep(10)
@@ -65,6 +81,8 @@ def run(*,limit=2,max_candidates=None,discoverer=discover,inspect=snapshot,sleep
             "retrieved_at":utc().isoformat(),"scope":"geckoterminal_trending_and_top_page_1_plus_dex_search_direct_usdc",
             "target_completed_mints":limit,"target_reached":target_reached,"max_candidates":max_candidates,
             "available_pools":len(pools),"selected_mints":len(selected),"inspected_mints":len(reports),
+            "identity_conflicts":conflicts,"identity_conflict_count":len(conflicts),
+            "token_identity_verified":False,
             "reports":reports,"meme_classification_verified":False,"security_verified":False,
             "depth_verified":False,"route_integrity_verified":False,"live_data_verified":False,
             "pilot_applied":False,"real_orders":False,"api_key_used":False}

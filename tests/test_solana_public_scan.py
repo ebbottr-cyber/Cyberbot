@@ -128,3 +128,19 @@ class PublicScanTests(unittest.TestCase):
                         request(c,"quote",{"inputMint":inp,"outputMint":out,"amount":"1"},"")
                     self.assertEqual(isinstance(ctx.exception,SellQuoteRejected),status==400 and inp==mint)
                     self.assertNotIn("private",str(ctx.exception))
+
+    def test_known_symbol_collision_skipped_before_network(self):
+        from tools.solana_public_scan import REFERENCE_MINTS
+        wrong={"mint":"6RLhPtPZGED9sdiwCKzhug6rej2tsL69rcPh4JHKK7cY","pool":"p","label":"POPCAT / USDC"}
+        right={"mint":REFERENCE_MINTS["POPCAT"],"pool":"q","label":"Popcat"}
+        unknown={"mint":"x","pool":"r","label":"OTHER"}
+        calls=[]
+        def inspect(m,p):
+            calls.append(m);return {"status":"diagnostic_complete"}
+        with patch.dict(os.environ,{"CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED":"1"}):
+            d=run(discoverer=lambda:[wrong,right,unknown],inspect=inspect,sleep=lambda n:None)
+        self.assertEqual(calls,[right["mint"],"x"])
+        self.assertEqual(d["identity_conflict_count"],1)
+        self.assertEqual(d["identity_conflicts"][0]["mint"],wrong["mint"])
+        self.assertFalse(d["token_identity_verified"])
+        self.assertFalse(d["security_verified"])
