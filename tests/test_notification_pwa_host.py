@@ -24,7 +24,8 @@ class NotificationPwaHostTests(unittest.TestCase):
                "CYBERBOT_TAILSCALE_HOST": "bot.example.ts.net",
                "CYBERBOT_TAILSCALE_LOGIN": "operator@example.invalid",
                "CYBERBOT_TAILSCALE_PORT": "443",
-               "CYBERBOT_TAILSCALE_WRITE": "0"}
+               "CYBERBOT_TAILSCALE_WRITE": "0",
+               "CYBERBOT_TAILSCALE_NOTIFICATION_WRITE": "0"}
         headers = [(b"host", b"bot.example.ts.net"),
                    (b"tailscale-user-login", b"operator@example.invalid"),
                    (b"origin", b"https://bot.example.ts.net"),
