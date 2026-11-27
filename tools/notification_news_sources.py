@@ -7,6 +7,8 @@ from tools.notification_news import ingest_feed, MAX_BYTES
 SOURCES = {
     "fed": ("FED", "https://www.federalreserve.gov/feeds/press_all.xml", ("www.federalreserve.gov",)),
     "ecb": ("ECB", "https://www.ecb.europa.eu/rss/press.html", ("www.ecb.europa.eu",)),
+    "bundesbank": ("Bundesbank", "https://www.bundesbank.de/service/rss/en/633306/feed.rss", ("www.bundesbank.de",)),
+    "fed_monetary": ("FED", "https://www.federalreserve.gov/feeds/press_monetary.xml", ("www.federalreserve.gov",)),
     "sec": ("SEC", "https://www.sec.gov/news/pressreleases.rss", ("www.sec.gov",)),
 }
 PENDING_SOURCES = ("KAP", "TCMB", "Borsa Istanbul", "Deutsche Boerse", "Binance", "Solana", "BLS", "Eurostat", "TUIK")
