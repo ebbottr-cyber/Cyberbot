@@ -11,8 +11,31 @@ try {
         $dirty = & git status --porcelain --untracked-files=no
         if ($LASTEXITCODE -ne 0 -or $dirty) { throw 'Tracked checkout must be clean before preparation.' }
         if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
-            & py -3.12 -m venv .venv
-            if ($LASTEXITCODE -ne 0) { throw 'Python 3.12 venv creation failed.' }
+            $candidates = @()
+            $launcher = Get-Command py.exe -CommandType Application -ErrorAction SilentlyContinue
+            if ($launcher) {
+                foreach ($v in @('-3.12','-3.11')) {
+                    $located = & $launcher.Source $v -c "import sys; print(sys.executable)" 2>$null
+                    if ($LASTEXITCODE -eq 0 -and $located) { $candidates += [string]($located | Select-Object -Last 1) }
+                }
+            }
+            foreach ($command in @(Get-Command python.exe,python3.exe -CommandType Application -All -ErrorAction SilentlyContinue)) {
+                if ($command.Source -notlike '*\Microsoft\WindowsApps\*') { $candidates += $command.Source }
+            }
+            foreach ($version in @('312','311')) {
+                foreach ($folder in @("$env:LOCALAPPDATA\Programs\Python\Python$version", "$env:ProgramFiles\Python$version", "C:\Python$version")) {
+                    $candidates += (Join-Path $folder 'python.exe')
+                }
+            }
+            $basePython = $null
+            foreach ($candidate in ($candidates | Select-Object -Unique)) {
+                if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+                & $candidate -I -c "import sys, venv; assert sys.version_info[:2] in [(3,11),(3,12)]" 2>$null
+                if ($LASTEXITCODE -eq 0) { $basePython = $candidate; break }
+            }
+            if (-not $basePython) { throw 'Python 3.11/3.12 not found. Install Python 3.12, reopen PowerShell and retry.' }
+            & $basePython -I -m venv .venv
+            if ($LASTEXITCODE -ne 0) { throw 'Python venv creation failed.' }
         }
         & $python -c "import sys; assert sys.version_info[:2] in [(3,11),(3,12)]"
         if ($LASTEXITCODE -ne 0) { throw 'Python 3.11 or 3.12 required.' }
