@@ -47,7 +47,7 @@ def home():
     html = (Path(__file__).parent/"web"/"index.html").read_text(encoding="utf-8")
     if getattr(app.state, "notification_panel_mounted", False):
         html = html.replace("</head>", '<link rel="stylesheet" href="/ui/notifications/center.css"></head>', 1)
-        html = html.replace("</header>", '<div id="notificationBell" class="cyberbot-notifications"></div></header>', 1)
+        html = html.replace("</header>", '<div id="notificationBell" class="cyberbot-notifications"></div><a href="/notification-settings">Bildirim ayarları</a></header>', 1)
         html = html.replace("</body>", '<script type="module" src="/ui/notifications/host.js"></script></body>', 1)
     return html
 
@@ -136,10 +136,47 @@ if os.getenv("CYBERBOT_NOTIFICATION_PANEL_ENABLED") == "1":
         if request.headers.get("origin") != scheme + "://" + host:
             raise HTTPException(403, "Bildirim kaynağı doğrulanamadı.")
 
+    @app.get("/notification-settings", response_class=HTMLResponse)
+    def notification_settings_page():
+        return """<!doctype html><html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Obsidian | Bildirim ayarları</title><link rel="stylesheet" href="/ui/obsidian.css">
+<link rel="stylesheet" href="/ui/panel-mobile.css"></head><body><main>
+<a href="/">Ana panel</a><section id="notificationSettings">Ayarlar yükleniyor…</section>
+<script type="module" src="/ui/notifications/settings-host.js"></script></main></body></html>"""
+
+    @app.get("/api/notifications/device-config")
+    def notification_device_config(request: Request):
+        notification_user(request)
+        import re
+        key = os.getenv("CYBERBOT_VAPID_PUBLIC_KEY", "")
+        writable = os.getenv("CYBERBOT_TAILSCALE_ENABLED") != "1" or os.getenv("CYBERBOT_TAILSCALE_WRITE") == "1"
+        return {"public_key": key if re.fullmatch(r"[A-Za-z0-9_-]{87}", key) and writable else "",
+                "writable": writable}
+
     @app.get("/ui/notifications/{asset}")
     def notification_asset(asset: str):
         assets = {"center.js": ("notification_center_ui.js", "application/javascript"),
-                  "center.css": ("notification_center_ui.css", "text/css")}
+                  "center.css": ("notification_center_ui.css", "text/css"),
+                  "settings.js": ("notification_settings_ui.js", "application/javascript"),
+                  "notification_push_client.js": ("notification_push_client.js", "application/javascript")}
+        if asset == "settings-host.js":
+            return Response("""import {mountNotificationSettings} from './settings.js';
+const root = document.getElementById('notificationSettings');
+const request = (url, options = {}) => fetch(url, {...options, credentials:'same-origin',
+  headers:{...options.headers, 'X-Cyberbot-Paper':'1'}});
+try {
+  const response = await request('/api/notifications/device-config');
+  if (!response.ok) throw new Error();
+  const config = await response.json();
+  await mountNotificationSettings(root, request, config.public_key);
+  if (!config.writable) {
+    for (const control of root.querySelectorAll('input,button,select')) control.disabled = true;
+    const note = document.createElement('p'); note.textContent = 'Mobil erişim salt okunur.';
+    root.prepend(note);
+  }
+} catch { root.textContent = 'Bildirim ayarları yüklenemedi.'; }
+""", media_type="application/javascript")
         if asset == "host.js":
             return Response("""import {mountNotificationCenter} from './center.js';
 const root = document.getElementById('notificationBell');
