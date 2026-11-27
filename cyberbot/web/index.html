@@ -94,7 +94,17 @@ nav.tiles .tile span{font-size:12px}
 </div></main><nav class="mobile-bottom-nav" aria-label="Mobil hızlı erişim"><a href="#overview" aria-current="location"><span aria-hidden="true">⌂</span>Özet</a><a href="#markets"><span aria-hidden="true">▥</span>Piyasalar</a><a href="#mobileModules"><span aria-hidden="true">▦</span>Menü</a><a href="/development"><span aria-hidden="true">↗</span>Gelişim</a><a href="/news"><span aria-hidden="true">≡</span>Haberler</a></nav><script>
 const by=id=>document.getElementById(id),num=v=>v==null?'—':Number(v).toLocaleString('tr-TR',{maximumFractionDigits:2}),money=(v,c='USD')=>v==null?'—':(c==='TRY'?'₺':'$')+Number(v).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2});
 function node(tag,text,cls){const n=document.createElement(tag);n.textContent=text;if(cls)n.className=cls;return n}
-async function api(path,write=false){const r=await fetch(path,write?{method:'POST',headers:{'X-Cyberbot-Paper':'1'}}:{}),d=await r.json();if(!r.ok)throw Error(typeof d.detail==='string'?d.detail:'İstek başarısız.');return d}
+const pendingDashboardReads=new Map();
+let dashboardReadEpoch=0;
+window.addEventListener('offline',()=>{dashboardReadEpoch++;for(const entry of pendingDashboardReads.values())entry.controller.abort();pendingDashboardReads.clear()});
+async function api(path,write=false){
+ if(write){const r=await fetch(path,{method:'POST',headers:{'X-Cyberbot-Paper':'1'}}),d=await r.json();if(!r.ok)throw Error(typeof d.detail==='string'?d.detail:'İstek başarısız.');return d}
+ const existing=pendingDashboardReads.get(path);if(existing)return existing.promise;
+ const controller=new AbortController(),epoch=dashboardReadEpoch;
+ const entry={controller,promise:null};
+ entry.promise=(async()=>{const timer=setTimeout(()=>controller.abort(),15000);try{const r=await fetch(path,{signal:controller.signal,cache:'no-store'}),d=await r.json();if(epoch!==dashboardReadEpoch)throw Error('Bağlantı değişti.');if(!r.ok)throw Error(typeof d.detail==='string'?d.detail:'İstek başarısız.');return d}catch(e){if(e.name==='AbortError')throw Error('Veri isteği kesildi veya zaman aşımına uğradı.');throw e}finally{clearTimeout(timer);if(pendingDashboardReads.get(path)===entry)pendingDashboardReads.delete(path)}})();
+ pendingDashboardReads.set(path,entry);return entry.promise
+}
 let state=null,busy=false;
 function chart(){if(!state){by('chartLine').setAttribute('d','');by('chartArea').setAttribute('d','');by('chartPoint').setAttribute('visibility','hidden');by('chartNote').textContent='Güncel kayıt yok.';return;}const a=[...state.accounts,state.futures].find(a=>a.market===by('chartMarket').value),v=(a?.equity_history||[]).map(p=>Number(p.equity));const line=by('chartLine'),area=by('chartArea'),dot=by('chartPoint');line.setAttribute('d','');area.setAttribute('d','');dot.setAttribute('visibility','hidden');if(!v.length){by('chartNote').textContent='Kayıtlı gözlem yok.';return;}const lo=Math.min(...v),hi=Math.max(...v),pad=Math.max((hi-lo)*.1,hi*.0005,.01),xy=v.map((n,i)=>[v.length===1?180:4+i*352/(v.length-1),104-(n-lo+pad)/(hi-lo+2*pad)*88]);const d=xy.map(([x,y],i)=>(i?'L':'M')+x+' '+y).join(' ');if(v.length>1){line.setAttribute('d',d);area.setAttribute('d',d+' L356 110 L4 110 Z')}const [x,y]=xy[xy.length-1];dot.setAttribute('cx',x);dot.setAttribute('cy',y);dot.setAttribute('visibility','visible');by('chartNote').textContent=a.market+' · '+a.currency+' · '+v.length+' kayıt · sentetik';}
 function actionButton(text,path){const b=node('button',text);b.onclick=()=>act(path,true);return b}
