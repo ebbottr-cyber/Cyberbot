@@ -47,6 +47,23 @@ def main():
                             if path=="/data":expect(page.locator("#scan")).to_be_disabled()
                         if size["width"]==390:
                             page.goto(origin+"/",wait_until="networkidle")
+                            # Exercise read coalescing without touching financial endpoints.
+                            probe_requests=[]
+                            def probe(route):
+                                probe_requests.append(route.request.url)
+                                route.fulfill(json={"probe":True})
+                            page.route("**/api/panel-test-probe",probe)
+                            assert page.evaluate("""async()=>{const [a,b]=await Promise.all([api('/api/panel-test-probe'),api('/api/panel-test-probe')]);return a.probe&&b.probe}""")
+                            assert len(probe_requests)==1,probe_requests
+                            assert page.evaluate("api('/api/panel-test-probe').then(d=>d.probe)")
+                            assert len(probe_requests)==2,probe_requests
+                            page.unroute("**/api/panel-test-probe")
+                            page.route("**/api/panel-test-probe",lambda route:route.fulfill(status=400,json={"detail":"test failure"}))
+                            assert page.evaluate("api('/api/panel-test-probe').then(()=>false,e=>e.message==='test failure')")
+                            page.unroute("**/api/panel-test-probe")
+                            page.route("**/api/panel-test-probe",probe)
+                            assert page.evaluate("api('/api/panel-test-probe').then(d=>d.probe)")
+                            page.unroute("**/api/panel-test-probe")
                             context.set_offline(True)
                             expect(page.locator("#equity")).to_have_text("—")
                             expect(page.locator("#marketCards .card")).to_have_count(0)
