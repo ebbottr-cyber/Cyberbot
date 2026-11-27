@@ -42,6 +42,10 @@ class NewsStore:
         with closing(sqlite3.connect(self.path)) as db, db:
             return bool(db.execute("INSERT OR IGNORE INTO research_news VALUES(?,?,?,?,?)",(data["event_key"],data["published_at"],data["market"],data["priority"],json.dumps(data,ensure_ascii=False))).rowcount)
 
+    def contains(self, event_key):
+        with closing(sqlite3.connect(self.path)) as db:
+            return db.execute("SELECT 1 FROM research_news WHERE event_key=?", (event_key,)).fetchone() is not None
+
     def list(self,*,limit=100,**filters):
         if type(limit) is not int or not 1<=limit<=500:
             raise ValueError("Invalid limit")
