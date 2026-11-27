@@ -5,11 +5,13 @@ import httpx
 from .. import solana_pilot as sol
 from ..observed_pilot import PilotError,utc
 RPC="https://api.mainnet-beta.solana.com"
-RPC_ENDPOINTS={"official":RPC,"publicnode":"https://solana-rpc.publicnode.com"}
+RPC_ENDPOINTS={"official":RPC,"publicnode":"https://solana-rpc.publicnode.com","rpcnode":"https://public-solana-mainnet.rpcnode.dev"}
 def rpc_endpoint():
     name=os.getenv("CYBERBOT_SOLANA_RPC_PROVIDER","official")
     if name not in RPC_ENDPOINTS:raise PilotError("RPC provider not allowed")
     return name,RPC_ENDPOINTS[name]
+RUG="https://api.rugcheck.xyz/v1/tokens/"
+GECKO="https://api.geckoterminal.com/api/v2/networks/solana/tokens/"
 DEX="https://api.dexscreener.com/latest/dex/pairs/solana/"
 JUP="https://api.jup.ag/swap/v2/order"
 USDC="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
@@ -44,6 +46,31 @@ def concentration(raw,info):
         seen.add(a);amounts.append(uint(x["amount"]))
     if amounts!=sorted(amounts,reverse=True) or sum(amounts)>info["supply"]:raise PilotError("Token hesap miktarı uyumsuz.")
     return {"slot":slot,"top10_token_account_pct":str(D(sum(amounts[:10]))*100/D(info["supply"])),"wallet_concentration_verified":False}
+def reported_holders(rug,gecko,mint):
+    # Third-party reports are not an equivalent of finalized RPC account data.
+    if rug.get("mint")!=mint or gecko["data"]["attributes"].get("address")!=mint:
+        raise PilotError("Holder report mint mismatch")
+    rows=rug.get("topHolders")
+    if not isinstance(rows,list) or not 10<=len(rows)<=20:
+        raise PilotError("Holder report incomplete")
+    seen=set();pcts=[]
+    for row in rows:
+        addr=row.get("address")
+        if not sol.address(addr) or addr in seen:raise PilotError("Invalid holder report account")
+        seen.add(addr);pcts.append(sol.number(row.get("pct"),high="100"))
+    if sum(pcts)>100:raise PilotError("Invalid holder report percentages")
+    top=sum(sorted(pcts,reverse=True)[:10],D(0))
+    g=gecko["data"]["attributes"]["holders"]
+    pct=sol.number(g["distribution_percentage"]["top_10"],high="100")
+    for n in (rug.get("totalHolders"),g.get("count")):
+        if type(n) is not int or n<10:raise PilotError("Invalid holder report count")
+    from ..observed_pilot import ts
+    source_at=ts(g["last_updated"]).isoformat()
+    return {"holder_source":"public_reports","rugcheck_reported_top10_account_pct":str(top),
+            "geckoterminal_reported_top10_pct":str(pct),"reported_pct_difference":str(abs(top-pct)),
+            "rugcheck_reported_holder_count":rug["totalHolders"],"geckoterminal_reported_holder_count":g["count"],
+            "geckoterminal_holder_source_at":source_at,"holder_source_timestamp_verified":False,
+            "token_account_concentration_verified":False,"wallet_concentration_verified":False}
 def pool_info(raw,mint,pool):
     pairs=raw.get("pairs")
     if not isinstance(pairs,list):raise PilotError("DEX havuz verisi eksik.")
@@ -73,13 +100,16 @@ def request(client,kind,params,key,*,rpc_url=None):
         url=rpc_endpoint()[1] if rpc_url is None else rpc_url
         if url not in RPC_ENDPOINTS.values():raise PilotError("RPC endpoint not allowed")
         method_http,url,kw="POST",url,{"json":{"jsonrpc":"2.0","id":1,"method":method,"params":args}}
+    elif kind in ("rugcheck","gecko_holders"):
+        if not sol.address(params):raise PilotError("Invalid holder report mint")
+        method_http,url,kw="GET",(RUG+params+"/report" if kind=="rugcheck" else GECKO+params+"/info"),{}
     elif kind=="pool":
         if not sol.address(params):raise PilotError("Havuz kimliği geçersiz.")
         method_http,url,kw="GET",DEX+params,{}
     elif kind=="quote":
         method_http,url,kw="GET",JUP,{"params":params,"headers":{"x-api-key":key} if key else {}}
     else:raise PilotError("İzinsiz kaynak.")
-    stage=("solana_rpc."+method if kind=="rpc" else "dexscreener.pool" if kind=="pool" else "jupiter.buy" if params.get("inputMint")==USDC else "jupiter.sell")
+    stage=("solana_rpc."+method if kind=="rpc" else kind if kind in ("rugcheck","gecko_holders") else "dexscreener.pool" if kind=="pool" else "jupiter.buy" if params.get("inputMint")==USDC else "jupiter.sell")
     try:
         with client.stream(method_http,url,**kw) as res:
             res.raise_for_status();data=bytearray()
@@ -106,11 +136,16 @@ def run(*,transport=None,clock=utc):
     key=os.getenv("CYBERBOT_JUPITER_KEY","").strip()
     if key and (len(key)>256 or not re.fullmatch(r"[A-Za-z0-9_.-]+",key)):raise PilotError("API anahtarı biçimi geçersiz.")
     rpc_name,rpc_url=rpc_endpoint()
+    holder_mode=os.getenv("CYBERBOT_SOLANA_HOLDER_MODE","rpc")
+    if holder_mode not in ("rpc","public_reports"):raise PilotError("Invalid holder diagnostic mode")
     started=clock()
     with httpx.Client(timeout=httpx.Timeout(8,connect=6),follow_redirects=False,trust_env=False) as c:
         def get(kind,params):return transport(kind,params) if transport else request(c,kind,params,key,rpc_url=rpc_url)
         info=mint_info(get("rpc",("getAccountInfo",[mint,{"encoding":"jsonParsed","commitment":"finalized"}])))
-        holders=concentration(get("rpc",("getTokenLargestAccounts",[mint,{"commitment":"finalized"}])),info)
+        if holder_mode=="public_reports":
+            holders=reported_holders(get("rugcheck",mint),get("gecko_holders",mint),mint)
+        else:
+            holders=concentration(get("rpc",("getTokenLargestAccounts",[mint,{"commitment":"finalized"}])),info)
         pooldata=pool_info(get("pool",pool),mint,pool)
         def query(a,b,n):return quote(get("quote",{"inputMint":a,"outputMint":b,"amount":str(n)}),a,b,n,pool)
         tokens=query(USDC,mint,AMOUNT)
@@ -119,4 +154,4 @@ def run(*,transport=None,clock=utc):
     if not 0<=elapsed<=30:raise PilotError("Tanılama süresi aşıldı.")
     units=D(tokens)/D(10**info["decimals"])
     ask=D(100)/units;bid=(D(received)/D(10**6))/units
-    return {"status":"diagnostic_only","mint":mint,"pool":pool,"retrieved_at":clock().isoformat(),"quote_currency":"USDC","test_input_usdc":"100","quoted_tokens":str(units),"quoted_return_usdc":str(D(received)/D(10**6)),"indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),"roundtrip_indicative_pct":str((D(received)/D(AMOUNT)-1)*100),"pool":pooldata,"mint_checks":{**info,**holders},"quote_source_timestamp_verified":False,"usd_conversion_verified":False,"security_verified":False,"depth_verified":False,"pilot_applied":False,"live_data_verified":False,"real_orders":False,"transport_mocked":transport is not None,"api_key_used":bool(key),"rpc_provider":rpc_name,"blockers":["USDC/USD dönüşümü yok","Kaynak zaman damgası ve eşzamanlılık doğrulanmadı","Token hesabı yoğunlaşması cüzdan yoğunlaşması değildir","Kotasyon dolum ve derinlik garantisi değildir"]}
+    return {"status":"diagnostic_only","mint":mint,"pool":pool,"retrieved_at":clock().isoformat(),"quote_currency":"USDC","test_input_usdc":"100","quoted_tokens":str(units),"quoted_return_usdc":str(D(received)/D(10**6)),"indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),"roundtrip_indicative_pct":str((D(received)/D(AMOUNT)-1)*100),"pool":pooldata,"mint_checks":{**info,**holders},"quote_source_timestamp_verified":False,"usd_conversion_verified":False,"security_verified":False,"depth_verified":False,"pilot_applied":False,"live_data_verified":False,"real_orders":False,"transport_mocked":transport is not None,"api_key_used":bool(key),"rpc_provider":rpc_name,"holder_mode":holder_mode,"blockers":(["Third-party holder reports are not finalized RPC or verified wallet evidence"] if holder_mode=="public_reports" else [])+["USDC/USD dönüşümü yok","Kaynak zaman damgası ve eşzamanlılık doğrulanmadı","Token hesabı yoğunlaşması cüzdan yoğunlaşması değildir","Kotasyon dolum ve derinlik garantisi değildir"]}

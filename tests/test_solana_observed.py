@@ -75,7 +75,7 @@ class SolanaObservedTests(unittest.TestCase):
             self.assertNotIn("x-api-key",req.headers)
             return httpx.Response(200,json={"jsonrpc":"2.0","id":1,"result":{}})
         with httpx.Client(transport=httpx.MockTransport(transport)) as c:
-            for name,url in (("official","https://api.mainnet-beta.solana.com"),("publicnode","https://solana-rpc.publicnode.com")):
+            for name,url in (("official","https://api.mainnet-beta.solana.com"),("publicnode","https://solana-rpc.publicnode.com"),("rpcnode","https://public-solana-mainnet.rpcnode.dev")):
                 with patch.dict(os.environ,{"CYBERBOT_SOLANA_RPC_PROVIDER":name}):
                     self.assertEqual(rpc_endpoint(),(name,url))
                     request(c,"rpc",("getAccountInfo",[]),"fixture")
@@ -83,4 +83,24 @@ class SolanaObservedTests(unittest.TestCase):
             with patch.dict(os.environ,{"CYBERBOT_SOLANA_RPC_PROVIDER":"https://example.invalid"}):
                 with self.assertRaises(PilotError):request(c,"rpc",("getAccountInfo",[]),"fixture")
             with self.assertRaises(PilotError):request(c,"rpc",("getAccountInfo",[]),"fixture",rpc_url="https://example.invalid")
-        self.assertEqual(len(seen),2)
+        self.assertEqual(len(seen),3)
+
+    def test_public_holder_reports_are_diagnostic_only(self):
+        from cyberbot.providers.solana_observed import reported_holders
+        mint="1"*31+"2"
+        rows=[{"address":"1"*31+c,"pct":"3"} for c in "3456789ABC"]
+        rug={"mint":mint,"topHolders":rows,"totalHolders":100}
+        gecko={"data":{"attributes":{"address":mint,"holders":{"count":90,
+            "distribution_percentage":{"top_10":"35"},"last_updated":"2026-01-01T00:00:00Z"}}}}
+        d=reported_holders(rug,gecko,mint)
+        self.assertEqual(d["rugcheck_reported_top10_account_pct"],"30")
+        self.assertEqual(d["reported_pct_difference"],"5")
+        self.assertFalse(d["wallet_concentration_verified"])
+        self.assertFalse(d["token_account_concentration_verified"])
+        self.assertNotIn("top10_token_account_pct",d)
+        with self.assertRaises(PilotError):
+            reported_holders({**rug,"mint":"other"},gecko,mint)
+        with self.assertRaises(PilotError):
+            reported_holders({**rug,"topHolders":rows[:9]},gecko,mint)
+        with self.assertRaises(PilotError):
+            reported_holders({**rug,"topHolders":[rows[0]]*10},gecko,mint)
