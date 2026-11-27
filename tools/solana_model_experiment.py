@@ -5,6 +5,7 @@ import json
 import sqlite3
 from tools.solana_learning_dataset import run as dataset,FEATURE_NAMES
 from tools.solana_paper_replay import FALSE_FLAGS
+from tools.solana_lightgbm_experiment import fit_lightgbm,OptionalModelUnavailable,PARAMS,ROUNDS
 
 MIN_EARLIER=100
 MIN_LATER=50
@@ -39,6 +40,7 @@ def metrics(data,predict):
     tp=tn=fp=fn=0;brier=0.0;loss=0.0
     for x,y in data:
         p=predict(x)
+        if not math.isfinite(p) or not 0<=p<=1:raise ValueError("Invalid prediction")
         positive=p>=0.5
         tp+=positive and y==1;tn+=not positive and y==0
         fp+=positive and y==0;fn+=not positive and y==1
@@ -50,8 +52,8 @@ def metrics(data,predict):
             "accuracy":(tp+tn)/n,"balanced_accuracy":((tp/(tp+fn))+(tn/(tn+fp)))/2,
             "brier_score":brier/n,"log_loss":loss/n}
 
-def evaluate(report,*,allow_experiment=False):
-    if type(allow_experiment) is not bool:raise ValueError("Explicit experiment flag required")
+def evaluate(report,*,allow_experiment=False,include_lightgbm=False):
+    if type(allow_experiment) is not bool or type(include_lightgbm) is not bool:raise ValueError("Explicit experiment flag required")
     if report.get("source_scope")!="dexterm_bridge_only" or report.get("research_only") is not True:
         raise ValueError("Unexpected dataset scope")
     if any(report.get(k) is not False for k in ("training_allowed","training_performed","model_promoted","real_orders","labels_are_real_fills")):
@@ -77,7 +79,8 @@ def evaluate(report,*,allow_experiment=False):
          "dataset_sha256":report["dataset_sha256"],"blockers":blockers,
          "experimental_fit_performed":False,"training_allowed":False,"production_training_performed":False,
          "weights_updated":False,"model_saved":False,"model_promoted":False,
-         "independent_holdout_verified":False,"winner":None,"results":[],**FALSE_FLAGS}
+         "independent_holdout_verified":False,"winner":None,"results":[],
+         "lightgbm_status":"blocked_by_experiment_gate" if include_lightgbm else "not_requested",**FALSE_FLAGS}
     if blockers:return out
     train=prepare(groups["earlier"]);test=prepare(groups["later"])
     prior=sum(y for x,y in train)/len(train)
@@ -86,19 +89,33 @@ def evaluate(report,*,allow_experiment=False):
                results=[{"model":name,"later_window":metrics(test,p)}
                         for name,p in (("constant_training_prior",lambda x:prior),
                                        ("logistic_baseline",predictor))])
+    if include_lightgbm:
+        try:
+            predictions,version=fit_lightgbm(train,test)
+            if len(predictions)!=len(test):raise ValueError("Prediction length mismatch")
+            values=iter(predictions)
+            score=metrics(test,lambda x:next(values))
+            out["results"].append({"model":"lightgbm","version":version,"parameters":dict(PARAMS),
+                                   "boost_rounds":ROUNDS,"later_window":score})
+            out["lightgbm_status"]="experiment_complete"
+        except (OptionalModelUnavailable,ValueError) as e:
+            out["lightgbm_status"]="unavailable_or_failed"
+            out["lightgbm_reason"]=str(e) if isinstance(e,OptionalModelUnavailable) else "invalid_predictions"
+            out["status"]="experiment_partial"
     return out
 
-def run(database,*,limit=500,allow_experiment=False):
-    return evaluate(dataset(database,limit=limit),allow_experiment=allow_experiment)
+def run(database,*,limit=500,allow_experiment=False,include_lightgbm=False):
+    return evaluate(dataset(database,limit=limit),allow_experiment=allow_experiment,include_lightgbm=include_lightgbm)
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--database",required=True)
     p.add_argument("--limit",type=int,default=500)
     p.add_argument("--allow-experiment",action="store_true")
+    p.add_argument("--include-lightgbm",action="store_true")
     a=p.parse_args()
     try:
-        print(json.dumps(run(a.database,limit=a.limit,allow_experiment=a.allow_experiment),indent=2,allow_nan=False))
+        print(json.dumps(run(a.database,limit=a.limit,allow_experiment=a.allow_experiment,include_lightgbm=a.include_lightgbm),indent=2,allow_nan=False))
         return 0
     except (ValueError,TypeError,KeyError,ArithmeticError,AttributeError,OSError,sqlite3.Error) as e:
         print(json.dumps({"status":"rejected","error_type":type(e).__name__,"training_allowed":False,**FALSE_FLAGS}))

@@ -44,3 +44,34 @@ class ModelExperimentTests(unittest.TestCase):
         with self.assertRaises(ValueError):evaluate(r,allow_experiment=True)
         r=report();r["real_orders"]=True
         with self.assertRaises(ValueError):evaluate(r,allow_experiment=True)
+
+    def test_lightgbm_lazy_gate_and_default(self):
+        from unittest.mock import patch
+        with patch("tools.solana_model_experiment.fit_lightgbm") as fitter:
+            evaluate(report(),include_lightgbm=True)
+            evaluate(report(),allow_experiment=True)
+            evaluate(report(10,10),allow_experiment=True,include_lightgbm=True)
+            fitter.assert_not_called()
+    def test_lightgbm_shared_test_window(self):
+        from unittest.mock import patch
+        with patch("tools.solana_model_experiment.fit_lightgbm",return_value=([0.8 if i%2==0 else 0.2 for i in range(50)],"mock")) as fitter:
+            d=evaluate(report(),allow_experiment=True,include_lightgbm=True)
+            train,test=fitter.call_args.args
+            self.assertEqual((len(train),len(test)),(100,50))
+            self.assertEqual(d["results"][2]["later_window"]["balanced_accuracy"],1)
+            self.assertEqual(d["lightgbm_status"],"experiment_complete")
+            self.assertFalse(d["model_promoted"])
+    def test_missing_optional_dependency_preserves_baselines(self):
+        from unittest.mock import patch
+        from tools.solana_lightgbm_experiment import OptionalModelUnavailable
+        with patch("tools.solana_model_experiment.fit_lightgbm",side_effect=OptionalModelUnavailable("lightgbm_or_native_dependency_unavailable")):
+            d=evaluate(report(),allow_experiment=True,include_lightgbm=True)
+            self.assertEqual(d["status"],"experiment_partial")
+            self.assertEqual(len(d["results"]),2)
+            self.assertFalse(d["model_saved"])
+    def test_bad_prediction_rejected(self):
+        from unittest.mock import patch
+        with patch("tools.solana_model_experiment.fit_lightgbm",return_value=([float("nan")]*50,"mock")):
+            d=evaluate(report(),allow_experiment=True,include_lightgbm=True)
+            self.assertEqual(d["lightgbm_reason"],"invalid_predictions")
+            self.assertEqual(len(d["results"]),2)
