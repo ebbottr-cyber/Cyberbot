@@ -58,3 +58,21 @@ class IntegrationStatusTests(unittest.TestCase):
         self.assertEqual(len(state["markets"]),5)
         self.assertEqual(state["readiness_status"],"unavailable")
         self.assertTrue(all(not m["live_data_verified"] for m in state["markets"]))
+
+    def test_ai_inventory_is_optional_and_no_authority(self):
+        import sys
+        from types import ModuleType
+        from cyberbot.integration_api import ai_status
+        fake=ModuleType("tools.local_research.ai_status")
+        fake.run=lambda root: {"version":"ai-status-1","real_orders":False,"automatic_promotion":False,
+            "profitability_verified":False,"models":{n:{"status":"RESEARCH_MEASURED","observations_scored":30,"private_path":"SECRET"} for n in ("chronos","river","lightgbm","gemini")}}
+        with patch.dict(sys.modules,{"tools.local_research.ai_status":fake}),patch.dict("os.environ",{"CYBERBOT_AI_PANEL_ENABLED":"1"}):
+            data=ai_status()
+            self.assertEqual(data["status"],"research_inventory_available")
+            self.assertEqual(len(data["models"]),4)
+            self.assertNotIn("SECRET",str(data))
+            self.assertFalse(data["paper_readiness_verified"])
+            fake.run=lambda root: {"version":"ai-status-1","real_orders":True}
+            self.assertEqual(ai_status()["status"],"unavailable")
+        with patch.dict(sys.modules,{"tools.local_research.ai_status":fake}),patch.dict("os.environ",{"CYBERBOT_AI_PANEL_ENABLED":"0"}):
+            self.assertEqual(ai_status()["status"],"disabled")
