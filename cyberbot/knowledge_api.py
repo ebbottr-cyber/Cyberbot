@@ -10,7 +10,12 @@ ROOT=Path(__file__).parent/"web"
 @router.get("/knowledge",response_class=HTMLResponse)
 def panel():return (ROOT/"knowledge.html").read_text(encoding="utf-8")
 @router.get("/news",response_class=HTMLResponse)
-def news_panel():return (ROOT/"news.html").read_text(encoding="utf-8")
+def news_panel():
+    import os
+    html = (ROOT/"news.html").read_text(encoding="utf-8")
+    if os.getenv("CYBERBOT_NOTIFICATION_PANEL_ENABLED") == "1":
+        html = html.replace("</body>", '<main id="structuredResearchNews" aria-label="Yapılandırılmış araştırma haberleri"></main><script type="module" src="/ui/notifications/news-host.js"></script></body>', 1)
+    return html
 @router.get("/ui/obsidian.css")
 def style():return Response((ROOT/"obsidian.css").read_text(encoding="utf-8"),media_type="text/css")
 @router.get("/api/knowledge")
