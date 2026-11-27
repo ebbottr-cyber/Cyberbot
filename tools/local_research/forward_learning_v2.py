@@ -25,6 +25,7 @@ sys.path.insert(0, str(root))
 
 from tools.local_research.vps_guard import MIB, MIN_FREE_DISK_MIB
 from tools.local_research.journal_capacity import require_capacity
+from tools.local_research.ai_regime_review import context as regime_context
 
 research_folder = root / "var/ai"
 memory = research_folder / "forward-models-v2.sqlite3"
@@ -499,6 +500,7 @@ with closing(sqlite3.connect(
                 "ar1": fit_predict(returns)*100,
                 "chronos": (mid/last-1)*100
             },
+            "regime_context": regime_context(past),
             "quality_context": {
                 "last_observation_age_seconds": (created - samples[current-1]["at"]).total_seconds(),
                 "mean_abs_context_return_pct": mean(abs(r)*100 for r in returns)
