@@ -155,7 +155,10 @@ if os.getenv("CYBERBOT_NOTIFICATION_PANEL_ENABLED") == "1":
         notification_user(request)
         import re
         key = os.getenv("CYBERBOT_VAPID_PUBLIC_KEY", "")
-        writable = os.getenv("CYBERBOT_TAILSCALE_ENABLED") != "1" or os.getenv("CYBERBOT_TAILSCALE_WRITE") == "1"
+        from .access import notification_write_enabled
+        writable = (os.getenv("CYBERBOT_TAILSCALE_ENABLED") != "1"
+                    or os.getenv("CYBERBOT_TAILSCALE_WRITE") == "1"
+                    or notification_write_enabled())
         return {"public_key": key if re.fullmatch(r"[A-Za-z0-9_-]{87}", key) and writable else "",
                 "writable": writable}
 
