@@ -24,17 +24,22 @@ def futures_ai_memory_path(base=None):
     p=layout(base)["paper"]
     return resolved(os.getenv("CYBERBOT_FUTURES_AI_MEMORY_DB") or p.parent/(p.stem+"-futures-ai-memory.sqlite3"))
 
+def futures_training_path(base=None):
+    p=layout(base)["paper"]
+    return resolved(os.getenv("CYBERBOT_FUTURES_TRAINING_DB") or p.parent/(p.stem+"-futures-training.sqlite3"))
+
 def checked(base=None):
     paths=layout(base)
     protected=dict(paths)
     protected["observed_pilot"]=pilot_path(base)
     protected["futures_ai_memory"]=futures_ai_memory_path(base)
+    protected["futures_training"]=futures_training_path(base)
     if os.getenv("CYBERBOT_EBBOT_DB"):protected["archive"]=resolved(os.environ["CYBERBOT_EBBOT_DB"])
     if os.getenv("CYBERBOT_FX_FILE"):protected["fx_input"]=resolved(os.environ["CYBERBOT_FX_FILE"])
     # Reserve adapter files even with adapter disabled; no DB may overwrite them.
     protected["fx_cache"]=resolved("var/fx-provider.json")
     protected["fx_quota"]=resolved("var/fx-provider-quota.sqlite3")
-    for k,p in {**paths,"observed_pilot":protected["observed_pilot"],"futures_ai_memory":protected["futures_ai_memory"]}.items():
+    for k,p in {**paths,"observed_pilot":protected["observed_pilot"],"futures_ai_memory":protected["futures_ai_memory"],"futures_training":protected["futures_training"]}.items():
         for other,q in protected.items():
             if k!=other and same(p,q):raise PathCollision("Veritabanı yolu çakışıyor: "+k+" / "+other)
     return paths
