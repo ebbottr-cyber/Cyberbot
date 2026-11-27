@@ -48,7 +48,7 @@ def prepare(rows):
     return train, test
 
 
-def fit_lightgbm(train_x, train_y, test_x):
+def train_lightgbm(train_x, train_y):
     import lightgbm as lgb
     import numpy as np
     model = lgb.train(
@@ -58,7 +58,12 @@ def fit_lightgbm(train_x, train_y, test_x):
          "min_data_in_leaf": 10, "learning_rate": 0.05},
         lgb.Dataset(np.asarray(train_x), label=np.asarray(train_y)),
         num_boost_round=40)
-    return model.predict(np.asarray(test_x), num_threads=2)
+    return model
+
+
+def fit_lightgbm(train_x, train_y, test_x):
+    import numpy as np
+    return train_lightgbm(train_x, train_y).predict(np.asarray(test_x), num_threads=2)
 
 
 def evaluate(rows, fit_predict=None):
