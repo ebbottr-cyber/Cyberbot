@@ -298,3 +298,35 @@ def research_news(market: str = "ALL"):
     if market not in ("ALL", *NEWS_MARKETS):
         raise HTTPException(422,"Geçersiz haber piyasası.")
     return read_news(market=market)
+
+
+@router.get("/api/integration/ai/dexterm")
+def dexterm_learning_status():
+    base={"status":"not_configured","market":"SOLANA","source":"DexTerm","scope":"historical_quote_research",
+          "real_orders":False,"production_training":False,"automatic_promotion":False,
+          "forward_live_performance_verified":False,"models":[],"total_experiments":None,"distinct_dataset_digests":None}
+    path=os.getenv("CYBERBOT_DEXTERM_MODEL_HISTORY")
+    if not path:return base
+    if not Path(path).is_file():return {**base,"status":"not_initialized"}
+    try:
+        from tools.dexterm_model_history import history
+        data=history(path,limit=1)
+        if data["status"]!="history_read" or any(data.get(k) is not False for k in ("real_orders","model_promoted","performance_improvement_verified","weights_updated")):raise ValueError("Unexpected research authority")
+        total=data["total_experiments"];distinct=data["distinct_dataset_digests"]
+        if type(total) is not int or type(distinct) is not int or not 0<=distinct<=total<=10000:raise ValueError("Invalid count")
+        result={**base,"status":"history_available" if total else "empty","total_experiments":total,"distinct_dataset_digests":distinct}
+        if data["records"]:
+            from tools.dexterm_gemini_review import MODELS, BLOCKERS, count, number
+            summary=data["records"][0]["summary"];state=summary["experiment_status"]
+            if state not in ("experiment_blocked","experiment_complete","experiment_partial") or summary["model_promotion_allowed"] is not False:raise ValueError("Invalid summary")
+            blockers=summary["blockers"]
+            if any(x not in BLOCKERS for x in blockers):raise ValueError("Invalid blocker")
+            models=[]
+            for row in summary["models"]:
+                name=row["model"]
+                if name not in MODELS:raise ValueError("Invalid model")
+                models.append({"model":name,"samples":count(row["samples"]),"balanced_accuracy":number(row["balanced_accuracy"],1),"brier_score":number(row["brier_score"],1),"evaluation_mode":"delayed_prequential" if name=="river_logistic" else "fixed_earlier_window_fit"})
+            result.update(latest_status=state,blockers=blockers,models=models)
+        return result
+    except (OSError,ValueError,KeyError,TypeError,sqlite3.Error,ImportError,ArithmeticError,AttributeError):
+        return {**base,"status":"unavailable"}
