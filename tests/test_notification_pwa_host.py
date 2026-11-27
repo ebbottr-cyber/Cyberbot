@@ -38,5 +38,44 @@ class NotificationPwaHostTests(unittest.TestCase):
             for method in ("POST", "PUT", "DELETE"):
                 self.assertIsNotNone(authorize(request(method)))
 
+    def test_notification_only_mobile_write(self):
+        env = {"CYBERBOT_TAILSCALE_ENABLED":"1",
+               "CYBERBOT_TAILSCALE_HOST":"bot.example.ts.net",
+               "CYBERBOT_TAILSCALE_LOGIN":"operator@example.invalid",
+               "CYBERBOT_TAILSCALE_PORT":"443",
+               "CYBERBOT_TAILSCALE_WRITE":"0",
+               "CYBERBOT_NOTIFICATION_PANEL_ENABLED":"1",
+               "CYBERBOT_TAILSCALE_NOTIFICATION_WRITE":"1"}
+        def check(method, path, origin="https://bot.example.ts.net",
+                  identity="operator@example.invalid", paper="1"):
+            headers = [(b"host", b"bot.example.ts.net"),
+                       (b"tailscale-user-login", identity.encode()),
+                       (b"origin", origin.encode()),
+                       (b"x-cyberbot-paper", paper.encode())]
+            return authorize(Request({"type":"http", "method":method,
+                "path":path, "headers":headers, "client":("127.0.0.1",1234)}))
+        allowed = [("PUT","/api/notifications/preferences"),
+                   ("POST","/api/notifications/push/subscriptions"),
+                   ("DELETE","/api/notifications/push/subscriptions"),
+                   ("POST","/api/notifications/1/read")]
+        with patch.dict(os.environ, env):
+            for method,path in allowed:
+                with self.subTest(method=method,path=path):
+                    self.assertIsNone(check(method,path))
+                    self.assertIsNotNone(check(method,path,origin="https://other.invalid"))
+                    self.assertIsNotNone(check(method,path,identity="other@example.invalid"))
+                    self.assertIsNotNone(check(method,path,paper="0"))
+            for method,path in [("POST","/api/paper/buy"),
+                                ("POST","/api/paper/sell/1"),
+                                ("POST","/api/paper/advance"),
+                                ("POST","/api/news"),
+                                ("DELETE","/api/notifications/1/read"),
+                                ("PUT","/api/notifications/preferences/extra")]:
+                self.assertIsNotNone(check(method,path))
+            for flag in ("CYBERBOT_NOTIFICATION_PANEL_ENABLED","CYBERBOT_TAILSCALE_NOTIFICATION_WRITE"):
+                with patch.dict(os.environ,{flag:"0"}):
+                    for method,path in allowed:
+                        self.assertIsNotNone(check(method,path))
+
 if __name__ == "__main__":
     unittest.main()
