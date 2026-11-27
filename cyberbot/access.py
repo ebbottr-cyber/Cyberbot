@@ -6,6 +6,19 @@ import os
 import re
 from hmac import compare_digest
 
+def notification_write_enabled():
+    return (os.getenv("CYBERBOT_NOTIFICATION_PANEL_ENABLED") == "1"
+            and os.getenv("CYBERBOT_TAILSCALE_NOTIFICATION_WRITE") == "1")
+
+def notification_write_allowed(request):
+    if not notification_write_enabled():
+        return False
+    path = request.scope.get("path", "")
+    method = request.method
+    return ((method == "PUT" and path == "/api/notifications/preferences")
+            or (method in ("POST", "DELETE") and path == "/api/notifications/push/subscriptions")
+            or (method == "POST" and re.fullmatch(r"/api/notifications/[0-9]+/read", path) is not None))
+
 def authorize(request):
     client=request.client.host if request.client else ""
     if client not in ("127.0.0.1","::1"):
@@ -28,7 +41,7 @@ def authorize(request):
         if len(identity)!=1 or not compare_digest(identity[0].encode(),allowed_login.encode()):
             return "Tailscale kullanıcı kimliği yetkisiz."
         if write:
-            if os.getenv("CYBERBOT_TAILSCALE_WRITE")!="1":
+            if os.getenv("CYBERBOT_TAILSCALE_WRITE")!="1" and not notification_write_allowed(request):
                 return "Mobil erişim salt okunur."
             if request.headers.get("origin")!="https://"+authority:
                 return "Güvenli kaynak doğrulaması başarısız."
