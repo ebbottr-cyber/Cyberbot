@@ -91,3 +91,46 @@ class IntegrationStatusTests(unittest.TestCase):
             self.assertNotIn("private",str(state))
             self.assertEqual(notification_status(path,now=datetime(2026,11,27,11,0,tzinfo=timezone.utc))["status"],"stale")
             self.assertEqual(notification_status(path,now=datetime(2026,11,27,9,0,tzinfo=timezone.utc))["status"],"unavailable")
+
+    @patch("cyberbot.integration_api.pilot_control_snapshot",return_value={"halted":True})
+    @patch("cyberbot.integration_api.pilot_performance_snapshot")
+    def test_portfolio_scope_currency_and_emergency_brake(self, performance, control):
+        from cyberbot.integration_api import portfolio_risk_status, OBSERVED_MARKETS
+        performance.return_value={"mode":"operator_observed_unverified","real_orders":False,"as_of":"2026-11-27T10:00:00+00:00","markets":[
+            {"market":"BIST","currency":"TRY","status":"recorded","equity":"45001","cash":"44000","risk_gate":True,"statistics":{"closed":1,"realized_pnl":"1","private":"secret"}},
+            {"market":"NASDAQ","currency":"USD","status":"valuation_unavailable","equity":"1000","cash":"999","daily_pnl":"12","current_drawdown_pct":"1","risk_gate":True},
+            {"market":"XETRA","currency":"EUR","status":"recorded","equity":"1000"},
+            {"market":"SOLANA","currency":"USD","status":"recorded","equity":"1000000"}]}
+        report=portfolio_risk_status()
+        performance.assert_called_once_with(markets=OBSERVED_MARKETS)
+        rows={r["market"]:r for r in report["markets"]}
+        self.assertEqual(tuple(rows),MARKETS)
+        self.assertEqual(rows["BIST"]["equity"],"45001")
+        self.assertFalse(rows["BIST"]["risk_gate"])
+        self.assertNotIn("secret",str(report))
+        self.assertIsNone(rows["NASDAQ"]["equity"])
+        self.assertEqual(rows["NASDAQ"]["cash"],"999")
+        self.assertIsNone(rows["NASDAQ"]["daily_pnl"])
+        self.assertIsNone(rows["XETRA"]["equity"])
+        self.assertEqual(rows["SOLANA"]["source"],"DexTerm")
+        self.assertIsNone(rows["SOLANA"]["equity"])
+        self.assertIsNone(report["combined_equity"])
+        self.assertFalse(report["automatic_entry_enabled"])
+
+    @patch("cyberbot.integration_api.pilot_control_snapshot",side_effect=sqlite3.Error)
+    @patch("cyberbot.integration_api.pilot_performance_snapshot",side_effect=sqlite3.Error)
+    def test_portfolio_failure_displays_unknown_without_demo_values(self, performance, control):
+        from cyberbot.integration_api import portfolio_risk_status
+        report=portfolio_risk_status()
+        self.assertEqual(len(report["markets"]),5)
+        self.assertIsNone(report["entry_halted"])
+        self.assertTrue(all(r["equity"] is None and r["risk_gate"] is None for r in report["markets"]))
+        self.assertFalse(report["real_orders"])
+
+    @patch("cyberbot.pilot_performance.stocks.permitted",return_value=False)
+    def test_pilot_snapshot_scope_is_optional(self, permitted):
+        from cyberbot.pilot_performance import snapshot
+        self.assertEqual([r["market"] for r in snapshot(markets=("BIST","FUTURES"))["markets"]],["BIST","FUTURES"])
+        self.assertEqual(len(snapshot()["markets"]),5)
+        with self.assertRaises(ValueError):
+            snapshot(markets=("BIST","BIST"))
