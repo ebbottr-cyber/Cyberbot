@@ -57,6 +57,20 @@ def extract(d):
         for mint in d.get("remaining_mints",[]):
             obs.append(record("lookup_pending",{"mint":mint},"not_queried"))
         return "bridge",obs
+    if d.get("research_only") is True and d.get("extensions_verified") is False:
+        rows=d.get("observations")
+        if not isinstance(rows,list) or len(rows)>3:
+            raise ValueError("Invalid extension observation count")
+        if d.get("status") in ("research_complete","research_partial") and "token2022_count" in d:
+            if d["token2022_count"]!=sum(r.get("status")=="token2022_observed" for r in rows):
+                raise ValueError("Invalid Token-2022 count")
+            return "token2022", [record("token2022",r,r["status"]) for r in rows]
+        if d.get("status")=="token2022_risk_review_complete":
+            if d.get("review_count")!=len(rows) or d.get("trade_eligible") is not False:
+                raise ValueError("Invalid risk review")
+            if any(r.get("trade_eligible") is not False for r in rows):
+                raise ValueError("Unexpected risk clearance")
+            return "token2022_review", [record("token2022_review",r,r["classification"]) for r in rows]
     raise ValueError("Unsupported report")
 
 def load(path):
