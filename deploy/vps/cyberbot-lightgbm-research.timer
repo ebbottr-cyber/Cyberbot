@@ -1,0 +1,10 @@
+[Unit]
+Description=Schedule Cyberbot lightgbm research
+
+[Timer]
+OnCalendar=*-*-* 02:05:00 UTC
+Persistent=false
+Unit=cyberbot-lightgbm-research.service
+
+[Install]
+WantedBy=timers.target
