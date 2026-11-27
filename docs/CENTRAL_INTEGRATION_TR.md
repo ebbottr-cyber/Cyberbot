@@ -142,3 +142,20 @@ CYBERBOT_DEXTERM_REPLAY_REPORT yolları tanımlıyken `python -m tools.dexterm_p
 rapor yayımlanmaz. İki arşiv okuması tek atomik anlık görüntü değildir; rapor
 üretirken arşiv yazıcısını durdurun. Geçerli açık pozisyon fiyatı yoksa değer boş
 kalır. Canlı sanal yürütme, süreklilik ve ileri öğrenme kanıtı değildir.
+
+## DexTerm AI öğrenme ve deney hafızası
+
+Geçmiş kesin miktarlı kotasyonlardan kronolojik veri seti, sınır örtüşmesi
+ayıklaması, strateji karşılaştırması, lojistik referans, isteğe bağlı LightGBM,
+River gecikmeli replay, konsensüs ve adaptif ağırlık deneyi aktarılmıştır.
+Gemini değerlendirme paketi manuel ve çevrimdışıdır. Üretim modeli kaydedilmez,
+otomatik terfi yapılmaz. Deney kapısı en az 100 erken/50 geç örnek, her bölümde
+her sınıftan 15 örnek ve 5 farklı mint gerektirir. Kesilmiş arşiv engeldir.
+Ayrı CYBERBOT_DEXTERM_MODEL_HISTORY SQLite yolu ve mevcut arşiv yolu gerekir.
+Arşiv yazıcısı kapalıyken, açık araştırma hakları ve giriş freni ile
+`python -m tools.dexterm_central_learning --enable` engel/deney kaydını yazar.
+İsteğe bağlı deney için --allow-experiment; modeller için --lightgbm --river
+--adaptive. Varsayılan üretim eğitimi yok. Bot Gelişimi sayfasında DexTerm hafızası
+/api/integration/ai/dexterm üzerinden salt okunur gösterilir. River ölçümü sabit
+model ölçümü ile doğrudan karşılaştırılamaz. Canlı ileri performans, yeni çıkış
+kotasyonu toplama ve PC üzerinde yerel model çalışma zamanı henüz doğrulanmadı.
