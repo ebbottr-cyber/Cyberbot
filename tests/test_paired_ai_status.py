@@ -1,6 +1,7 @@
 """Read-only paired status, synthetic SQLite only."""
 import json
 from pathlib import Path
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -14,7 +15,7 @@ class PairedStatusTests(unittest.TestCase):
         self.folder=Path(self.tmp.name)
 
     def write(self, payload):
-        with sqlite3.connect(self.folder/"paired-ai-review.sqlite3") as db:
+        with closing(sqlite3.connect(self.folder/"paired-ai-review.sqlite3")) as db, db:
             db.execute("CREATE TABLE paired_reports (fingerprint TEXT,created_at TEXT,payload TEXT)")
             db.execute("INSERT INTO paired_reports VALUES (?,?,?)",
                        ("test","2020-01-01",json.dumps(payload)))
