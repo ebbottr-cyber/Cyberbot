@@ -31,3 +31,15 @@ class DexTermReadOnlyTests(unittest.TestCase):
             with self.assertRaises(ValueError): probe("unused",True)
         with patch.dict(os.environ,{"CYBERBOT_PILOT_KILL_SWITCH":"0"}):
             with self.assertRaises(ValueError): probe("unused")
+
+    def test_stderr_classification_never_returns_raw_text(self):
+        from tools.dexterm_readonly_probe import classify_stderr
+        self.assertEqual(classify_stderr(b"secret path ERR_MODULE_NOT_FOUND token"),["ERR_MODULE_NOT_FOUND","MODULE_NOT_FOUND"])
+        self.assertEqual(classify_stderr(b"private text"),["unclassified_stderr"])
+        self.assertEqual(classify_stderr(b""),[])
+    def test_permission_failure_reason(self):
+        from tools.dexterm_readonly_probe import ProbeFailure
+        with patch.dict(os.environ,{"CYBERBOT_PILOT_KILL_SWITCH":"0"}):
+            with self.assertRaises(ProbeFailure) as ctx:
+                probe("unused")
+        self.assertEqual(ctx.exception.reason,"kill_switch_inactive")
