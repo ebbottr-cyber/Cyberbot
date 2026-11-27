@@ -50,3 +50,13 @@ DexTerm USDC portföyü bağlanana kadar değerler boş kalır. Sentetik demo ba
 araştırma replay sonuçları ve gözlem kasaları birleştirilmez. Taze değerleme yoksa
 kasa değeri, günlük K/Z ve düşüş bilinmez. Giriş freni salt okunur; yerel risk
 koşulları emir yetkisi değildir. Ayrı okuma anları atomik değildir.
+
+## Tek Windows giriş noktası
+
+`scripts/central-windows.ps1` varsayılan önizleme, yazma veya ağ yok.
+`-Mode Prepare` mevcut izole hazırlık testlerini çalıştırır ve temiz HEAD için
+başarı işareti oluşturur. `-Mode Status` salt okunur pilot ön kontrolüdür.
+`-Mode StartPanel` aynı test edilmiş commit ile localhost panelini başlatır;
+önceden yapılandırılmış sınırlı yerel okuma girdilerini korur. Giriş freni açık,
+uzaktan erişim ve otomatik sağlayıcı/görev başlatma yok. AI/DexTerm/Futures özel
+çalışma ortamları ve PWA cihaz erişimi ayrıca kurulur. Gerçek Windows testi bekler.
