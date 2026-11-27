@@ -44,6 +44,12 @@ jobs:
           & .\scripts\register-ai-research-windows.ps1
           & .\scripts\register-ai-review-windows.ps1
           & .\scripts\setup-ai-windows.ps1 -IncludeReviewRuntime
+          $readiness = & .\scripts\ai-readiness-windows.ps1 | ConvertFrom-Json
+          if ($readiness.version -ne 'ai-readiness-2' -or $readiness.tasks_modified -ne $false -or $readiness.real_orders -ne $false -or $readiness.paper_readiness_verified -ne $false -or $readiness.native_inference_verified -ne $false) { throw 'Unsafe readiness report.' }
+          $required = @('Chronos','LightGBM','River','ReviewRuntime-LightGBM','ReviewRuntime-River','CPUAdmission','RuntimeInstallDisk','Task-ResearchReview')
+          foreach ($name in $required) {
+            if (@($readiness.checks | Where-Object { $_.name -eq $name }).Count -ne 1) { throw ('Missing or duplicate readiness check: ' + $name) }
+          }
           if (Get-ScheduledTask -TaskPath '\' -TaskName 'Cyberbot-AI-ResearchReview' -ErrorAction SilentlyContinue) { throw 'Preview unexpectedly registered a task.' }
 
       - name: Extended synthetic stress suite
