@@ -1,14 +1,18 @@
 # Futures-only setup and foreground launch. Default mode is a read-only preview.
 [CmdletBinding()]
 param(
-    [ValidateSet('Preview','Prepare','Status','Probe','SafetyStatus','SafetyProbe','Health','Collect','Evaluate','PaperObserve','Supervise','Watchdog')]
+    [ValidateSet('Preview','Prepare','Status','Probe','SafetyStatus','SafetyProbe','Health','Backup','VerifyBackup','StageRecovery','Collect','Evaluate','PaperObserve','Supervise','Watchdog')]
     [string]$Mode = 'Preview',
     [ValidateSet('BTCUSDT','ETHUSDT')][string]$Symbol = 'BTCUSDT',
     [ValidateRange(1,1440)][int]$Cycles = 1200,
     [switch]$ConfirmDataRights,
     [switch]$ConfirmPaperObservation,
     [switch]$RecordPredictions,
-    [switch]$ConfirmAutoPaper
+    [switch]$ConfirmAutoPaper,
+    [string]$BackupRoot,
+    [string]$BackupDirectory,
+    [switch]$ConfirmBackupRights,
+    [switch]$ConfirmOffline
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -81,6 +85,23 @@ try {
     if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Run -Mode Prepare first.' }
     if ($Mode -eq 'Status') {
         Invoke-PythonChecked -m cyberbot.futures_live_research --symbol $Symbol --status
+        return
+    }
+    if ($Mode -in @('Backup','VerifyBackup','StageRecovery')) {
+        if ($Mode -ne 'VerifyBackup') {
+            if (-not $ConfirmBackupRights -or -not $BackupRoot) { throw 'Explicit backup rights and destination required.' }
+            Set-TemporaryEnv 'CYBERBOT_FUTURES_BACKUP_RIGHTS_CONFIRMED' '1'
+        }
+        if ($Mode -eq 'Backup') {
+            if (-not $ConfirmOffline) { throw 'Stop all writers and confirm offline backup.' }
+            Invoke-PythonChecked -m cyberbot.futures_backup backup --root $BackupRoot --offline-confirmed
+        } elseif ($Mode -eq 'VerifyBackup') {
+            if (-not $BackupDirectory) { throw 'Backup directory required.' }
+            Invoke-PythonChecked -m cyberbot.futures_backup verify --directory $BackupDirectory
+        } else {
+            if (-not $BackupDirectory) { throw 'Backup directory required.' }
+            Invoke-PythonChecked -m cyberbot.futures_backup stage --directory $BackupDirectory --root $BackupRoot
+        }
         return
     }
     if ($Mode -eq 'Health') {
