@@ -48,10 +48,13 @@ def checked(base=None):
     if os.getenv("CYBERBOT_FX_FILE"):protected["fx_input"]=resolved(os.environ["CYBERBOT_FX_FILE"])
     for name,role in (("CYBERBOT_DEXTERM_ARCHIVE","dexterm_archive"),("CYBERBOT_DEXTERM_REPLAY_REPORT","dexterm_replay_report"),("CYBERBOT_NOTIFICATION_HEALTH_FILE","notification_health"),("CYBERBOT_NOTIFICATION_DB","notification_inbox"),("CYBERBOT_RESEARCH_NEWS_DB","research_news")):
         if os.getenv(name):protected[role]=resolved(os.environ[name])
+    if os.getenv("CYBERBOT_DEXTERM_MODEL_HISTORY"):protected["dexterm_model_history"]=resolved(os.environ["CYBERBOT_DEXTERM_MODEL_HISTORY"])
     # Reserve adapter files even with adapter disabled; no DB may overwrite them.
     protected["fx_cache"]=resolved("var/fx-provider.json")
     protected["fx_quota"]=resolved("var/fx-provider-quota.sqlite3")
-    for k,p in {**paths,"observed_pilot":protected["observed_pilot"],"futures_ai_memory":protected["futures_ai_memory"],"futures_training":protected["futures_training"],"futures_forward":protected["futures_forward"],"futures_diagnostics":protected["futures_diagnostics"]}.items():
+    writers={**paths,"observed_pilot":protected["observed_pilot"],"futures_ai_memory":protected["futures_ai_memory"],"futures_training":protected["futures_training"],"futures_forward":protected["futures_forward"],"futures_diagnostics":protected["futures_diagnostics"]}
+    if "dexterm_model_history" in protected:writers["dexterm_model_history"]=protected["dexterm_model_history"]
+    for k,p in writers.items():
         for other,q in protected.items():
             if k!=other and same(p,q):raise PathCollision("Veritabanı yolu çakışıyor: "+k+" / "+other)
     return paths
