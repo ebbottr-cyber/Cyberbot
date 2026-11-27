@@ -101,3 +101,16 @@ aktarılmaz. Haber içeriği ve fiyat etkisi doğrulanmış kabul edilmez.
 Bu bağlantı ayrı çalışanın kurulumunu, kaynak yetkilerini, bildirim kuyruğunu,
 push aboneliğini, VAPID yapılandırmasını veya cihaz teslim testini yapmaz.
 Mobil erişim mevcut güvenli erişim korumasına tabidir; mutasyon açılmaz.
+
+## Bildirim motorunun birleşik sürümü
+
+Bildirim çalışma motoru ve çevrimdışı testleri aynı geliştirme dalına seçici
+aktarılmıştır. Mevcut panel ve erişim kontrolü korunur. Windows başlatıcısında
+`-Mode StartPanel -ConnectNotifications` aynı kullanıcının .cyberbot-private
+altındaki üç salt okunur girdiyi seçer; çalışanı başlatmaz, abonelik oluşturmaz.
+Ayrı bildirim ortamı için tools/notification_setup.ps1 önizleme ile incelenir;
+kurulum ve çalıştırma açık onay ister. Worker varsayılan olarak başlamaz;
+--enable olmadan çalışmaz, --push olmadan cihaz teslimi yapmaz. Mevcut RSS
+arşiv köprüsü CYBERBOT_NOTIFICATION_NEWS_BRIDGE=1 ile ayrıca etkinleştirilir;
+canlı haber kaynakları ve veri hakları ayrıca doğrulanır. Push API, service
+worker ve gerçek cihaz teslimi henüz merkezi panelde etkin değildir.
