@@ -283,3 +283,18 @@ def ai_learning_status():
 @router.get("/api/integration/ai/learning")
 def learning_status():
     return ai_learning_status()
+
+from .notification_handoff import read_inbox, read_news, CATEGORIES, MARKETS as NEWS_MARKETS
+from fastapi import HTTPException
+
+@router.get("/api/integration/inbox")
+def inbox(category: str = "ALL"):
+    if category not in ("ALL", *CATEGORIES):
+        raise HTTPException(422,"Geçersiz bildirim kategorisi.")
+    return read_inbox(category=category)
+
+@router.get("/api/integration/news")
+def research_news(market: str = "ALL"):
+    if market not in ("ALL", *NEWS_MARKETS):
+        raise HTTPException(422,"Geçersiz haber piyasası.")
+    return read_news(market=market)
