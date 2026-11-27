@@ -109,3 +109,36 @@ app.include_router(development_router)
 
 from .knowledge_api import router as knowledge_router
 app.include_router(knowledge_router)
+
+# Optional single-operator notification API; existing access guard remains authoritative.
+if os.getenv("CYBERBOT_NOTIFICATION_PANEL_ENABLED") == "1":
+    from tools.notification_center import NotificationStore
+    from tools.notification_preferences import Preferences
+    from tools.notification_push_server import PushStore
+    from tools.notification_push_queue import PushQueue
+    from tools.notification_news_store import NewsStore
+    from tools.notification_panel_integration import mount_notification_panel
+
+    def notification_user(request: Request):
+        denial = authorize(request)
+        if denial:
+            raise HTTPException(403, denial)
+
+    def notification_csrf(request: Request):
+        notification_user(request)
+        host = request.headers.get("host", "")
+        scheme = "https" if os.getenv("CYBERBOT_TAILSCALE_ENABLED") == "1" else "http"
+        if request.headers.get("origin") != scheme + "://" + host:
+            raise HTTPException(403, "Bildirim kaynağı doğrulanamadı.")
+
+    notification_state = Path.home() / ".cyberbot-private"
+    notification_state.mkdir(parents=True, exist_ok=True)
+    mount_notification_panel(
+        app, store=NotificationStore(notification_state / "notifications.sqlite3"),
+        preferences=Preferences(notification_state / "preferences.sqlite3"),
+        push_store=PushStore(notification_state / "subscriptions.sqlite3"),
+        queue=PushQueue(notification_state / "push-queue.sqlite3"),
+        news_store=NewsStore(notification_state / "research-news.sqlite3"),
+        health_path=notification_state / "notification-health.json",
+        require_user=notification_user, require_csrf=notification_csrf, enabled=True,
+    )
