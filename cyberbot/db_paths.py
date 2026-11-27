@@ -46,6 +46,8 @@ def checked(base=None):
     protected["futures_diagnostics"]=futures_diagnostics_path(base)
     if os.getenv("CYBERBOT_EBBOT_DB"):protected["archive"]=resolved(os.environ["CYBERBOT_EBBOT_DB"])
     if os.getenv("CYBERBOT_FX_FILE"):protected["fx_input"]=resolved(os.environ["CYBERBOT_FX_FILE"])
+    for name,role in (("CYBERBOT_DEXTERM_ARCHIVE","dexterm_archive"),("CYBERBOT_NOTIFICATION_HEALTH_FILE","notification_health")):
+        if os.getenv(name):protected[role]=resolved(os.environ[name])
     # Reserve adapter files even with adapter disabled; no DB may overwrite them.
     protected["fx_cache"]=resolved("var/fx-provider.json")
     protected["fx_quota"]=resolved("var/fx-provider-quota.sqlite3")
