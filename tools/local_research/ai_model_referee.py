@@ -64,7 +64,8 @@ def assess(report, *, now=None, degradation_status=None):
                 not math.isfinite(v) or not 0<=v<=1e6 for v in scores.values()):
             raise ValueError("invalid paired scores")
         result={**base,"train_samples":train,"test_samples":test,"holdout_days":days,
-                "last_target_utc":end.isoformat(),"daily_weighted_mae_pct":scores,
+                "last_target_utc":end.isoformat(),"report_created_at_utc":created.isoformat(),
+                "daily_weighted_mae_pct":scores,
                 "comparison_protocol":"same_targets_frozen_batch_online_replay",
                 "retrospective_comparison_only":True}
         if (now-end).total_seconds()>MAX_AGE_DAYS*86400:
