@@ -1,7 +1,7 @@
 # Futures-only setup and foreground launch. Default mode is a read-only preview.
 [CmdletBinding()]
 param(
-    [ValidateSet('Preview','Prepare','Status','Probe','Collect','Evaluate','PaperObserve')]
+    [ValidateSet('Preview','Prepare','Status','Probe','SafetyStatus','SafetyProbe','Collect','Evaluate','PaperObserve')]
     [string]$Mode = 'Preview',
     [ValidateSet('BTCUSDT','ETHUSDT')][string]$Symbol = 'BTCUSDT',
     [ValidateRange(1,1440)][int]$Cycles = 1200,
@@ -81,6 +81,10 @@ try {
         Invoke-PythonChecked -m cyberbot.futures_live_research --symbol $Symbol --status
         return
     }
+    if ($Mode -eq 'SafetyStatus') {
+        Invoke-PythonChecked -m cyberbot.futures_safety --symbol $Symbol
+        return
+    }
     $head = Get-CleanHead
     if (-not (Test-Path -LiteralPath $marker -PathType Leaf) -or ((Get-Content -LiteralPath $marker -Raw).Trim() -ne $head)) {
         throw 'Run -Mode Prepare for this exact commit before launching.'
@@ -90,6 +94,11 @@ try {
     Set-TemporaryEnv 'CYBERBOT_BINANCE_OBSERVED_ENABLED' '1'
     Set-TemporaryEnv 'CYBERBOT_BINANCE_DATA_RIGHTS_CONFIRMED' '1'
     Set-TemporaryEnv 'CYBERBOT_FUTURES_PILOT_SYMBOL' $Symbol
+    if ($Mode -eq 'SafetyProbe') {
+        Set-TemporaryEnv 'CYBERBOT_FUTURES_SAFETY_PROBE_ENABLED' '1'
+        Invoke-PythonChecked -m cyberbot.futures_safety --symbol $Symbol --probe
+        return
+    }
     if ($Mode -eq 'Probe') {
         Invoke-PythonChecked -c 'import json; from cyberbot.providers.binance_observed import run; print(json.dumps(run(apply=False),ensure_ascii=True))'
         return

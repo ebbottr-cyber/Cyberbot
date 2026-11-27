@@ -74,6 +74,9 @@ def refresh(s,now):
     s["peak"]=str(max(D(s["peak"]),e))
 def risk_ok(s):
     e=equity(s);return e>D(s["peak"])*D(".90") and e>D(s["day_equity"])*D(".97")
+def entry_risk_budget(s):
+    e=equity(s)
+    return max(D(0),min(e*RISK,e-D(s["peak"])*D(".90"),e-D(s["day_equity"])*D(".97")))
 def fresh(q,now):
     return q is not None and 0<=(now-ts(q["source_at"])).total_seconds()<=MAX_AGE
 def entry_gate(q):
@@ -147,7 +150,7 @@ def observe(input_quote,*,clock=utc):
                     stop=entry*(1-direction*STOP);exit_stop=stop*(1-direction*SLIP)
                     loss=abs(entry-exit_stop)+FEE*(entry+exit_stop)
                     e=equity(s);depth=min(D(q["bid_depth_usdt"]),D(q["ask_depth_usdt"]))
-                    qty=min(e*RISK/loss,e*MARGIN_CAP*LEVERAGE/entry,D(s["cash"])/(entry*(1/LEVERAGE+FEE)),depth/max(D(q["ask"]),entry)).quantize(D(".000001"),rounding=ROUND_DOWN)
+                    qty=min(entry_risk_budget(s)/loss,e*MARGIN_CAP*LEVERAGE/entry,D(s["cash"])/(entry*(1/LEVERAGE+FEE)),depth/max(D(q["ask"]),entry)).quantize(D(".000001"),rounding=ROUND_DOWN)
                     if qty>0:
                         margin=qty*entry/LEVERAGE;fee=qty*entry*FEE
                         s["cash"]=str(D(s["cash"])-margin-fee)
