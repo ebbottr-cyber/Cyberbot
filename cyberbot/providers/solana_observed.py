@@ -12,6 +12,7 @@ def rpc_endpoint():
     return name,RPC_ENDPOINTS[name]
 DEX="https://api.dexscreener.com/latest/dex/pairs/solana/"
 JUP="https://api.jup.ag/swap/v2/order"
+RAYDIUM_POOL="https://api-v3.raydium.io/pools/info/ids"
 USDC="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 LEGACY="TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 AMOUNT=100_000_000
@@ -115,10 +116,13 @@ def request(client,kind,params,key,*,rpc_url=None):
     elif kind=="pool":
         if not sol.address(params):raise PilotError("Havuz kimliği geçersiz.")
         method_http,url,kw="GET",DEX+params,{}
+    elif kind=="raydium_lock":
+        if not sol.address(params):raise PilotError("Havuz kimliği geçersiz.")
+        method_http,url,kw="GET",RAYDIUM_POOL,{"params":{"ids":params}}
     elif kind=="quote":
         method_http,url,kw="GET",JUP,{"params":params,"headers":{"x-api-key":key} if key else {}}
     else:raise PilotError("İzinsiz kaynak.")
-    stage=("solana_rpc."+method if kind=="rpc" else "dexscreener.pool" if kind=="pool" else "jupiter.buy" if params.get("inputMint")==USDC else "jupiter.sell")
+    stage=("solana_rpc."+method if kind=="rpc" else "dexscreener.pool" if kind=="pool" else "raydium.lock" if kind=="raydium_lock" else "jupiter.buy" if params.get("inputMint")==USDC else "jupiter.sell")
     try:
         with client.stream(method_http,url,**kw) as res:
             res.raise_for_status();data=bytearray()
@@ -172,7 +176,41 @@ def cpmm_state(raw,mint,pool,info):
             "mints":mints,"decimals":decimals,"status_bits":data[329],
             "lp_supply_reported_raw":str(int.from_bytes(data[333:341],"little"))}
 
-def pool_probe(get,mint,pool,info):
+def lp_supply_evidence(state,lp):
+    """Separate supply discrepancy from an independently proven burn."""
+    internal=uint(state["lp_supply_reported_raw"],True)
+    circulating=lp["supply"]
+    same_slot=state["slot"]==lp["slot"]
+    gap=internal-circulating if same_slot else None
+    # Raydium CPMM reserves 100 raw LP units at initialization.
+    # A larger gap is a diagnostic, not proof of a particular burn transaction.
+    expected=100
+    return {"same_slot":same_slot,"pool_supply_raw":str(internal),
+            "mint_supply_raw":str(circulating),
+            "initial_reserved_raw":str(expected),
+            "supply_gap_raw":str(gap) if gap is not None else None,
+            "excess_gap_raw":str(gap-expected) if gap is not None and gap>=expected else None,
+            "status":"slot_mismatch" if gap is None else "unexpected_supply" if gap<expected else "additional_gap_reported" if gap>expected else "initial_reserve_only",
+            "burn_transaction_verified":False,"lp_burn_verified":False}
+def lock_report(raw,mint,pool):
+    """Provider-reported Burn & Earn percentage; never on-chain lock proof."""
+    if not isinstance(raw,dict) or raw.get("success") is not True:
+        raise PilotError("Raydium LP kilit yanıtı geçersiz.")
+    rows=raw.get("data")
+    if not isinstance(rows,list) or len(rows)!=1 or not isinstance(rows[0],dict):
+        raise PilotError("Raydium LP havuz kaydı eksik.")
+    row=rows[0]
+    if (row.get("id")!=pool or row.get("programId")!=CPMM or
+        {row.get("mintA",{}).get("address"),row.get("mintB",{}).get("address")}!={mint,USDC}):
+        raise PilotError("Raydium LP havuz kimliği uyuşmuyor.")
+    v=row.get("burnPercent")
+    if type(v) not in (int,float):raise PilotError("Raydium LP kilit oranı eksik.")
+    locked=sol.number(v,high="100")
+    return {"status":"provider_reported_only","reported_lock_pct":str(locked),
+            "not_reported_locked_pct":str(D(100)-locked),
+            "source_timestamp_verified":False,"lp_lock_verified":False,
+            "withdrawable_liquidity_verified":False,"trade_eligible":False}
+def pool_probe(get,mint,pool,info,*,lock_probe=False):
     """Read-only CPMM vault and LP supply evidence; not proof of a lock or burn."""
     def rpc(method,args):return get("rpc",(method,args))
     raw=rpc("getAccountInfo",[pool,{"encoding":"base64","commitment":"finalized","minContextSlot":info["slot"]}])
@@ -205,15 +243,18 @@ def pool_probe(get,mint,pool,info):
     lp_slot,_=rpc_result(largest)
     if not slot<=lp_slot<=info["slot"]+20:raise PilotError("LP örneklem slot uyumsuz.")
     lp_accounts=concentration(largest,lp)
+    supply=lp_supply_evidence(state,lp)
+    lock=lock_report(get("raydium_lock",pool),mint,pool) if lock_probe else None
     usdc=D(reserves[state["mints"].index(USDC)])/D(10**6)
     flags=[]
+    if supply["status"]=="unexpected_supply":flags.append("lp_supply_inconsistent")
     if not all(reserves):flags.append("empty_vault")
     if state["status_bits"]&7:flags.append("pool_operation_disabled")
     if D(lp_accounts["top10_token_account_pct"])>30:flags.append("lp_account_concentration_above_30pct")
     return {**result,"status":"cpmm_reported_evidence_only","state":state,"vault_slot":slot,
             "vault_balances_raw":[str(n) for n in reserves],"usdc_vault_balance":str(usdc),
             "lp_mint_supply_raw":str(lp["supply"]),"lp_account_sample":lp_accounts,
-            "risk_flags":flags,"rug_pull_risk_resolved":False}
+            "risk_flags":flags,"lp_supply_evidence":supply,"lp_lock_report":lock,"rug_pull_risk_resolved":False}
 def risk_screen(info,holders,pooldata,ask,bid):
     """Screen reported observations only; never authorize a pilot quote or fill."""
     liquidity=sol.number(pooldata["liquidity_usd_reported"])
@@ -257,7 +298,7 @@ def quote_ladder(samples,decimals):
             "samples":rows,"source_synchronization_verified":False,
             "execution_slippage_verified":False,"depth_verified":False,
             "trade_eligible":False,"pilot_applied":False,"real_orders":False}
-def run(*,transport=None,clock=utc,depth_probe=False,owner_probe=False,vault_probe=False):
+def run(*,transport=None,clock=utc,depth_probe=False,owner_probe=False,vault_probe=False,lock_probe=False):
     if not configured():raise PilotError("Solana veri adaptörü veya kullanım izni/anahtarı eksik.")
     mint,pool=sol.config()
     if mint==USDC:raise PilotError("USDC baz token olamaz.")
@@ -279,7 +320,7 @@ def run(*,transport=None,clock=utc,depth_probe=False,owner_probe=False,vault_pro
             raw=get("rpc",("getMultipleAccounts",[addresses,{"encoding":"jsonParsed","commitment":"finalized","minContextSlot":holders["slot"]}]))
             owners=owner_sample(largest,raw,info,mint)
         pooldata=pool_info(get("pool",pool),mint,pool)
-        vaults=pool_probe(get,mint,pool,info) if vault_probe else None
+        vaults=pool_probe(get,mint,pool,info,lock_probe=lock_probe) if vault_probe or lock_probe else None
         def query(a,b,n):return quote(get("quote",{"inputMint":a,"outputMint":b,"amount":str(n)}),a,b,n,pool)
         samples=[]
         for size in ((25,50,100) if depth_probe else (100,)):
