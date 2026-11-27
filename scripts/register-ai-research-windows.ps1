@@ -4,15 +4,15 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $script = Join-Path $root 'scripts\ai-research-windows.ps1'
 $plans = @(
-    @{ Name = 'Cyberbot-AI-Chronos'; Mode = 'Chronos'; Time = '00:01'; Interval = 15; Limit = 15 },
-    @{ Name = 'Cyberbot-AI-RiverLive'; Mode = 'RiverLive'; Time = '00:00'; Interval = 15; Limit = 14 },
+    @{ Name = 'Cyberbot-AI-Chronos'; Mode = 'Chronos'; Time = '00:01'; Interval = 20; Limit = 15 },
+    @{ Name = 'Cyberbot-AI-RiverLive'; Mode = 'RiverLive'; Time = '00:00'; Interval = 20; Limit = 14 },
     @{ Name = 'Cyberbot-AI-LightGBM'; Mode = 'LightGBM'; Time = '02:12'; Interval = 0; Limit = 30 },
-    @{ Name = 'Cyberbot-AI-RiverReplay'; Mode = 'RiverReplay'; Time = '00:13'; Interval = 30; Limit = 3 },
+    @{ Name = 'Cyberbot-AI-RiverReplay'; Mode = 'RiverReplay'; Time = '00:16'; Interval = 60; Limit = 3 },
     @{ Name = 'Cyberbot-AI-ForwardBackup'; Mode = 'Backup'; Time = '03:15'; Interval = 0; Limit = 5 },
     @{ Name = 'Cyberbot-AI-Watchdog'; Mode = 'Watchdog'; Time = '00:05'; Interval = 5; Limit = 1 }
 )
 if (-not $Register) {
-    Write-Host 'PREVIEW: Chronos every 15 minutes; River live every 15 minutes; LightGBM at 02:12; River replay every 30 minutes; forward backup at 03:15; read-only watchdog every 5 minutes, local time.'
+    Write-Host 'PREVIEW: Chronos and River live every 20 minutes; River replay hourly at :16; maintenance 02:00-03:40; LightGBM at 02:12; forward backup at 03:15; watchdog every 5 minutes, local time.'
     Write-Host 'All tasks will be disabled, interactive user only, AC power only. No task started.'
     Write-Host ('Run missed daily tasks when available: ' + [bool]$ResumeMissedDaily)
     return
