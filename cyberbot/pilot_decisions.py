@@ -50,7 +50,7 @@ def context(m,symbol,now):
 def completed_minutes(db,m,q,now):
     current=int(now.timestamp()//60);want=list(range(current-MINUTES,current));values={}
     # Restrict to actual observation rows; requests/decisions never become price samples.
-    rows=db.execute("SELECT at,payload FROM observed_events WHERE market=? AND event!='request' AND event!='shadow_decision' ORDER BY id DESC LIMIT ?",(m,MAX_ROWS)).fetchall()
+    rows=db.execute("SELECT at,payload FROM observed_events WHERE market=? AND event!='request' AND event!='ai_auto_request' AND event!='shadow_decision' ORDER BY id DESC LIMIT ?",(m,MAX_ROWS)).fetchall()
     for recorded,payload in rows:
         d=json.loads(payload);v=d.get("quote")
         if not v or v.get("source")!=q["source"] or v.get("venue")!=q.get("venue"):continue

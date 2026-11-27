@@ -12,7 +12,7 @@ def source_for(market):
     if not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}",source):raise PilotError("Piyasa için açık kaynak kimliği gerekli.")
     return source
 
-def ingest(envelope,*,clock=stocks.utc):
+def ingest(envelope,*,clock=stocks.utc,auto_paper=False):
     if os.getenv("CYBERBOT_PILOT_INGRESS_ENABLED")!="1" or not stocks.permitted():raise PilotError("Yerel giriş veya veri izni kapalı.")
     if not isinstance(envelope,dict) or set(envelope)!={"schema","market","quote"} or envelope["schema"]!=SCHEMA:raise PilotError("Girdi şeması geçersiz.")
     market=envelope["market"];q=envelope["quote"]
@@ -24,7 +24,7 @@ def ingest(envelope,*,clock=stocks.utc):
         if not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}",fx_source) or not isinstance(fx,dict) or fx.get("source")!=fx_source:raise PilotError("Kur kaynağı izin listesinde değil.")
     # The actual pilot is still responsible for timestamp, order, depth and risk validation.
     if market=="SOLANA":result=sol.observe(q,clock=clock)
-    elif market=="FUTURES":result=fut.observe(q,clock=clock)
+    elif market=="FUTURES":result=fut.observe(q,clock=clock,auto_paper=True) if auto_paper else fut.observe(q,clock=clock)
     else:result=stocks.observe(market,q,clock=clock)
     return {"market":market,"status":result["status"],"source":q["source"],"source_verified":False,"provider_connected":False,"real_orders":False,"automatic_entry_enabled":False}
 

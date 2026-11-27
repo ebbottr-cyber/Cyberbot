@@ -141,7 +141,8 @@ def orderbook_context(raw,book,sym,now):
             "depth_bands":bands,"indicative_sweeps":probes,
             "rpi_included":False,"full_book_verified":False,"execution_verified":False,
             "directional_signal":None,"pilot_applied":False,"real_orders":False}
-def run(*,apply=False,transport=None,clock=stocks.utc,context_probe=False,depth_probe=False):
+def run(*,apply=False,transport=None,clock=stocks.utc,context_probe=False,depth_probe=False,auto_paper=False):
+    if auto_paper and (not apply or transport is not None or not fut.auto_enabled()):raise PilotError("Otomatik sanal gözlem izni kapalı.")
     if apply and (context_probe or depth_probe):raise PilotError("Piyasa bağlamı yalnız salt okunur tanılama modunda.")
     if not configured():raise PilotError("Binance adaptörü veya veri kullanım izni kapalı.")
     if apply and (not fut.enabled() or os.getenv("CYBERBOT_PILOT_INGRESS_ENABLED")!="1" or source_for("FUTURES")!=SOURCE):raise PilotError("Futures pilot/giriş izni veya kaynak ayarı eksik.")
@@ -167,5 +168,5 @@ def run(*,apply=False,transport=None,clock=stocks.utc,context_probe=False,depth_
     envelope={"schema":SCHEMA,"market":"FUTURES","quote":q}
     result={"status":"quote_validated","symbol":sym,"source":SOURCE,"source_at":q["source_at"],"quote":q,"market_context":context,"orderbook_context":depth,"applied":False,"live_data_verified":False,"exchange_execution_verified":False,"real_orders":False,"automatic_entry_enabled":False,"bulk_price_download_enabled":False,"transport_mocked":transport is not None}
     if apply:
-        result["ingress"]=ingest(envelope,clock=clock);result["applied"]=True
+        result["ingress"]=ingest(envelope,clock=clock,auto_paper=True) if auto_paper else ingest(envelope,clock=clock);result["applied"]=True
     return result

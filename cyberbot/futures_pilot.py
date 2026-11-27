@@ -100,6 +100,76 @@ def request(side,*,clock=utc):
         elif halted(db) or s["position"] or not risk_ok(s) or not entry_gate(q):raise PilotError("Giriş/risk kapısı kapalı.")
         s["pending"]=intent(side,now,"manual");save(db,s,now,"request",s["pending"])
         return {"status":"pending","real_orders":False}
+def auto_enabled():
+    return enabled() and all(os.getenv(k)=="1" for k in (
+        "CYBERBOT_FUTURES_AUTO_PAPER_ENABLED","CYBERBOT_FUTURES_AUTO_PAPER_CONFIRMED",
+        "CYBERBOT_BINANCE_OBSERVED_ENABLED","CYBERBOT_BINANCE_DATA_RIGHTS_CONFIRMED",
+        "CYBERBOT_PILOT_INGRESS_ENABLED")) and os.getenv("CYBERBOT_INGRESS_SOURCE_FUTURES")=="binance-usdm-public"
+
+def queue_auto(candidate,*,gate,clock=utc):
+    if not auto_enabled():raise PilotError("Otomatik sanal giriş kapalı.")
+    sym=symbol()
+    if (candidate.get("version")!="futures-ai-bridge-1" or candidate.get("status")!="shadow_candidate"
+        or candidate.get("symbol")!=sym or candidate.get("actual_action")!="HOLD"
+        or candidate.get("real_orders") is not False or candidate.get("paper_orders") is not False
+        or candidate.get("blockers")!=[]):raise PilotError("AI aday kimliği geçersiz.")
+    side=candidate["research_candidate"];p=candidate["risk_proposal"];ref=candidate["risk_quote_reference"]
+    if side not in ("LONG","SHORT") or p["side"]!=side:raise PilotError("AI yönü geçersiz.")
+    feature=ts(candidate["forecast"]["feature_at"]);target=feature+timedelta(minutes=5)
+    expiry=ts(candidate["valid_until"])
+    stop=number(p["stop_distance_pct"],".5","5")/100
+    target_pct=number(p["target_distance_pct"],"1","10")/100
+    if target_pct!=min(TARGET,2*stop):raise PilotError("AI hedef mesafesi geçersiz.")
+    lev=number(p["leverage_cap"],"1","2")
+    if lev not in (D(1),D(2)):raise PilotError("AI kaldıraç sınırı.")
+    cap=number(p["quantity"],".000001","1000000000")
+    budget=number(p["risk_budget_usdt"],".00000001","1000000000")
+    reserve=number(p["funding_reserve_usdt"],"0","1000000000")/cap
+    with tx() as db:
+        now=clock();s=load(db,sym);q=s["quote"]
+        if not feature<=now<min(expiry,target) or (now-feature).total_seconds()>90:
+            raise PilotError("AI aday süresi doldu.")
+        if halted(db) or s["position"] or s["pending"] or not fresh(q,now) or not entry_gate(q):
+            raise PilotError("Sanal giriş kapısı kapalı.")
+        if s["day"]!=now.date().isoformat() or not risk_ok(s) or entry_risk_budget(s)<=0:
+            raise PilotError("Sanal risk bütçesi kapalı.")
+        mid=(D(q["bid"])+D(q["ask"]))/2
+        if (q["source"],q["source_at"],mid)!=(ref["source"],ref["source_at"],number(ref["mid"],".00000001","1000000000")) or q["source"]!="binance-usdm-public":
+            raise PilotError("Risk kotasyonu değişti.")
+        last=s.get("auto_last_feature")
+        if last and feature<=ts(last):raise PilotError("AI tahmini daha önce kullanıldı.")
+        count=s.get("auto_attempts",0) if s.get("auto_day")==now.date().isoformat() else 0
+        if count>=3:raise PilotError("Günlük otomatik sanal deneme sınırı.")
+        if not gate(now):raise PilotError("AI ileri kanıtı değişti.")
+        now2=clock()
+        if not now<=now2<min(expiry,target) or not fresh(q,now2) or now2.date()!=now.date() or halted(db):
+            raise PilotError("AI aday süresi veya risk freni değişti.")
+        order=intent(side,now2,"ai_auto")
+        order.update(expires_at=min(expiry,now2+timedelta(seconds=20)).isoformat(),
+                     feature_at=feature.isoformat(),target_at=target.isoformat(),reference_mid=str(mid),
+                     stop_pct=str(stop),target_pct=str(target_pct),leverage=str(lev),
+                     quantity_cap=str(cap),risk_budget_cap=str(budget),funding_reserve_unit=str(reserve))
+        s.update(pending=order,auto_last_feature=feature.isoformat(),auto_day=now2.date().isoformat(),auto_attempts=count+1)
+        save(db,s,now2,"ai_auto_request",order)
+        return {"status":"pending","side":side,"expires_at":order["expires_at"],"real_orders":False}
+
+def auto_terms(order,q,s,entry,direction):
+    """Recompute quantity caps at the actual modeled fill; no increases over proposal."""
+    lev=number(order["leverage"],"1","2");stop=number(order["stop_pct"],".005",".05")
+    target=number(order["target_pct"],".01",".10")
+    mid=(D(q["bid"])+D(q["ask"]))/2
+    if abs(mid/D(order["reference_mid"])-1)>D(".002"):return D(0),lev,stop,target
+    spread=(D(q["ask"])-D(q["bid"]))/mid
+    exit_stop=entry*(1-direction*stop)*(1-direction*(2*SLIP+spread))
+    reserve=max(D(order["funding_reserve_unit"]),D(".002")*max(entry,exit_stop))
+    loss=abs(entry-exit_stop)+FEE*(entry+exit_stop)+reserve
+    liq=(entry-entry/lev+reserve)/(1-MMR-FEE) if direction>0 else (entry+entry/lev-reserve)/(1+MMR+FEE)
+    if exit_stop<=0 or direction>0 and exit_stop<=liq or direction<0 and exit_stop>=liq:return D(0),lev,stop,target
+    e=equity(s);depth=min(D(q["bid_depth_usdt"]),D(q["ask_depth_usdt"]))
+    qty=min(D(order["quantity_cap"]),min(entry_risk_budget(s),D(order["risk_budget_cap"]))/loss,
+            e*MARGIN_CAP*lev/entry,D(s["cash"])/(entry*(1/lev+FEE)),depth/max(D(q["ask"]),entry,exit_stop))
+    return qty.quantize(D(".000001"),rounding=ROUND_DOWN),lev,stop,target
+
 def settle(s,reason,price,*,liquidated=False):
     p=s["position"];qty=D(p["qty"])
     recovered=D(0) if liquidated else max(D(0),residual(p,price)-qty*price*FEE)
@@ -107,7 +177,7 @@ def settle(s,reason,price,*,liquidated=False):
     if liquidated:s["liquidations"]+=1
     else:s["fills"]+=1
     return {"reason":reason,"observed_price":str(price),"pnl":str(recovered-D(p["margin"])-D(p["entry_fee"])),"funding":p["funding"],"isolated_loss_capped":True,"exchange_execution_verified":False}
-def observe(input_quote,*,clock=utc):
+def observe(input_quote,*,clock=utc,auto_paper=False):
     if not enabled():raise PilotError("Futures pilotu veya veri izni kapalı.")
     sym=symbol()
     with tx() as db:
@@ -132,6 +202,8 @@ def observe(input_quote,*,clock=utc):
         order=s["pending"]
         if order and order["side"]!="CLOSE" and halted(db):
             s["pending"]=None;event="entry_cancelled"
+        elif order and order.get("reason")=="ai_auto" and (not auto_paper or not auto_enabled()):
+            s["pending"]=None;event="entry_cancelled"
         elif order and order["side"]!="CLOSE" and (now>ts(order["expires_at"]) or ts(order["requested_at"]).date()!=now.date()):
             s["pending"]=None;event="expired"
         elif order and ts(q["source_at"])>ts(order["requested_at"]):
@@ -151,15 +223,23 @@ def observe(input_quote,*,clock=utc):
                     loss=abs(entry-exit_stop)+FEE*(entry+exit_stop)
                     e=equity(s);depth=min(D(q["bid_depth_usdt"]),D(q["ask_depth_usdt"]))
                     qty=min(entry_risk_budget(s)/loss,e*MARGIN_CAP*LEVERAGE/entry,D(s["cash"])/(entry*(1/LEVERAGE+FEE)),depth/max(D(q["ask"]),entry)).quantize(D(".000001"),rounding=ROUND_DOWN)
+                    lev=LEVERAGE;stop_pct=STOP;target_pct=TARGET
+                    if order.get("reason")=="ai_auto":
+                        qty,lev,stop_pct,target_pct=auto_terms(order,q,s,entry,direction)
                     if qty>0:
-                        margin=qty*entry/LEVERAGE;fee=qty*entry*FEE
+                        margin=qty*entry/lev;fee=qty*entry*FEE
                         s["cash"]=str(D(s["cash"])-margin-fee)
                         s["position"]={"side":order["side"],"qty":str(qty),"entry":str(entry),"margin":str(margin),"entry_fee":str(fee),"funding":"0","opened_at":q["source_at"]}
+                        if order.get("reason")=="ai_auto":
+                            s["position"].update(origin="ai_auto",leverage=str(lev),stop_pct=str(stop_pct),
+                                                 target_pct=str(target_pct),target_at=order["target_at"],feature_at=order["feature_at"])
                         s["fills"]+=1;event="open_fill";detail=dict(s["position"])
         p=s["position"]
         if p and not s["pending"]:
             move=sign(p)*(D(q["mark"])/D(p["entry"])-1)
-            if move<=-STOP or move>=TARGET:s["pending"]=intent("CLOSE",now,"stop" if move<=-STOP else "target")
+            stop=D(p.get("stop_pct",STOP));target=D(p.get("target_pct",TARGET))
+            if move<=-stop or move>=target:s["pending"]=intent("CLOSE",now,"stop" if move<=-stop else "target")
+            elif p.get("origin")=="ai_auto" and now>=ts(p["target_at"]):s["pending"]=intent("CLOSE",now,"ai_horizon")
         refresh(s,now);save(db,s,now,event,{"quote":q,"funding_applied":applied,"funding_supplied":records,"result":detail,"pending":s["pending"]})
         return {"status":event,"pending":s["pending"],"real_orders":False}
 def snapshot(*,clock=utc):
@@ -174,5 +254,5 @@ def snapshot(*,clock=utc):
     now=clock();q=s["quote"];pos=s["position"];valid=fresh(q,now)
     due=bool(pos and (int(now.timestamp()//FUNDING_PERIOD)>int(ts(q["source_at"]).timestamp()//FUNDING_PERIOD)))
     depth_ok=not pos or D(pos["qty"])*D(q["bid"] if sign(pos)>0 else q["ask"])<=D(q["bid_depth_usdt"] if sign(pos)>0 else q["ask_depth_usdt"])
-    result.update(initialized=True,cash=s["cash"],equity=str(equity(s)) if valid and not due and depth_ok else None,quote_fresh=valid,funding_due=due,position=pos,pending=s["pending"],fills=s["fills"],liquidations=s["liquidations"],gap_count=s["gap_count"],funding_events=s["funding_events"],last_quote_at=q["source_at"],valuation_depth_asserted=depth_ok)
+    result.update(initialized=True,position_leverage=pos.get("leverage","2") if pos else None,auto_attempts=s.get("auto_attempts",0) if s.get("auto_day")==now.date().isoformat() else 0,cash=s["cash"],equity=str(equity(s)) if valid and not due and depth_ok else None,quote_fresh=valid,funding_due=due,position=pos,pending=s["pending"],fills=s["fills"],liquidations=s["liquidations"],gap_count=s["gap_count"],funding_events=s["funding_events"],last_quote_at=q["source_at"],valuation_depth_asserted=depth_ok)
     return result
