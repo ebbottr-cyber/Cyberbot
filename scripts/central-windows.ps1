@@ -39,7 +39,9 @@ try {
     $head = Get-CleanHead
     if ($Mode -eq 'Prepare') {
         if (Test-Path -LiteralPath $marker) { Remove-Item -LiteralPath $marker -Force }
-        & (Join-Path $PSScriptRoot 'prepare-pilot-windows.ps1') -Prepare
+        $prepareArgs = @('-Prepare')
+        if ($IncludeAI) { $prepareArgs += '-PreferPython311' }
+        & powershell.exe -NoProfile -File (Join-Path $PSScriptRoot 'prepare-pilot-windows.ps1') @prepareArgs
         if ($LASTEXITCODE -ne 0) { throw 'Preparation failed.' }
         if ($IncludeAI) {
             & powershell.exe -NoProfile -File (Join-Path $PSScriptRoot 'setup-ai-windows.ps1') -Install -IncludeReviewRuntime
@@ -56,12 +58,16 @@ try {
     }
     if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Run -Mode Prepare first.' }
     if ($Mode -eq 'Status') {
-        & (Join-Path $PSScriptRoot 'prepare-pilot-windows.ps1')
+        & powershell.exe -NoProfile -File (Join-Path $PSScriptRoot 'prepare-pilot-windows.ps1')
         if ($LASTEXITCODE -ne 0) { throw 'Status failed.' }
         return
     }
     if ($Mode -ne 'StatusAll' -and (-not (Test-Path -LiteralPath $marker -PathType Leaf) -or ((Get-Content -LiteralPath $marker -Raw).Trim() -ne $head))) { throw 'Run -Mode Prepare for this exact commit.' }
     if ($Mode -eq 'StatusAll') {
+        Set-ScopedEnv 'PYTHONPATH' $null
+        Set-ScopedEnv 'PYTHONHOME' $null
+        Set-ScopedEnv 'CYBERBOT_DB' (Join-Path $root 'var\paper.sqlite3')
+        Set-ScopedEnv 'CYBERBOT_LEARNING_DB' (Join-Path $root 'var\learning.sqlite3')
         if ($ConnectAI) { Set-ScopedEnv 'CYBERBOT_AI_PANEL_ENABLED' '1' }
         if ($ConnectNotifications) {
             $state = Join-Path $HOME '.cyberbot-private'
