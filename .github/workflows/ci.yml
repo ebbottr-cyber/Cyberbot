@@ -36,7 +36,8 @@ jobs:
           & .\scripts\register-pilot-windows.ps1
           & .\scripts\futures-windows.ps1
           $preview = & .\scripts\central-windows.ps1 | ConvertFrom-Json
-          if ($preview.writes -ne $false -or $preview.network -ne $false -or $preview.starts_services -ne $false) { throw 'Central preview must be non-mutating.' }
+          if ($preview.writes -ne $false -or $preview.network -ne $false -or $preview.starts_services -ne $false -or $preview.real_orders -ne $false) { throw 'Central preview must be non-mutating.' }
+          foreach ($mode in @('Prepare','StatusAll','StartPanel','StartNotifications')) { if ($mode -notin $preview.modes) { throw 'Central management mode missing.' } }
 
       - name: Windows AI script parse and safe previews
         if: matrix.os == 'windows-latest'
