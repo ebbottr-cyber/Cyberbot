@@ -159,3 +159,39 @@ market records. Native runtime and Windows scheduling tests remain separate.
 Do not display local file paths, raw forecasts, environment variables, secrets
 or model weights in the panel. The PWA team owns frontend and authenticated
 route integration; this module does not alter either.
+
+## Optional Windows paired-research coordinator
+
+The existing local launcher supports ResearchReview using a separate
+ReviewRuntime with LightGBM 4.6.0 and River 0.23.0. The coordinator's default
+Python invocation is read-only. Explicit execution is intended only through
+the resource-controlled Windows launcher. It runs the paired research
+comparison when the learning planner has enough evidence; it does not
+automatically train and register a deployable candidate, start a challenger
+trial, activate a model, or submit any orders.
+
+Preview first, from the reviewed checkout:
+
+    .\scripts\setup-ai-windows.ps1 -IncludeReviewRuntime
+    .\scripts\register-ai-review-windows.ps1
+
+After reviewing installation sources, runtime tests and local data rights,
+the respective -Install and -Register switches are explicit opt-in actions.
+The separate registrar creates only Cyberbot-AI-ResearchReview, disabled,
+at 02:45 local time with a 20-minute execution limit, interactive user and
+AC power only. It does not replace the original six tasks or enable any
+task. Missed daily review work is not configured to catch up later.
+
+Nominal sequence: LightGBM 02:12 (30-minute limit), paired review 02:45
+(20-minute limit), forward backup 03:15 (5-minute limit). The launcher
+checks at least 5 GiB available RAM and disk, a sampled CPU load below 70%,
+and both research mutexes before paired review. These are soft admission
+checks; they do not limit process memory or protect against independently
+invoked scripts, other logon sessions, or subsequent resource spikes.
+Unexpected overlaps defer rather than queue. The paired journal has a
+16 MiB admission threshold in the coordinator. All activity remains local.
+
+The existing watchdog's five-task schema does not yet monitor this optional
+review task. Inspect that task separately in Windows Task Scheduler.
+Windows CI checks script parsing and non-mutating previews, not actual
+task creation, native model performance or scheduled execution on the PC.
