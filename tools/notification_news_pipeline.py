@@ -16,6 +16,9 @@ def process_news(news_store, record, *, provider=None, ai_enabled=False, enabled
     if market is not None and market not in MARKETS:
         raise ValueError("Invalid market")
     key=hashlib.sha256((record["source"].upper()+":"+record["source_id"]).encode()).hexdigest()
+    if news_store.contains("research:"+key):
+        return {"status":"duplicate","event_key":"research:"+key,
+                "ai_status":"skipped_duplicate","research_only":True,"orders_enabled":False}
     analysis=enrich_news(record["title"],summary,record["source"],provider,enabled=ai_enabled,symbol_aliases=symbol_aliases)
     candidates=analysis["candidate_markets"]
     if market is None:
