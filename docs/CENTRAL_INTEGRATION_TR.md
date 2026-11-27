@@ -159,3 +159,14 @@ Arşiv yazıcısı kapalıyken, açık araştırma hakları ve giriş freni ile
 /api/integration/ai/dexterm üzerinden salt okunur gösterilir. River ölçümü sabit
 model ölçümü ile doğrudan karşılaştırılamaz. Canlı ileri performans, yeni çıkış
 kotasyonu toplama ve PC üzerinde yerel model çalışma zamanı henüz doğrulanmadı.
+
+## Merkezi hazırlık denetimi
+
+Sistem Sağlığı ekranı /api/integration/preflight üzerinden Python, temel
+bağımlılıklar, kasa izolasyonu ve giriş freni ile beş piyasanın yerel hazırlık
+engellerini gösterir. DexTerm eski Solana pilotundan bağımsızdır; arşiv varlığı
+canlı kotasyon veya sanal dolum doğrulaması değildir. BIST/NASDAQ/XETRA için
+izinli kotasyon ve seans, XETRA için EUR/USD kaynağı, Futures için bağlantı ve
+fonlama, DexTerm için yeni kotasyon ve aynı motorla ileri gözlem PC'de ayrıca
+denenir. Ön denetim ağ sorgusu, test çalıştırma veya otomatik işlem izni değildir.
+CI ve yerel çalışma zamanı doğrulanmadan ana dala birleştirilmez.
