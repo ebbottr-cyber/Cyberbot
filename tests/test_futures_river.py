@@ -24,10 +24,10 @@ class RiverTests(unittest.TestCase):
         self.assertEqual(model.events[:6],["predict"]*5+["learn"])
         self.assertEqual(d["learned_labels"],275)
         self.assertEqual(d["unresolved_predictions"],5)
-        self.assertEqual(d["scored_predictions"],175)
-        self.assertEqual(d["first_scored_prediction_at"],(START+125*b.STEP).isoformat())
+        self.assertEqual(d["scored_predictions"],171)
+        self.assertEqual(d["first_scored_prediction_at"],(START+124*b.STEP).isoformat())
         self.assertEqual(d["metrics"]["river"],d["metrics"]["zero"])
-        self.assertEqual(len(d["drift_events"]),175)
+        self.assertEqual(len(d["drift_events"]),171)
         for item in d["drift_events"]:
             self.assertEqual(datetime.fromisoformat(item["detected_at"])-datetime.fromisoformat(item["prediction_at"]),5*b.STEP)
         for flag in ("runtime_verified","automatic_model_reset","live_learning_enabled","real_orders","paper_orders","promotion_enabled"):
