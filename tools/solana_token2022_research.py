@@ -7,6 +7,7 @@ from cyberbot.providers.solana_observed import request,rpc_result,uint,LEGACY,RP
 from cyberbot.observed_pilot import utc
 from tools.dexterm_research_archive import APP_ID
 from tools.dexterm_pool_bridge import FLAGS
+from tools.solana_token2022_extension_state import observe
 
 TOKEN2022="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 EXTENSIONS={"transferFeeConfig","mintCloseAuthority","confidentialTransferMint",
@@ -22,7 +23,7 @@ def authority(info,key):
     if address(info[key]):return "present"
     raise ValueError("Invalid authority")
 
-def classify(raw):
+def classify(raw,*,mint=None):
     slot,v=rpc_result(raw)
     if not isinstance(v,dict) or not address(v.get("owner")) or type(v.get("executable")) is not bool:
         raise ValueError("Invalid account")
@@ -48,7 +49,7 @@ def classify(raw):
     if ext is None:
         return dict(d,status="token2022_observed",extension_list_reported=False,reported_extensions=[],unknown_extension_count=None)
     if not isinstance(ext,list) or len(ext)>64:raise ValueError("Invalid extension list")
-    names=[];unknown=0
+    names=[];details=[];unknown=0
     for x in ext:
         if not isinstance(x,dict) or not isinstance(x.get("extension"),str):
             raise ValueError("Invalid extension entry")
@@ -56,9 +57,11 @@ def classify(raw):
         if name in EXTENSIONS:
             if name in names:raise ValueError("Duplicate extension")
             names.append(name)
+            details.append(observe(x,mint))
         else:unknown+=1
     return dict(d,status="token2022_observed",extension_list_reported=True,
                 reported_extensions=sorted(names),unknown_extension_count=unknown,
+                extension_state_observations=sorted(details,key=lambda x:x["extension"]),
                 extension_state_verified=False)
 
 def archived_mints(database,limit):
@@ -71,7 +74,7 @@ def archived_mints(database,limit):
         rows=con.execute("""SELECT o.mint FROM research_observations o
           JOIN research_reports r ON r.digest=o.digest
           WHERE o.kind='snapshot' AND o.status='diagnostic_unsupported_mint'
-          GROUP BY o.mint ORDER BY MAX(r.imported_utc) DESC,o.mint LIMIT ?""",(limit,)).fetchall()
+          GROUP BY o.mint ORDER BY (SELECT COUNT(*) FROM research_observations seen WHERE seen.mint=o.mint AND seen.kind='token2022'),MAX(r.imported_utc) DESC,o.mint LIMIT ?""",(limit,)).fetchall()
         mints=[r[0] for r in rows]
         if any(not address(m) for m in mints):raise ValueError("Invalid archived mint")
         return mints
@@ -89,7 +92,7 @@ def run(database,*,limit=3,request_fn=request,sleep=time.sleep):
             if i:sleep(3)
             try:
                 raw=request_fn(c,"rpc",("getAccountInfo",[mint,{"encoding":"jsonParsed","commitment":"finalized"}]),"",rpc_url=RPC_ENDPOINTS["rpcnode"])
-                out["observations"].append({"mint":mint,**classify(raw)})
+                out["observations"].append({"mint":mint,**classify(raw,mint=mint)})
             except (ValueError,KeyError,TypeError,OSError,ArithmeticError,AttributeError,httpx.HTTPError) as e:
                 out["observations"].append({"mint":mint,"status":"rejected","reason":str(e) if isinstance(e,PilotError) else type(e).__name__})
                 out["status"]="research_partial"
