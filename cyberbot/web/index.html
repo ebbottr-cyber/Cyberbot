@@ -23,7 +23,56 @@ nav.tiles a.tile{display:flex;flex-direction:column;align-items:flex-start;justi
 @media(min-width:760px){.metrics{grid-template-columns:repeat(4,minmax(0,1fr))}.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}.metric{padding:18px}.performance{padding:18px}.performance svg{max-height:280px}.tile strong{font-size:20px}}
 @media(max-width:500px){main{padding:12px max(13px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(13px,env(safe-area-inset-left))}.metric .value{font-size:clamp(18px,5.5vw,25px)}}
 @media(max-width:320px){.tile strong{font-size:16px}.tile span{font-size:12px}.metric{padding:10px 8px}}
-</style><link rel="stylesheet" href="/ui/panel-mobile.css"></head><body><main>
+</style><link rel="stylesheet" href="/ui/panel-mobile.css"><style id="desktop-dashboard-layout">
+/* Desktop Obsidian workspace; mobile/PWA layout stays unchanged below 1024px. */
+@media (min-width:1024px){
+  :root{--sidebar-width:248px;--workspace-gap:20px}
+  body{background:#0b1018}
+  main{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--workspace-gap);max-width:none;width:auto;margin:0 0 0 var(--sidebar-width);padding:28px 30px 40px;min-height:100vh}
+  main>header{margin:0;padding:0 0 18px;border-bottom:1px solid #263449}
+  header h1{font-size:28px;letter-spacing:.12em}
+  header .tag{font-size:11px;padding:8px 12px;border:1px solid #28645e;border-radius:6px;background:#102b2d}
+  main>.statusline{margin:0;color:var(--muted)}
+  main>.metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+  .metric,.performance,.card{border:1px solid #263449;border-radius:12px}
+  .metric{padding:18px 16px;min-height:120px}
+  .metric .value{font-size:clamp(20px,2vw,32px)}
+  .metric small,.muted{font-size:13px}
+  nav.tiles{position:fixed;inset:0 auto 0 0;width:var(--sidebar-width);height:100vh;height:100dvh;display:flex;flex-direction:column;align-items:stretch;gap:4px;margin:0;padding:24px 12px 20px;background:#101722;border-right:1px solid #263449;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;z-index:10}
+  nav.tiles::before{content:"OBSIDIAN / CYBERBOT";display:block;flex:none;color:var(--accent);font-size:13px;font-weight:750;letter-spacing:.09em;padding:9px 10px 18px;border-bottom:1px solid #263449;margin-bottom:8px}
+  nav.tiles a.tile{display:grid;grid-template-columns:20px minmax(0,1fr);grid-template-rows:auto auto;align-items:center;align-content:center;justify-content:stretch;gap:3px 9px;flex:none;min-height:55px;padding:9px 10px;border:1px solid transparent;border-radius:7px;background:transparent}
+  nav.tiles a.tile:hover,nav.tiles a.tile:focus-visible{background:#192b37;border-color:#28645e;outline-offset:0}
+  nav.tiles .tile svg{width:18px;height:18px;grid-column:1;grid-row:1 / span 2}
+  nav.tiles .tile strong{font-size:13px;font-weight:650;line-height:1.25;grid-column:2;grid-row:1;letter-spacing:0}
+  nav.tiles .tile span{font-size:11px;line-height:1.25;grid-column:2;grid-row:2}
+  nav.tiles .tile:not(:has(svg)) strong,nav.tiles .tile:not(:has(svg)) span{grid-column:1 / -1;padding-left:29px}
+  main>.performance{margin:0;padding:22px}
+  .performance svg#equityChart{max-height:340px}
+  .charthead h2{font-size:19px}
+  .charthead select{background:#101722;color:#e2e8f0;border:1px solid #334155;border-radius:7px;padding:6px 12px}
+  main>.details{border:0;min-width:0}
+  .details h2{font-size:21px;margin:26px 0 14px}
+  .details .grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px}
+  .details .card{padding:18px}
+  .scroll table{min-width:680px}
+  td,th{padding:12px}
+  th{background:#101722;color:#a0aec0;font-size:12px}
+  #pwaStatus{margin:0;font-size:12px}
+  #pwaInstall{justify-self:start}
+}
+@media (min-width:1500px){
+  main{grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);align-items:start}
+  main>header,main>.statusline,main>.metrics,main>.details,main>#pwaStatus,main>#pwaInstall{grid-column:1 / -1}
+  main>.performance[aria-label="Piyasa performansı"]{grid-column:1;grid-row:4}
+  main>.performance[aria-label="Haber ve ekonomik takvim"]{grid-column:2;grid-row:4}
+  main>.performance[aria-label="Haber ve ekonomik takvim"]>.grid{grid-template-columns:minmax(0,1fr);gap:10px}
+}
+@media (min-width:1024px) and (max-width:1199px){
+  :root{--sidebar-width:220px;--workspace-gap:16px}
+  main{padding:22px 20px 32px}
+  main>.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+</style></head><body><main>
 <header><div><h1>OBSIDIAN</h1><small>CYBERBOT · 0.1</small></div><span class="tag">YALNIZCA SANAL İŞLEM</span></header>
 <p class="statusline"><span class="dot"></span> Sentetik araştırma · Gerçek emir yok</p>
 <section id="overview" class="metrics" aria-label="Portföy özeti">
