@@ -4,7 +4,7 @@ from pathlib import Path
 from contextlib import closing
 from importlib.metadata import version,PackageNotFoundError
 from . import observed_pilot as stocks,pilot_decisions as decisions,pilot_loop as loop
-from . import futures_pilot as fut,solana_pilot as sol
+from . import futures_pilot as fut
 from .providers import equity_observed as equity,binance_observed as binance
 from .db_paths import checked,pilot_path,same,resolved
 from .operations import inspect_db,required
@@ -73,10 +73,9 @@ def snapshot(*,clock=stocks.utc):
                 fut.symbol()
                 b.append("network_and_funding_probe_required")
             else:
-                from .providers.solana_observed import configured
-                item["adapter_configured"]=configured()
-                if item["adapter_configured"]:sol.config()
-                b.append("diagnostic_only_no_executable_quote")
+                # Standalone legacy Solana provider was removed; keep shared schema only.
+                item["adapter_configured"]=False
+                b.append("legacy_solana_provider_removed")
         except (ValueError,OSError,KeyError,TypeError,ArithmeticError,sqlite3.Error):
             b.append("configuration_or_quote_review_required")
         if not item["adapter_configured"]:b.append("adapter_not_configured")
