@@ -4,6 +4,7 @@ import json
 import math
 import time
 import sqlite3
+import shutil
 
 from pathlib import Path
 from collections import defaultdict
@@ -21,6 +22,45 @@ if not 1 <= cycles <= 10:
     raise ValueError("Research cycles must be between 1 and 10")
 
 sys.path.insert(0, str(root))
+
+from tools.local_research.vps_guard import MIB, MIN_FREE_DISK_MIB
+
+research_folder = root / "var/ai"
+memory = research_folder / "forward-models-v2.sqlite3"
+
+
+def require_disk_reserve():
+    # Check the actual research filesystem, including on Windows.
+    # Exit 75 is a deferred research run, not a trading failure.
+    free = shutil.disk_usage(research_folder).free
+    if free < MIN_FREE_DISK_MIB * MIB:
+        print("WAIT_DISK:", free, "bytes free; research paused", flush=True)
+        raise SystemExit(75)
+    return free
+
+
+def storage_status():
+    sizes = {}
+    for suffix in ("", "-wal", "-shm", "-journal"):
+        file = Path(str(memory) + suffix)
+        try:
+            sizes[file.name] = file.stat().st_size
+        except FileNotFoundError:
+            pass
+    return {
+        "free_bytes": shutil.disk_usage(research_folder).free,
+        "minimum_free_bytes": MIN_FREE_DISK_MIB * MIB,
+        "forecast_file_bytes": sizes,
+        "forecast_total_bytes": sum(sizes.values()),
+        "automatic_deletion": False
+    }
+
+
+if not research_folder.is_dir() or research_folder.is_symlink() or research_folder.parent.is_symlink():
+    raise ValueError("Existing local research directory required")
+if memory.is_symlink() or (memory.exists() and memory.stat().st_nlink != 1):
+    raise ValueError("Unsafe research database path")
+require_disk_reserve()
 
 import torch
 from chronos import Chronos2Pipeline
@@ -231,8 +271,6 @@ print("CHRONOS_LOAD: PASS", flush=True)
 # Separate forward-research memory.
 # Never write to the paper or pilot databases.
 
-memory = root / "var/ai/forward-models-v2.sqlite3"
-
 protected = [
     *checked().values(),
     pilot_path()
@@ -244,6 +282,8 @@ for path in protected:
     if memory.exists() and path.exists():
         if memory.samefile(path):
             raise ValueError("Database file collision")
+
+require_disk_reserve()
 
 with closing(sqlite3.connect(
     memory, timeout=5
@@ -568,6 +608,7 @@ with closing(sqlite3.connect(
             max(0, slot-now)
         )
 
+        require_disk_reserve()
         samples = current_samples()
 
         settle(samples)
@@ -586,9 +627,11 @@ with closing(sqlite3.connect(
             ensure_ascii=True
         ), flush=True)
 
+    require_disk_reserve()
     settle(current_samples())
 
     result = performance()
+    result["storage"] = storage_status()
 
     result["database_integrity"] = db.execute(
         "PRAGMA quick_check"
@@ -605,6 +648,7 @@ with closing(sqlite3.connect(
          + ".json")
     )
 
+    require_disk_reserve()
     target.write_text(
         json.dumps(
             result, indent=2,
