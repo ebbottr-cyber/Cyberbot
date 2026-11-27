@@ -77,3 +77,43 @@ def integration_status():
 @router.get("/api/integration/status")
 def status():
     return integration_status()
+
+AI_MODELS = ("chronos", "river", "lightgbm", "gemini")
+AI_STATES = {"NOT_AVAILABLE", "NO_REPORT", "RESEARCH_MEASURED", "INSUFFICIENT_EVIDENCE",
+             "DATA_REVIEW_REQUIRED", "RECORDED_NOT_REVALIDATED", "NO_LOCAL_ATTEMPTS",
+             "OK", "RESERVED", "PROVIDER_ERROR"}
+
+
+def ai_status():
+    """Consume the optional research inventory, not model execution."""
+    result = {"status": "not_integrated", "models": {}, "scheduler": "unknown",
+              "real_orders": False, "automatic_promotion": False,
+              "paper_readiness_verified": False}
+    try:
+        from tools.local_research.ai_status import run
+    except ImportError:
+        return result
+    if os.getenv("CYBERBOT_AI_PANEL_ENABLED") != "1":
+        result["status"] = "disabled"
+        return result
+    try:
+        # Same checkout only. No arbitrary file paths accepted from HTTP clients.
+        data = run(Path(__file__).resolve().parent.parent)
+        if data.get("version") != "ai-status-1" or any(data.get(key) is not False for key in ("real_orders", "automatic_promotion", "profitability_verified")):
+            raise ValueError("Unexpected research authority")
+        for name in AI_MODELS:
+            row = data["models"][name]
+            status = row.get("status")
+            if status not in AI_STATES:
+                status = "DATA_REVIEW_REQUIRED"
+            count = row.get("observations_scored")
+            result["models"][name] = {"status": status, "observations_scored": count if type(count) is int and count >= 0 else None}
+        result["status"] = "research_inventory_available"
+    except (OSError, RuntimeError, sqlite3.Error, ValueError, KeyError, TypeError, ArithmeticError, ImportError, AttributeError):
+        result.update(status="unavailable", models={})
+    return result
+
+
+@router.get("/api/integration/ai")
+def research_status():
+    return ai_status()
