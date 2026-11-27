@@ -166,8 +166,12 @@ class PublicScanTests(unittest.TestCase):
     def test_discovery_retains_reference_outside_general_cap(self):
         from tools.solana_public_scan import discover,REFERENCE_MINTS
         mint=REFERENCE_MINTS["BONK"]
+        from cyberbot.solana_pilot import address,ALPHABET
         def addr(i):
-            return "1"*30+"2"+"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"[i]
+            # 31 leading zero bytes plus one nonzero byte; valid 32-byte base58 fixtures.
+            value="1"*31+ALPHABET[i+1]
+            self.assertTrue(address(value),value)
+            return value
         from cyberbot.providers.solana_observed import USDC
         pairs=[{"chainId":"solana","baseToken":{"address":addr(i),"symbol":"X"},
                 "quoteToken":{"address":USDC},"pairAddress":addr(i+25),"liquidity":{"usd":200000}}
