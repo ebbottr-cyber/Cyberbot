@@ -39,6 +39,8 @@ def main():
                             assert not failed,(path,failed)
                             if path=="/":
                                 expect(page.locator("#marketCards .card")).to_have_count(5)
+                                expect(page.locator("#centralMarketRows .card")).to_have_count(5)
+                                expect(page.locator("#centralPortfolioRows .card")).to_have_count(5)
                                 page.locator("#chartMarket").select_option("FUTURES")
                                 expect(page.locator("#chartNote")).to_contain_text("USDT")
                             if path=="/models":
@@ -94,6 +96,8 @@ def main():
                             expect(page.locator("#newsOverviewStatus")).to_contain_text("Bağlantı yok")
                             context.set_offline(False)
                             expect(page.locator("#marketCards .card")).to_have_count(5,timeout=10000)
+                            expect(page.locator("#centralMarketRows .card")).to_have_count(5,timeout=10000)
+                            expect(page.locator("#centralPortfolioRows .card")).to_have_count(5,timeout=10000)
                             assert not errors,errors
                         print("PASS",size,len(PAGES),"pages",flush=True)
                         context.close()
@@ -120,6 +124,9 @@ def main():
                     expect(page.locator("#homeRiskRows")).to_be_empty()
                     expect(page.locator("#homeResearchStatus")).to_contain_text("Bağlantı yok")
                     expect(page.locator("#homeWorkerStatus")).to_contain_text("Bağlantı yok")
+                    for selector in ("#centralMarketRows","#centralPortfolioRows","#centralAiRows"):
+                        expect(page.locator(selector)).to_be_empty()
+                    expect(page.locator("#centralNotificationStatus")).to_contain_text("Bağlantı yok")
                     assert page.evaluate("fetch('/api/portfolio/status').then(()=>false,()=>true)")
                     response=page.goto(origin+"/development")
                     assert response.status==503
