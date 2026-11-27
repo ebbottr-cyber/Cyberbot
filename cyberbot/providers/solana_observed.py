@@ -123,7 +123,26 @@ def risk_screen(info,holders,pooldata,ask,bid):
             "execution_slippage_verified":False,"wallet_concentration_verified":False,
             "security_verified":False,"depth_verified":False,
             "trade_eligible":False,"pilot_applied":False,"real_orders":False}
-def run(*,transport=None,clock=utc):
+def quote_ladder(samples,decimals):
+    """Compare sequential same-pool round-trip quotes, not executable depth."""
+    rows=[]
+    reference_ask=reference_bid=None
+    for size,tokens,received in samples:
+        units=D(tokens)/D(10**decimals)
+        ask=D(size)/units
+        bid=D(received)/D(10**6)/units
+        if reference_ask is None:reference_ask,reference_bid=ask,bid
+        rows.append({"input_usdc":str(size),"quoted_tokens":str(units),
+                     "indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),
+                     "ask_change_vs_smallest_pct":str((ask/reference_ask-1)*100),
+                     "bid_deterioration_vs_smallest_pct":str((1-bid/reference_bid)*100),
+                     "roundtrip_loss_pct":str((1-D(received)/D(size*10**6))*100),
+                     "crossed_quote":bid>ask})
+    return {"status":"sequential_quotes_only","reference_input_usdc":rows[0]["input_usdc"],
+            "samples":rows,"source_synchronization_verified":False,
+            "execution_slippage_verified":False,"depth_verified":False,
+            "trade_eligible":False,"pilot_applied":False,"real_orders":False}
+def run(*,transport=None,clock=utc,depth_probe=False):
     if not configured():raise PilotError("Solana veri adaptörü veya kullanım izni/anahtarı eksik.")
     mint,pool=sol.config()
     if mint==USDC:raise PilotError("USDC baz token olamaz.")
@@ -137,10 +156,15 @@ def run(*,transport=None,clock=utc):
         holders=concentration(get("rpc",("getTokenLargestAccounts",[mint,{"commitment":"finalized"}])),info)
         pooldata=pool_info(get("pool",pool),mint,pool)
         def query(a,b,n):return quote(get("quote",{"inputMint":a,"outputMint":b,"amount":str(n)}),a,b,n,pool)
-        tokens=query(USDC,mint,AMOUNT)
-        received=query(mint,USDC,tokens)
+        samples=[]
+        for size in ((25,50,100) if depth_probe else (100,)):
+            if not 0<=(clock()-started).total_seconds()<30:raise PilotError("Tanılama süresi aşıldı.")
+            tokens=query(USDC,mint,size*10**6)
+            if not 0<=(clock()-started).total_seconds()<30:raise PilotError("Tanılama süresi aşıldı.")
+            received=query(mint,USDC,tokens)
+            samples.append((size,tokens,received))
     elapsed=(clock()-started).total_seconds()
     if not 0<=elapsed<=30:raise PilotError("Tanılama süresi aşıldı.")
     units=D(tokens)/D(10**info["decimals"])
     ask=D(100)/units;bid=(D(received)/D(10**6))/units
-    return {"status":"diagnostic_only","mint":mint,"pool":pool,"retrieved_at":clock().isoformat(),"quote_currency":"USDC","test_input_usdc":"100","quoted_tokens":str(units),"quoted_return_usdc":str(D(received)/D(10**6)),"indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),"roundtrip_indicative_pct":str((D(received)/D(AMOUNT)-1)*100),"pool":pooldata,"mint_checks":{**info,**holders},"risk_screen":risk_screen(info,holders,pooldata,ask,bid),"quote_source_timestamp_verified":False,"usd_conversion_verified":False,"security_verified":False,"depth_verified":False,"pilot_applied":False,"live_data_verified":False,"real_orders":False,"transport_mocked":transport is not None,"api_key_used":bool(key),"rpc_provider":rpc_name,"blockers":["USDC/USD dönüşümü yok","Kaynak zaman damgası ve eşzamanlılık doğrulanmadı","Token hesabı yoğunlaşması cüzdan yoğunlaşması değildir","Kotasyon dolum ve derinlik garantisi değildir"]}
+    return {"status":"diagnostic_only","mint":mint,"pool":pool,"retrieved_at":clock().isoformat(),"quote_currency":"USDC","test_input_usdc":"100","quoted_tokens":str(units),"quoted_return_usdc":str(D(received)/D(10**6)),"indicative_ask_usdc":str(ask),"indicative_bid_usdc":str(bid),"roundtrip_indicative_pct":str((D(received)/D(AMOUNT)-1)*100),"pool":pooldata,"mint_checks":{**info,**holders},"risk_screen":risk_screen(info,holders,pooldata,ask,bid),"depth_probe":quote_ladder(samples,info["decimals"]) if depth_probe else None,"quote_source_timestamp_verified":False,"usd_conversion_verified":False,"security_verified":False,"depth_verified":False,"pilot_applied":False,"live_data_verified":False,"real_orders":False,"transport_mocked":transport is not None,"api_key_used":bool(key),"rpc_provider":rpc_name,"blockers":["USDC/USD dönüşümü yok","Kaynak zaman damgası ve eşzamanlılık doğrulanmadı","Token hesabı yoğunlaşması cüzdan yoğunlaşması değildir","Kotasyon dolum ve derinlik garantisi değildir"]}
