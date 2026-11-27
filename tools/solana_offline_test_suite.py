@@ -10,6 +10,7 @@ import os
 import socket
 import subprocess
 import sys
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -30,8 +31,25 @@ def main():
     env.update(CYBERBOT_PILOT_KILL_SWITCH="1",CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED="0")
     with ExitStack() as stack:
         stack.enter_context(patch.dict(os.environ,env,clear=True))
-        for name in ("connect","connect_ex","sendto","sendall"):
-            stack.enter_context(patch.object(socket.socket,name,denied))
+        # On Windows Python implements socketpair using a short local TCP
+        # handshake. Permit only the internal loopback handshake while
+        # socketpair is executing in this thread; all other connects are denied.
+        local=threading.local()
+        original_pair=socket.socketpair
+        def pair(*args,**kwargs):
+            local.in_pair=True
+            try:return original_pair(*args,**kwargs)
+            finally:local.in_pair=False
+        def guarded_connect(original):
+            def call(sock,address):
+                if getattr(local,"in_pair",False) and isinstance(address,tuple) and address[0] in ("127.0.0.1","::1"):
+                    return original(sock,address)
+                return denied()
+            return call
+        for name in ("connect","connect_ex"):
+            stack.enter_context(patch.object(socket.socket,name,guarded_connect(getattr(socket.socket,name))))
+        stack.enter_context(patch.object(socket,"socketpair",pair))
+        stack.enter_context(patch.object(socket.socket,"sendto",denied))
         for name in ("create_connection","getaddrinfo"):
             stack.enter_context(patch.object(socket,name,denied))
         stack.enter_context(patch.object(subprocess,"Popen",denied))
