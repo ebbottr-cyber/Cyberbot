@@ -34,6 +34,7 @@ def main():
         print("Disabled; explicit --enable required")
         return
     from tools.notification_center import NotificationStore
+    from tools.notification_news_store import NewsStore
     from tools.notification_preferences import Preferences
     from tools.notification_push_server import PushStore
     from tools.notification_push_queue import PushQueue
@@ -47,13 +48,14 @@ def main():
         signal.signal(sig, lambda *_: stop.set())
     with single_instance(state / "notification-worker.lock"):
         store = NotificationStore(state / "notifications.sqlite3")
+        news = NewsStore(state / "research-news.sqlite3")
         prefs = Preferences(state / "preferences.sqlite3")
         subscriptions = PushStore(state / "subscriptions.sqlite3")
         queue = PushQueue(state / "push-queue.sqlite3")
         sender = build_sender(enabled=True) if args.push else None
         def cycle():
             return run_cycle(store, subscriptions, queue, preferences=prefs,
-                             enabled=True, push_enabled=args.push, sender=sender)
+                             enabled=True, push_enabled=args.push, sender=sender, news_store=news)
         run_periodic(cycle, state / "notification-health.json", stop,
                      enabled=True, interval=args.interval)
 
