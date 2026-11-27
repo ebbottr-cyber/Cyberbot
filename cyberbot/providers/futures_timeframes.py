@@ -11,14 +11,15 @@ FRAMES={"1m":60000,"5m":300000,"15m":900000,"1h":3600000,"4h":14400000}
 LIMIT=21
 DEADBAND=D(".001")
 
-def params(sym,frame,cutoff_ms):
+def params(sym,frame,cutoff_ms,*,limit=LIMIT):
+    if type(limit) is not int or limit not in (LIMIT,60):raise PilotError("Mum sayısı sınırı.")
     if sym not in ("BTCUSDT","ETHUSDT") or frame not in FRAMES:
         raise PilotError("Futures zaman dilimi veya sembol geçersiz.")
     step=FRAMES[frame];end=cutoff_ms//step*step-1
-    return {"symbol":sym,"interval":frame,"limit":LIMIT,"endTime":end}
+    return {"symbol":sym,"interval":frame,"limit":limit,"endTime":end}
 
-def fetch(client,sym,frame,cutoff_ms):
-    query=params(sym,frame,cutoff_ms)
+def fetch(client,sym,frame,cutoff_ms,*,limit=LIMIT):
+    query=params(sym,frame,cutoff_ms,limit=limit)
     try:
         with client.stream("GET",HOST+KLINES,params=query) as response:
             response.raise_for_status();raw=bytearray()
@@ -29,13 +30,14 @@ def fetch(client,sym,frame,cutoff_ms):
     except (httpx.HTTPError,ValueError,OSError):
         raise PilotError("Mum sorgusu başarısız; otomatik tekrar yok.") from None
 
-def parse(raw,frame,cutoff_ms):
+def parse(raw,frame,cutoff_ms,*,limit=LIMIT):
+    if type(limit) is not int or limit not in (LIMIT,60):raise PilotError("Mum sayısı sınırı.")
     step=FRAMES[frame];end=cutoff_ms//step*step
-    if not isinstance(raw,list) or len(raw)!=LIMIT:
-        raise PilotError("Tam 21 kapanmış mum gerekli.")
+    if not isinstance(raw,list) or len(raw)!=limit:
+        raise PilotError("Beklenen kapanmış mum sayısı eksik.")
     rows=[]
     for i,row in enumerate(raw):
-        expected=end-(LIMIT-i)*step
+        expected=end-(limit-i)*step
         if (not isinstance(row,list) or len(row)!=12 or type(row[0]) is not int
             or type(row[6]) is not int or row[0]!=expected or row[6]!=expected+step-1
             or row[6]>=cutoff_ms):
