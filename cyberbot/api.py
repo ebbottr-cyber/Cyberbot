@@ -142,7 +142,7 @@ if os.getenv("CYBERBOT_NOTIFICATION_PANEL_ENABLED") == "1":
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Obsidian | Bildirim ayarları</title><link rel="stylesheet" href="/ui/obsidian.css">
 <link rel="stylesheet" href="/ui/panel-mobile.css"></head><body><main>
-<a href="/">Ana panel</a><section id="notificationSettings">Ayarlar yükleniyor…</section>
+<a href="/">Ana panel</a><section id="notificationSettings">Ayarlar yükleniyor…</section><div id="notificationHealth"></div>
 <script type="module" src="/ui/notifications/settings-host.js"></script></main></body></html>"""
 
     @app.get("/api/notifications/device-config")
@@ -159,12 +159,17 @@ if os.getenv("CYBERBOT_NOTIFICATION_PANEL_ENABLED") == "1":
         assets = {"center.js": ("notification_center_ui.js", "application/javascript"),
                   "center.css": ("notification_center_ui.css", "text/css"),
                   "settings.js": ("notification_settings_ui.js", "application/javascript"),
+                  "health.js": ("notification_health_ui.js", "application/javascript"),
+                  "news.js": ("notification_news_ui.js", "application/javascript"),
                   "notification_push_client.js": ("notification_push_client.js", "application/javascript")}
         if asset == "settings-host.js":
             return Response("""import {mountNotificationSettings} from './settings.js';
+import {mountNotificationHealth} from './health.js';
 const root = document.getElementById('notificationSettings');
 const request = (url, options = {}) => fetch(url, {...options, credentials:'same-origin',
   headers:{...options.headers, 'X-Cyberbot-Paper':'1'}});
+const disposeHealth = mountNotificationHealth(document.getElementById('notificationHealth'), request);
+window.addEventListener('pagehide', event => { if (!event.persisted) disposeHealth(); });
 try {
   const response = await request('/api/notifications/device-config');
   if (!response.ok) throw new Error();
@@ -176,6 +181,14 @@ try {
     root.prepend(note);
   }
 } catch { root.textContent = 'Bildirim ayarları yüklenemedi.'; }
+""", media_type="application/javascript")
+        if asset == "news-host.js":
+            return Response("""import {mountNewsView} from './news.js';
+const root = document.getElementById('structuredResearchNews');
+if (root) {
+  const dispose = mountNewsView(root, (url, options = {}) => fetch(url, {...options, credentials:'same-origin'}));
+  window.addEventListener('pagehide', event => { if (!event.persisted) dispose(); });
+}
 """, media_type="application/javascript")
         if asset == "host.js":
             return Response("""import {mountNotificationCenter} from './center.js';
