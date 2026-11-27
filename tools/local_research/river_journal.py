@@ -58,6 +58,8 @@ def replay(rows, model):
 def run(root):
     if os.environ.get("CYBERBOT_LOCAL_RESEARCH_RIGHTS_CONFIRMED") != "1":
         raise RuntimeError("local research data rights confirmation required")
+    from .journal_capacity import require_capacity
+    require_capacity(root, 'RiverReplay')
     from river import linear_model, preprocessing, __version__ as river_version
     from .vps_guard import MIN_FREE_DISK_MIB, MIB
     import shutil
@@ -86,6 +88,7 @@ def run(root):
     result["window_limit"] = MAX_ROWS
     key = hashlib.sha256(json.dumps([VERSION,river_version,result["source_fingerprint"]]).encode()).hexdigest()
     # Only aggregate summaries are persisted; no raw feature/target pairs or model pickle.
+    require_capacity(root, 'RiverReplay')
     with closing(sqlite3.connect(output,timeout=10)) as conn, conn:
         conn.execute("""CREATE TABLE IF NOT EXISTS replay_reports (
             fingerprint TEXT PRIMARY KEY, created_at TEXT NOT NULL, payload TEXT NOT NULL
