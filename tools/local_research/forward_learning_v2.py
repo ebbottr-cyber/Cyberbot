@@ -268,6 +268,11 @@ with closing(sqlite3.connect(
         )
     """)
 
+    # Match the scoped pending/settled queries without scanning older statuses.
+    db.execute("""
+        CREATE INDEX IF NOT EXISTS forecasts_scope_status_target
+        ON forecasts (market, symbol, source, status, target_minute)
+    """)
     db.commit()
 
     def settle(samples):
