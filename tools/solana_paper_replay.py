@@ -1,5 +1,6 @@
 """Offline quote-only paper replay; no fills, positions, strategy or execution authorization."""
 import argparse
+import hashlib
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -80,35 +81,43 @@ def collect(database,limit):
     if type(limit) is not int or not 1<=limit<=500:raise ValueError("Bridge limit 1 to 500")
     path=Path(database).resolve(strict=True)
     con=sqlite3.connect(path.as_uri()+"?mode=ro",uri=True,timeout=10)
+    observations=[];excluded=0;incomplete=0;duplicates=0;seen=set();read=0;truncated=False
     try:
         if con.execute("PRAGMA application_id").fetchone()[0]!=APP_ID or con.execute("PRAGMA user_version").fetchone()[0]!=1:
             raise ValueError("Wrong research database")
-        rows=con.execute("SELECT digest,payload FROM research_reports WHERE kind='bridge' ORDER BY imported_utc DESC,digest DESC LIMIT ?",(limit+1,)).fetchall()
+        # Stream bounded reports instead of loading up to 500 multi-MiB
+        # payloads at once. The extra row detects truncation.
+        cursor=con.execute("SELECT digest,CASE WHEN length(CAST(payload AS BLOB))<=? THEN payload ELSE NULL END FROM research_reports WHERE kind='bridge' ORDER BY imported_utc DESC,digest DESC LIMIT ?",(MAX_BYTES,limit+1))
+        for digest,body in cursor:
+            if read==limit:
+                truncated=True;break
+            read+=1
+            if not isinstance(body,str) or len(body.encode("utf-8"))>MAX_BYTES:
+                raise ValueError("Oversized or invalid archived report")
+            if hashlib.sha256(body.encode("utf-8")).hexdigest()!=digest:
+                raise ValueError("Archived report digest mismatch")
+            report=json.loads(body)
+            no_clearance(report)
+            if report.get("source")!="dexterm_historical_shortlist_exact_mint_lookup":
+                raise ValueError("Invalid bridge source")
+            scan=report.get("scan")
+            if scan is None:continue
+            no_clearance(scan)
+            items=scan["reports"]
+            if not isinstance(items,list) or len(items)>3:raise ValueError("Invalid archived report count")
+            for i,item in enumerate(items):
+                if item["diagnostic"].get("status")!="diagnostic_complete":
+                    incomplete+=1;continue
+                try:o=observation(item)
+                except (ValueError,KeyError,TypeError,ArithmeticError,AttributeError):
+                    excluded+=1;continue
+                key=(o["mint"],o["timestamp"],o["input_raw"],o["token_amount_raw"],o["return_raw"])
+                if key in seen:duplicates+=1;continue
+                seen.add(key)
+                observations.append(dict(o,source_digest=digest,source_index=i))
     finally:con.close()
-    observations=[];excluded=0;incomplete=0;duplicates=0;seen=set()
-    for digest,body in rows[:limit]:
-        if len(body.encode("utf-8"))>MAX_BYTES:raise ValueError("Oversized archived report")
-        report=json.loads(body)
-        no_clearance(report)
-        if report.get("source")!="dexterm_historical_shortlist_exact_mint_lookup":
-            raise ValueError("Invalid bridge source")
-        scan=report.get("scan")
-        if scan is None:continue
-        no_clearance(scan)
-        items=scan["reports"]
-        if not isinstance(items,list) or len(items)>3:raise ValueError("Invalid archived report count")
-        for i,item in enumerate(items):
-            if item["diagnostic"].get("status")!="diagnostic_complete":
-                incomplete+=1;continue
-            try:o=observation(item)
-            except (ValueError,KeyError,TypeError,ArithmeticError,AttributeError):
-                excluded+=1;continue
-            key=(o["mint"],o["timestamp"],o["input_raw"],o["token_amount_raw"],o["return_raw"])
-            if key in seen:duplicates+=1;continue
-            seen.add(key)
-            observations.append(dict(o,source_digest=digest,source_index=i))
-    observations.sort(key=lambda o:(o["timestamp"],o["mint"],o["source_digest"],o["source_index"]))
-    return observations,{"bridge_reports_read":min(len(rows),limit),"bridge_history_truncated":len(rows)>limit,
+    observations.sort(key=lambda o:(instant(o["timestamp"]),o["mint"],o["source_digest"],o["source_index"]))
+    return observations,{"bridge_reports_read":read,"bridge_history_truncated":truncated,
                          "incomplete_diagnostics":incomplete,"excluded_diagnostics":excluded,"duplicate_quotes":duplicates}
 
 def fee(amount,bps):

@@ -1,4 +1,4 @@
-import json,tempfile,unittest
+import json,tempfile,unittest,sqlite3
 from pathlib import Path
 from copy import deepcopy
 from tools.solana_paper_replay import replay,observation,fee
@@ -65,3 +65,21 @@ class PaperReplayTests(unittest.TestCase):
     def test_integer_fee_rounds_up(self):
         self.assertEqual(fee(1,1),1)
         self.assertEqual(fee(1,0),0)
+
+    def test_modified_archive_payload_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            p=Path(folder);f=p/"a.json";db=p/"r.sqlite3"
+            f.write_text(json.dumps(bridge(item(),"one")));archive(db,[f])
+            with sqlite3.connect(db) as con:
+                con.execute("UPDATE research_reports SET payload=?",(json.dumps(bridge(item(),"changed")),))
+            with self.assertRaisesRegex(ValueError,"digest mismatch"):replay(db)
+    def test_stream_limit_reports_truncation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            p=Path(folder);db=p/"r.sqlite3";files=[]
+            for i in range(3):
+                f=p/str(i);f.write_text(json.dumps(bridge(item(),str(i))));files.append(f)
+            archive(db,files)
+            out=replay(db,limit=2)
+            self.assertEqual(out["bridge_reports_read"],2)
+            self.assertTrue(out["bridge_history_truncated"])
+            self.assertEqual(out["scenarios_replayed"],1)

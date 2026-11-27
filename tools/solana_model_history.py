@@ -45,8 +45,30 @@ def normalize(report):
         consensus.update(counts=counts,sample_count=n,covered_samples=covered,
                          covered_accuracy=None if acc is None else number(acc,1),
                          mean_probability_brier=number(c["mean_probability_brier"],1))
-    return {"schema_version":VERSION,"dataset_sha256":dataset,"summary":body,
-            "optional_model_status":statuses,"consensus":consensus}
+    normalized={"schema_version":VERSION,"dataset_sha256":dataset,"summary":body,
+                "optional_model_status":statuses,"consensus":consensus}
+    # Older experiment reports remain readable. Store only aggregate adaptive
+    # diagnostics, never the per-token trace or candidate probabilities.
+    a=report.get("adaptive_weights")
+    if a is not None:
+        if not isinstance(a,dict) or a.get("trade_eligible") is not False:
+            raise ValueError("Unexpected adaptive authority")
+        status=a.get("status")
+        if status not in ("not_requested","blocked_by_experiment_gate","adaptive_weights_blocked",
+                          "invalid_replay_inputs","adaptive_weights_diagnostic_complete"):
+            raise ValueError("Invalid adaptive status")
+        adaptive={"status":status}
+        if status=="adaptive_weights_diagnostic_complete":
+            if a.get("weights_updated") is not False or a.get("model_promoted") is not False:
+                raise ValueError("Unexpected adaptive weight change")
+            n=count(a["sample_count"]);adapted=count(a["adaptive_samples"])
+            if not n or adapted>n or not {"logistic_baseline","lightgbm"}<=names or any(m["samples"]!=n for m in body["models"]):
+                raise ValueError("Invalid adaptive sample count")
+            adaptive.update(sample_count=n,adaptive_samples=adapted,
+                            adaptive_brier=number(a["adaptive_brier"],1),
+                            equal_weight_brier=number(a["equal_weight_brier"],1))
+        normalized["adaptive"]=adaptive
+    return normalized
 
 def connect(path,*,write=False):
     path=Path(path).expanduser().resolve()

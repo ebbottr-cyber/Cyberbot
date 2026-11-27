@@ -42,6 +42,7 @@ class LearningCycleTests(unittest.TestCase):
             with patch("tools.solana_learning_cycle.collect",return_value=([],dict(STATS,bridge_history_truncated=True))):
                 out=run(Path(d)/"source.db",Path(d)/"history.db",allow_experiment=True)
                 self.assertIn("archive_window_truncated",out["experiment"]["blockers"])
+                self.assertIn("archive_window_truncated",out["readiness"]["blockers"])
                 self.assertFalse(out["experiment"]["experimental_fit_performed"])
     def test_collection_permission_failure_no_archive_read(self):
         with tempfile.TemporaryDirectory() as d:

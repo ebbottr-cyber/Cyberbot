@@ -55,3 +55,23 @@ class ModelHistoryTests(unittest.TestCase):
             con.execute("UPDATE experiments SET payload='{}'")
             con.commit();con.close()
             with self.assertRaises(ValueError):history(path)
+
+    def test_adaptive_status_is_preserved_without_trace(self):
+        r=report();r["adaptive_weights"]={"status":"blocked_by_experiment_gate","trade_eligible":False,"weight_trace":["private"]}
+        d=normalize(r)
+        self.assertEqual(d["adaptive"],{"status":"blocked_by_experiment_gate"})
+        r["adaptive_weights"]["trade_eligible"]=True
+        with self.assertRaises(ValueError):normalize(r)
+    def test_adaptive_aggregate_validation(self):
+        r=report();r.update(status="experiment_complete",blockers=[],lightgbm_status="experiment_complete")
+        m={"samples":50,"true_positive":20,"true_negative":20,"false_positive":5,"false_negative":5,
+           "accuracy":.8,"balanced_accuracy":.8,"brier_score":.2,"log_loss":.5}
+        r["results"]=[{"model":name,"later_window":m} for name in ("constant_training_prior","logistic_baseline","lightgbm")]
+        r["adaptive_weights"]={"status":"adaptive_weights_diagnostic_complete","trade_eligible":False,
+                               "weights_updated":False,"model_promoted":False,"sample_count":50,"adaptive_samples":25,
+                               "adaptive_brier":.19,"equal_weight_brier":.2,"weight_trace":["private"]}
+        d=normalize(r)
+        self.assertEqual(d["adaptive"]["adaptive_samples"],25)
+        self.assertNotIn("weight_trace",d["adaptive"])
+        r["adaptive_weights"]["adaptive_samples"]=51
+        with self.assertRaises(ValueError):normalize(r)

@@ -45,6 +45,7 @@ def run(database,history_database,*,limit=500,allow_experiment=False,
     result["archive_stats"]=stats
     result["stage"]="readiness"
     r=readiness(rows)
+    if stats["bridge_history_truncated"]:r["blockers"].append("archive_window_truncated")
     result["readiness"]=r
     result["stage"]="dataset"
     ds=dict(build(rows),**stats)
