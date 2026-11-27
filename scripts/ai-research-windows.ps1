@@ -1,12 +1,12 @@
 # Bounded local research launcher. Does not enable trading or download packages.
 param(
-    [Parameter(Mandatory=$true)][ValidateSet('Chronos','LightGBM','RiverReplay','Backup')][string]$Mode
+    [Parameter(Mandatory=$true)][ValidateSet('Chronos','LightGBM','RiverReplay','RiverLive','Backup')][string]$Mode
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
-$mutex = $null
-$owned = $false
+$locks = @()
+$held = @()
 try {
     if ($env:CYBERBOT_LOCAL_RESEARCH_RIGHTS_CONFIRMED -ne '1') {
         Write-Host 'WAIT_RIGHTS'
@@ -18,12 +18,20 @@ try {
     }
     $disk = [System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($folder))
     if ($disk.AvailableFreeSpace -lt 5GB) { Write-Host 'WAIT_DISK'; exit 75 }
-    # A per-user named mutex coordinates the scheduled research jobs.
+    # Chronos and prospective River must overlap. All other scheduled modes
+    # require both locks. Nonblocking admission avoids a lock-order deadlock.
     $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-    $mutex = [System.Threading.Mutex]::new($false, ('Local\CyberbotAI-' + $sid))
-    try { $owned = $mutex.WaitOne(0) }
-    catch [System.Threading.AbandonedMutexException] { $owned = $true }
-    if (!$owned) { Write-Host 'WAIT_AI_JOB'; exit 75 }
+    $names = if ($Mode -eq 'Chronos') { @('Heavy') }
+             elseif ($Mode -eq 'RiverLive') { @('Live') }
+             else { @('Heavy','Live') }
+    foreach ($name in $names) {
+        $lock = [System.Threading.Mutex]::new($false, ('Local\CyberbotAI-' + $sid + '-' + $name))
+        $locks += $lock
+        try { $owned = $lock.WaitOne(0) }
+        catch [System.Threading.AbandonedMutexException] { $owned = $true }
+        if (!$owned) { Write-Host 'WAIT_AI_JOB'; exit 75 }
+        $held += $lock
+    }
     $env:PYTHONDONTWRITEBYTECODE = '1'
     $env:HF_HUB_OFFLINE = '1'
     $env:TRANSFORMERS_OFFLINE = '1'
@@ -32,7 +40,7 @@ try {
     $env:OMP_NUM_THREADS = '2'
     $env:MKL_NUM_THREADS = '2'
     $env:OPENBLAS_NUM_THREADS = '2'
-    $minimumFreeKiB = @{ Chronos = 4194304; LightGBM = 5242880; RiverReplay = 3145728; Backup = 0 }
+    $minimumFreeKiB = @{ Chronos = 4194304; LightGBM = 5242880; RiverReplay = 3145728; RiverLive = 3145728; Backup = 0 }
     if ($minimumFreeKiB[$Mode] -gt 0) {
         $os = Get-CimInstance -ClassName Win32_OperatingSystem
         if ($null -eq $os.FreePhysicalMemory -or [uint64]$os.FreePhysicalMemory -lt $minimumFreeKiB[$Mode]) {
@@ -54,6 +62,17 @@ try {
             $python = Join-Path $runtime 'RiverRuntime\Scripts\python.exe'
             $arguments = @('-m','tools.local_research.river_journal','--root',$root)
         }
+        'RiverLive' {
+            if (!(Test-Path -LiteralPath (Join-Path $folder 'forward-models-v2.sqlite3') -PathType Leaf)) {
+                Write-Host 'WAIT_SOURCE'
+                exit 75
+            }
+            $python = Join-Path $runtime 'RiverRuntime\Scripts\python.exe'
+            $arguments = @('-m','tools.local_research.river_live_shadow','--root',$root,'--seconds','720')
+            $env:OMP_NUM_THREADS = '1'
+            $env:MKL_NUM_THREADS = '1'
+            $env:OPENBLAS_NUM_THREADS = '1'
+        }
         'Backup' {
             $python = Join-Path $root '.venv\Scripts\python.exe'
             $arguments = @('-m','tools.local_research.forward_backup','--root',$root)
@@ -63,7 +82,7 @@ try {
     & $python @arguments
     exit $LASTEXITCODE
 } finally {
-    if ($owned) { $mutex.ReleaseMutex() }
-    if ($null -ne $mutex) { $mutex.Dispose() }
+    foreach ($lock in $held) { $lock.ReleaseMutex() }
+    foreach ($lock in $locks) { $lock.Dispose() }
     Pop-Location
 }
