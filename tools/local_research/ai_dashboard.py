@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 
-from . import ai_status
+from . import ai_status, journal_capacity
 
 TASKS = {"Chronos", "RiverLive", "RiverReplay", "LightGBM", "ForwardBackup"}
 TASK_STATES = {"NOT_REGISTERED", "DISABLED", "NOT_RUN", "RUNNING", "EXIT_OK",
@@ -77,11 +77,19 @@ def windows_health(root, now=None):
         return {"status":"DATA_REVIEW_REQUIRED","tasks":[],"resources":None}
 
 
+def storage_summary(root):
+    try:
+        return journal_capacity.inventory(root)
+    except (OSError, ValueError):
+        return {"status":"DATA_REVIEW_REQUIRED","journals":{},"automatic_deletion":False}
+
+
 def snapshot(root):
     root=Path(root).resolve()
     return {"version":"ai-dashboard-1",
             "research":ai_status.run(root),
             "windows_health":windows_health(root),
+            "journal_capacity":storage_summary(root),
             "paper_readiness_verified":False,
             "real_orders":False,"automatic_promotion":False,
             "cross_source_atomic_snapshot":False}
