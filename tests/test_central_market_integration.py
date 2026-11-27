@@ -134,3 +134,47 @@ class IntegrationStatusTests(unittest.TestCase):
         self.assertEqual(len(snapshot()["markets"]),5)
         with self.assertRaises(ValueError):
             snapshot(markets=("BIST","BIST"))
+
+    def test_market_memory_preserves_scope_and_rejects_bad_counts(self):
+        from cyberbot.integration_api import memory_summary
+        data=memory_summary({"BIST":{"status":"RESEARCH_ONLY","scopes":[{"reports":3,"source":"private"},{"reports":4}]},
+                             "NASDAQ":{"status":"RESEARCH_ONLY","scopes":[{"reports":True}]},
+                             "XETRA":{"status":"AWAITING_EVIDENCE","scopes":[]}})
+        rows={r["market"]:r for r in data}
+        self.assertEqual(tuple(rows),MARKETS)
+        self.assertEqual(rows["BIST"]["report_count"],7)
+        self.assertEqual(rows["BIST"]["scope_count"],2)
+        self.assertEqual(rows["NASDAQ"]["status"],"DATA_REVIEW_REQUIRED")
+        self.assertIsNone(rows["NASDAQ"]["report_count"])
+        self.assertEqual(rows["XETRA"]["status"],"AWAITING_EVIDENCE")
+        self.assertEqual(rows["FUTURES"]["status"],"NOT_INITIALIZED")
+        self.assertNotIn("private",str(data))
+
+    def test_ai_learning_summary_scope_and_authority(self):
+        import sys
+        from types import ModuleType
+        from cyberbot.integration_api import ai_learning_status, FUTURES_SCOPE
+        report={"version":"ai-dashboard-1","paper_readiness_verified":False,"automatic_promotion":False,"real_orders":False,
+                "windows_health":{"status":"STALE","private_path":"secret"},
+                "learning_cycle":{"status":"WAIT_NEW_DATA","scope":FUTURES_SCOPE,"training_started":False,"train_samples":10},
+                "orchestrator":{"status":"WAIT_LEARNING_REVIEW","training_started":False},
+                "risk_referee":{"status":"REVIEW_BLOCKED","scope":FUTURES_SCOPE},
+                "decision_memory":{"status":"AVAILABLE","total_records":3},
+                "error_memory":{"status":"RESEARCH_MEASURED","scope":FUTURES_SCOPE,"measured_records":5},
+                "model_lifecycle":{"status":"NOT_AVAILABLE"}}
+        module=ModuleType("tools.local_research.ai_dashboard")
+        module.snapshot=lambda root:report
+        with patch.dict(sys.modules,{"tools.local_research.ai_dashboard":module}),patch.dict("os.environ",{"CYBERBOT_AI_PANEL_ENABLED":"1"}):
+            data=ai_learning_status()
+            self.assertEqual(data["status"],"research_summary_available")
+            self.assertEqual(data["sections"]["learning_cycle"]["train_samples"],10)
+            self.assertEqual(data["sections"]["windows_health"]["status"],"STALE")
+            self.assertNotIn("secret",str(data))
+            self.assertFalse(data["training_started"])
+            report["learning_cycle"]["scope"]="BIST"
+            self.assertEqual(ai_learning_status()["status"],"unavailable")
+            report["learning_cycle"]["scope"]=FUTURES_SCOPE
+            report["orchestrator"]["training_started"]=True
+            self.assertEqual(ai_learning_status()["status"],"unavailable")
+        with patch.dict("os.environ",{"CYBERBOT_AI_PANEL_ENABLED":"0"}):
+            self.assertEqual(ai_learning_status()["status"],"disabled")
