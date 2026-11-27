@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -58,7 +59,7 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual(save(self.root,meta,text),key)
         self.assertEqual(read(self.root,key,"1.0"),(meta,text))
         self.assertFalse(meta["automatic_promotion"])
-        with sqlite3.connect(path_for(self.root)) as db:
+        with closing(sqlite3.connect(path_for(self.root))) as db, db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM model_candidates").fetchone()[0],1)
 
     def test_insufficient(self):
@@ -74,7 +75,7 @@ class CandidateTests(unittest.TestCase):
     def test_corrupt_model(self):
         meta,text=self.build()
         key=save(self.root,meta,text)
-        with sqlite3.connect(path_for(self.root)) as db:
+        with closing(sqlite3.connect(path_for(self.root))) as db, db:
             db.execute("UPDATE model_candidates SET model_text=? WHERE candidate=?",
                        (text+"corrupt",key))
         with self.assertRaises(ValueError):
