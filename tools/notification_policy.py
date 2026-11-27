@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 from tools.notification_center import CATEGORIES, LEVELS
 
 def route(notification, now=None, *, timezone_name="Europe/Istanbul",
-          quiet_start="12:30", quiet_end="08:00", muted=(), push_enabled=False):
+          quiet_start="00:30", quiet_end="08:00", muted=(), push_enabled=False):
     now = now or datetime.now(timezone.utc)
     if now.tzinfo is None:
         raise ValueError("Timezone required")
