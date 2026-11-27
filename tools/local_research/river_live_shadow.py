@@ -181,6 +181,8 @@ def run(root, seconds):
         raise RuntimeError("research rights confirmation required")
     if not 1<=seconds<=900:
         raise ValueError("invalid bounded runtime")
+    from .journal_capacity import require_capacity
+    require_capacity(root, 'RiverLive')
     import river
     import shutil
     from .vps_guard import MIB, MIN_FREE_DISK_MIB
@@ -195,6 +197,7 @@ def run(root, seconds):
         deadline=time.monotonic()+seconds
         previous=None
         while True:
+            require_capacity(root, 'RiverLive')
             if shutil.disk_usage(folder).free//MIB<MIN_FREE_DISK_MIB:
                 raise RuntimeError("insufficient disk")
             outcome=tick(source,db,library_version=river.__version__)
