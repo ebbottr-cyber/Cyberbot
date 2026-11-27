@@ -240,3 +240,22 @@ class PublicScanTests(unittest.TestCase):
                 self.assertEqual(req.call_count,3)
                 quote.assert_not_called()
                 self.assertFalse(d["security_verified"])
+
+    def test_wrapped_sol_is_out_of_scope_before_inspection(self):
+        from tools.solana_public_scan import NON_TARGET_MINTS
+        native=next(iter(NON_TARGET_MINTS))
+        rows=[candidate(native,"p"),candidate("a","q"),candidate("b","r"),candidate("c","s")]
+        calls=[]
+        def inspect(m,p):
+            calls.append(m);return {"status":"diagnostic_complete"}
+        with patch.dict(os.environ,{"CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED":"1"}):
+            d=run(limit=2,max_candidates=2,discoverer=lambda:rows,inspect=inspect,sleep=lambda n:None)
+            self.assertEqual(calls,["a","b"])
+            self.assertEqual(d["non_target_pool_count"],1)
+            self.assertEqual(d["non_target_pools"][0]["reason"],"wrapped_sol")
+            self.assertEqual([r["mint"] for r in d["eligible_uninspected_candidates"]],["c"])
+            self.assertFalse(d["meme_classification_verified"])
+            self.assertFalse(d["security_verified"])
+            partial=run(limit=2,discoverer=lambda:rows[:2],inspect=inspect,sleep=lambda n:None)
+            self.assertEqual(partial["status"],"scan_partial")
+            self.assertFalse(partial["target_reached"])

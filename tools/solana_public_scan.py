@@ -13,6 +13,9 @@ from tools.solana_public_snapshot import run as snapshot
 REFERENCE_MINTS={"POPCAT":"7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr",
                  "BONK":"DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"}
 
+# Native SOL wrapper is a routing asset, not a meme candidate.
+NON_TARGET_MINTS={"So11111111111111111111111111111111111111112":"wrapped_sol"}
+
 def reference_conflict(row):
     label=str(row.get("label","")).split("/",1)[0].strip().upper()
     expected=REFERENCE_MINTS.get(label)
@@ -55,8 +58,11 @@ def run(*,limit=2,max_candidates=None,reference_first=False,exclude_mints=(),dis
         raise PilotError("Invalid temporary exclusions or reference mint exclusion")
     excluded=set(exclude_mints)
     pools=discoverer()
-    selected=[];seen=set();conflicts=[];excluded_found=set()
+    selected=[];seen=set();conflicts=[];excluded_found=set();non_targets=[]
     for row in pools:
+        if row["mint"] in NON_TARGET_MINTS:
+            non_targets.append({"mint":row["mint"],"pool":row["pool"],"label":row.get("label"),"reason":NON_TARGET_MINTS[row["mint"]]})
+            continue
         expected=reference_conflict(row)
         if expected:
             conflicts.append({"mint":row["mint"],"pool":row["pool"],"label":row.get("label"),
@@ -68,6 +74,7 @@ def run(*,limit=2,max_candidates=None,reference_first=False,exclude_mints=(),dis
         if mint in seen:continue
         seen.add(mint);selected.append(row)
     if reference_first:selected.sort(key=lambda row:row["mint"] not in references)
+    eligible=selected[:]
     selected=selected[:max_candidates]
     reports=[];quote_rejections=0;holder_rejections=0;stop_reason=None
     for i,row in enumerate(selected):
@@ -98,7 +105,7 @@ def run(*,limit=2,max_candidates=None,reference_first=False,exclude_mints=(),dis
     skipped=sum(r["diagnostic"].get("status")=="diagnostic_unsupported_mint" for r in reports)
     target_reached=done>=limit
     exhausted=bool(selected) and (target_reached or len(reports)==len(selected)) and done+skipped+quote_rejections+holder_rejections==len(reports)
-    status=("scan_no_candidates" if not selected else "scan_partial" if stop_reason or not exhausted or ((quote_rejections or holder_rejections) and not target_reached) else
+    status=("scan_no_candidates" if not selected else "scan_partial" if stop_reason or not exhausted or (not target_reached and (done or quote_rejections or holder_rejections)) else
             "scan_no_supported_candidates" if not done else "scan_complete_with_skips" if skipped or quote_rejections or holder_rejections else "scan_complete")
     ref_done=sum(r["candidate"]["mint"] in references and r["diagnostic"].get("status")=="diagnostic_complete" for r in reports)
     return {"status":status,"completed_mints":done,"unsupported_mints":skipped,
@@ -112,8 +119,11 @@ def run(*,limit=2,max_candidates=None,reference_first=False,exclude_mints=(),dis
             "target_completed_mints":limit,"target_reached":target_reached,"max_candidates":max_candidates,
             "available_pools":len(pools),"selected_mints":len(selected),"inspected_mints":len(reports),
             "identity_conflicts":conflicts,"identity_conflict_count":len(conflicts),
+            "non_target_pools":non_targets,"non_target_pool_count":len(non_targets),
+            "eligible_uninspected_candidates":[r for r in eligible if r["mint"] not in {x["candidate"]["mint"] for x in reports}],
+            "meme_classification_verified":False,
             "token_identity_verified":False,
-            "reports":reports,"meme_classification_verified":False,"security_verified":False,
+            "reports":reports,"security_verified":False,
             "depth_verified":False,"route_integrity_verified":False,"live_data_verified":False,
             "pilot_applied":False,"real_orders":False,"api_key_used":False}
 
