@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 
-from . import ai_status, journal_capacity, ai_performance_history, ai_review_history, ai_model_referee, ai_forecast_quality, ai_regime_review
+from . import ai_status, journal_capacity, ai_performance_history, ai_review_history, ai_model_referee, ai_forecast_quality, ai_regime_review, ai_risk_referee
 
 TASKS = {"Chronos", "RiverLive", "RiverReplay", "LightGBM", "ForwardBackup"}
 TASK_STATES = {"NOT_REGISTERED", "DISABLED", "NOT_RUN", "RUNNING", "EXIT_OK",
@@ -88,7 +88,7 @@ def snapshot(root):
     root=Path(root).resolve()
     forward=ai_performance_history.run(root)
     reviews=ai_review_history.snapshot(root,forward)
-    return {"version":"ai-dashboard-1",
+    result={"version":"ai-dashboard-1",
             "research":ai_status.run(root),
             "windows_health":windows_health(root),
             "journal_capacity":storage_summary(root),
@@ -100,6 +100,8 @@ def snapshot(root):
             "paper_readiness_verified":False,
             "real_orders":False,"automatic_promotion":False,
             "cross_source_atomic_snapshot":False}
+    result["risk_referee"]=ai_risk_referee.assess(result)
+    return result
 
 
 if __name__=="__main__":
