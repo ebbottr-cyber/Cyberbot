@@ -1,7 +1,7 @@
 # Futures-only setup and foreground launch. Default mode is a read-only preview.
 [CmdletBinding()]
 param(
-    [ValidateSet('Preview','Prepare','Status','Probe','SafetyStatus','SafetyProbe','Health','Performance','Backup','VerifyBackup','StageRecovery','Collect','Evaluate','PaperObserve','Supervise','Watchdog')]
+    [ValidateSet('Preview','Prepare','Status','Probe','SafetyStatus','SafetyProbe','Health','Performance','StrategyGate','Backup','VerifyBackup','StageRecovery','Collect','Evaluate','PaperObserve','Supervise','Watchdog')]
     [string]$Mode = 'Preview',
     [ValidateSet('BTCUSDT','ETHUSDT')][string]$Symbol = 'BTCUSDT',
     [ValidateRange(1,1440)][int]$Cycles = 1200,
@@ -102,6 +102,10 @@ try {
             if (-not $BackupDirectory) { throw 'Backup directory required.' }
             Invoke-PythonChecked -m cyberbot.futures_backup stage --directory $BackupDirectory --root $BackupRoot
         }
+        return
+    }
+    if ($Mode -eq 'StrategyGate') {
+        Invoke-PythonChecked -m cyberbot.futures_strategy_gate --symbol $Symbol
         return
     }
     if ($Mode -eq 'Performance') {

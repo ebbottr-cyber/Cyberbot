@@ -6,7 +6,7 @@ from decimal import Decimal as D
 from . import futures_pilot as fut,futures_forward_memory as forward
 from . import futures_ai_bridge as bridge,futures_lightgbm as batch
 from . import futures_ai_memory as memory,futures_dynamic_risk as risk
-from . import observed_pilot as stocks
+from . import observed_pilot as stocks,futures_strategy_gate as strategy_gate
 from .providers import binance_observed as binance
 
 VERSION="futures-auto-paper-1"
@@ -71,6 +71,7 @@ def run(symbol,*,clock=stocks.utc):
     if s["position"] or s["pending"]:return result(symbol,"position_or_pending",observation=obs["ingress"])
     now=clock();proof,pred=evidence(symbol,now)
     if not proof or not pred:return result(symbol,"waiting_for_forward_evidence",observation=obs["ingress"])
+    if not strategy_gate.allowed(symbol,clock=clock):return result(symbol,"strategy_gate_veto")
     at=batch.timestamp(pred["feature_at"])
     if not bridge.memory_ready(memory.snapshot(symbol),symbol,at):return result(symbol,"memory_veto")
     if batch.direction(pred["lightgbm_return"])!=batch.direction(pred["river_return"]) or batch.direction(pred["lightgbm_return"])=="HOLD":
@@ -79,7 +80,7 @@ def run(symbol,*,clock=stocks.utc):
     # Recheck evidence after research work, then repeat inside serialized ledger transaction.
     def gate(now):
         new,p=evidence(symbol,now)
-        return bool(new and p==pred and bridge.memory_ready(memory.snapshot(symbol),symbol,at))
+        return bool(new and p==pred and bridge.memory_ready(memory.snapshot(symbol),symbol,at) and strategy_gate.allowed(symbol,clock=lambda:now))
     candidate=bridge.combine(symbol,pred,report,clock(),entry_halted=False)
     if candidate["status"]!="shadow_candidate":return result(symbol,"risk_veto",blockers=candidate["blockers"])
     queued=fut.queue_auto(candidate,gate=gate,clock=clock)

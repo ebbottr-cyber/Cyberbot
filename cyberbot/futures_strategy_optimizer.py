@@ -42,10 +42,11 @@ def proxy(rows,i,side,multiplier):
     a,z=rows[i+1],rows[i+batch.HORIZON]
     # Funding amount is not observed settlement: exclude crossing intervals.
     if int(rows[i]["at"].timestamp())//28800!=int(z["at"].timestamp())//28800:return None
-    if max(a["spread_bps"],z["spread_bps"])>20:return None
+    if a["spread_bps"]>20:return None
     slip=float(SLIP)*multiplier;fee=float(FEE)*multiplier
     entry=a["mid"]*(1+side*(a["spread_bps"]/20000*multiplier+slip))
     exit=z["mid"]*(1-side*(z["spread_bps"]/20000*multiplier+slip))
+    if entry<=0 or exit<=0:raise batch.ResearchError("Geçersiz modellenmiş fiyat.")
     return side*(exit-entry)/entry-fee*(1+exit/entry)
 
 def initial():return {"blocks":0,"trades":0,"base_sum":0.0,"stress_sum":0.0,"weak":0,"recovery":0,"quarantined":False}
