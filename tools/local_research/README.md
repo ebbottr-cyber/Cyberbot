@@ -56,3 +56,23 @@ per-token records; no Solana observations are imported by this adapter yet.
 Source/protocol/interval/symbol scopes must not be pooled as independent evidence.
 Imports are idempotent per report fingerprint and scope, not globally atomic across
 all five files. No source DB writes, model selection or trading. No model weights.
+
+## Persistent LightGBM research candidates
+
+After confirming authorized local data use, run the optional candidate trainer
+in the reviewed LightGBM runtime under the shared heavy job guard:
+
+    python -m tools.local_research.vps_guard --model lightgbm --state /opt/cyberbot/var/ai/heavy-lock -- python -m tools.local_research.train_candidate --root /opt/cyberbot
+
+The trainer saves the fitted native model text and validated manifest together
+in var/ai/candidate-models.sqlite3 only after round-trip prediction equivalence.
+BTCUSDT Futures, 1m and the original source/feature order are fixed in v1.
+The candidate has a data fingerprint, model SHA-256, library version and
+chronological holdout metrics. The registry caps each model at 2 MiB and keeps
+at most 20 candidates, with no automatic deletion or promotion. A full registry
+requires manual review. Checksums detect corruption, not a malicious rewrite.
+Keep the database private; do not load externally supplied model text or pickle.
+No trained candidate is loaded into the live engine. Existing daily training
+continues to write research metrics only; candidate training is explicit for now.
+River state is still reconstructed via bounded replay, not an exact persistent
+online checkpoint. Native library round-trip and deployment tests remain pending.
