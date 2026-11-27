@@ -35,13 +35,21 @@ def run(*,limit=2,max_candidates=None,discoverer=discover,inspect=snapshot,sleep
         if mint in seen:continue
         seen.add(mint);selected.append(row)
         if len(selected)>=max_candidates:break
-    reports=[]
+    reports=[];quote_rejections=0;stop_reason=None
     for i,row in enumerate(selected):
         if i:sleep(10)
         try:
             report=inspect(row["mint"],row["pool"])
             reports.append({"candidate":row,"diagnostic":report})
-            if report.get("status") not in ("diagnostic_complete","diagnostic_unsupported_mint"):break
+            if report.get("status")=="diagnostic_sell_quote_rejected":
+                quote_rejections+=1
+                # Permit a single distinct-candidate continuation, not a retry.
+                # An unexplained second HTTP 400 stops this scan.
+                if quote_rejections>=2:
+                    stop_reason="repeated_sell_quote_http_400";break
+                continue
+            if report.get("status") not in ("diagnostic_complete","diagnostic_unsupported_mint"):
+                stop_reason="diagnostic_failure";break
             if sum(r["diagnostic"].get("status")=="diagnostic_complete" for r in reports)>=limit:break
         except (ValueError,KeyError,TypeError,OSError,ArithmeticError,AttributeError,httpx.HTTPError) as e:
             reports.append({"candidate":row,"diagnostic":{"status":"rejected","reason":str(e) if isinstance(e,PilotError) else type(e).__name__}})
@@ -49,10 +57,11 @@ def run(*,limit=2,max_candidates=None,discoverer=discover,inspect=snapshot,sleep
     done=sum(r["diagnostic"].get("status")=="diagnostic_complete" for r in reports)
     skipped=sum(r["diagnostic"].get("status")=="diagnostic_unsupported_mint" for r in reports)
     target_reached=done>=limit
-    exhausted=bool(selected) and (target_reached or len(reports)==len(selected)) and done+skipped==len(reports)
-    status=("scan_no_candidates" if not selected else "scan_partial" if not exhausted else
-            "scan_no_supported_candidates" if not done else "scan_complete_with_skips" if skipped else "scan_complete")
+    exhausted=bool(selected) and (target_reached or len(reports)==len(selected)) and done+skipped+quote_rejections==len(reports)
+    status=("scan_no_candidates" if not selected else "scan_partial" if stop_reason or not exhausted or (quote_rejections and not target_reached) else
+            "scan_no_supported_candidates" if not done else "scan_complete_with_skips" if skipped or quote_rejections else "scan_complete")
     return {"status":status,"completed_mints":done,"unsupported_mints":skipped,
+            "sell_quote_rejected_mints":quote_rejections,"stop_reason":stop_reason,
             "retrieved_at":utc().isoformat(),"scope":"geckoterminal_trending_and_top_page_1_plus_dex_search_direct_usdc",
             "target_completed_mints":limit,"target_reached":target_reached,"max_candidates":max_candidates,
             "available_pools":len(pools),"selected_mints":len(selected),"inspected_mints":len(reports),

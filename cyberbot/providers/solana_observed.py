@@ -31,6 +31,9 @@ def rpc_result(d):
     x=d["result"];slot=x["context"]["slot"]
     if type(slot) is not int or slot<=0:raise PilotError("RPC slot geçersiz.")
     return slot,x["value"]
+class SellQuoteRejected(PilotError):
+    """HTTP 400 on a read-only sell quote; cause not established."""
+
 class UnsupportedMint(PilotError):
     """Well-shaped account that does not satisfy the legacy-only policy."""
 
@@ -133,7 +136,10 @@ def request(client,kind,params,key,*,rpc_url=None):
                 data.extend(chunk)
         raw=json.loads(data)
     except httpx.HTTPStatusError as e:
-        raise PilotError(stage+": HTTP "+str(e.response.status_code)+"; no_retry") from None
+        message=stage+": HTTP "+str(e.response.status_code)+"; no_retry"
+        if stage=="jupiter.sell" and e.response.status_code==400:
+            raise SellQuoteRejected(message) from None
+        raise PilotError(message) from None
     except httpx.RequestError as e:
         raise PilotError(stage+": "+type(e).__name__+"; no_retry") from None
     except PilotError:raise

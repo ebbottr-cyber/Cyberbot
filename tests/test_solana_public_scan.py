@@ -94,3 +94,37 @@ class PublicScanTests(unittest.TestCase):
         with patch("tools.solana_public_scan.fetch",side_effect=error) as mocked:
             with self.assertRaisesRegex(PilotError,"HTTP 429"):discover(sleep=lambda n:self.fail("continued"))
             mocked.assert_called_once()
+
+    def test_single_sell_400_skips_distinct_candidate_but_second_stops(self):
+        rows=[candidate(str(i),"p") for i in range(4)]
+        calls=[]
+        def inspect(m,p):
+            calls.append(m)
+            return {"status":"diagnostic_sell_quote_rejected" if m=="0" else "diagnostic_complete"}
+        with patch.dict(os.environ,{"CYBERBOT_SOLANA_DATA_RIGHTS_CONFIRMED":"1"}):
+            d=run(limit=2,max_candidates=4,discoverer=lambda:rows,inspect=inspect,sleep=lambda n:None)
+            self.assertEqual(calls,["0","1","2"])
+            self.assertEqual(d["status"],"scan_complete_with_skips")
+            self.assertEqual(d["sell_quote_rejected_mints"],1)
+            self.assertTrue(d["target_reached"])
+            calls.clear()
+            def rejected(m,p):
+                calls.append(m);return {"status":"diagnostic_sell_quote_rejected"}
+            d=run(limit=2,max_candidates=4,discoverer=lambda:rows,inspect=rejected,sleep=lambda n:None)
+            self.assertEqual(calls,["0","1"])
+            self.assertEqual(d["status"],"scan_partial")
+            self.assertEqual(d["stop_reason"],"repeated_sell_quote_http_400")
+            self.assertFalse(d["security_verified"])
+            self.assertFalse(d["pilot_applied"])
+
+    def test_only_sell_http_400_has_special_classification(self):
+        import httpx
+        from cyberbot.providers.solana_observed import request,USDC,SellQuoteRejected
+        mint="1"*31+"2"
+        for status in (400,429,503):
+            with httpx.Client(transport=httpx.MockTransport(lambda req:httpx.Response(status,text="private"))) as c:
+                for inp,out in ((mint,USDC),(USDC,mint)):
+                    with self.assertRaises(PilotError) as ctx:
+                        request(c,"quote",{"inputMint":inp,"outputMint":out,"amount":"1"},"")
+                    self.assertEqual(isinstance(ctx.exception,SellQuoteRejected),status==400 and inp==mint)
+                    self.assertNotIn("private",str(ctx.exception))

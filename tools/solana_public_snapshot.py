@@ -3,7 +3,7 @@ import argparse,json,os
 from decimal import Decimal as D
 import httpx
 from cyberbot.solana_pilot import address
-from cyberbot.providers.solana_observed import request,mint_info,reported_holders,pool_info,USDC,PilotError,RPC_ENDPOINTS,UnsupportedMint
+from cyberbot.providers.solana_observed import request,mint_info,reported_holders,pool_info,USDC,PilotError,RPC_ENDPOINTS,UnsupportedMint,SellQuoteRejected
 from cyberbot.observed_pilot import utc,ts
 from tools.solana_route_preview import run as preview
 
@@ -15,6 +15,8 @@ def run(mint,pool):
     stages={}
     def stage(name,fn):
         try:stages[name]={"status":"ok","data":fn()}
+        except SellQuoteRejected as e:
+            stages[name]={"status":"quote_rejected","reason":str(e)}
         except UnsupportedMint as e:
             stages[name]={"status":"unsupported","reason":str(e)}
         except (ValueError,KeyError,TypeError,OSError,ArithmeticError,AttributeError,httpx.HTTPError) as e:
@@ -39,6 +41,8 @@ def run(mint,pool):
         stage("reference_pool",lambda:pool_info(request(c,"pool",pool,""),mint,pool))
         if stages["reference_pool"]["status"]!="ok":return finish("diagnostic_partial")
     stage("route_preview",lambda:preview(mint))
+    if stages["route_preview"]["status"]=="quote_rejected":
+        return finish("diagnostic_sell_quote_rejected")
     return finish("diagnostic_complete" if all(s["status"]=="ok" for s in stages.values()) else "diagnostic_partial")
 def main():
     p=argparse.ArgumentParser(description=__doc__)
