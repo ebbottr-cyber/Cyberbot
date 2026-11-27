@@ -1,5 +1,5 @@
 # Preview by default. Creates disabled tasks only; never starts or overwrites tasks.
-param([switch]$Register)
+param([switch]$Register,[switch]$ResumeMissedDaily)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $script = Join-Path $root 'scripts\ai-research-windows.ps1'
@@ -14,6 +14,7 @@ $plans = @(
 if (-not $Register) {
     Write-Host 'PREVIEW: Chronos every 15 minutes; River live every 15 minutes; LightGBM at 02:12; River replay every 30 minutes; forward backup at 03:15; read-only watchdog every 5 minutes, local time.'
     Write-Host 'All tasks will be disabled, interactive user only, AC power only. No task started.'
+    Write-Host ('Run missed daily tasks when available: ' + [bool]$ResumeMissedDaily)
     return
 }
 if (!(Test-Path -LiteralPath $script -PathType Leaf)) { throw 'Research launcher missing.' }
@@ -30,7 +31,7 @@ $created = @()
 try {
     foreach ($plan in $plans) {
         $arguments = if ($plan.Mode -eq 'Watchdog') {
-            '-NoProfile -NonInteractive -File "' + $watchdog + '" -CheckExitCode'
+            '-NoProfile -NonInteractive -File "' + $watchdog + '" -CheckExitCode -Persist'
         } else {
             '-NoProfile -NonInteractive -File "' + $script + '" -Mode ' + $plan.Mode
         }
@@ -44,7 +45,17 @@ try {
             if ($start -le $now) { $start = $start.AddDays(1) }
             $trigger = New-ScheduledTaskTrigger -Daily -At $start
         }
-        $settings = New-ScheduledTaskSettingsSet -Disable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes $plan.Limit)
+        $settingsArgs = @{
+            Disable = $true
+            MultipleInstances = 'IgnoreNew'
+            ExecutionTimeLimit = (New-TimeSpan -Minutes $plan.Limit)
+        }
+        # Missed daily work may resume when Windows is available, only if opted in.
+        # No blind restart-on-error: exit 75 is an intentional resource deferral.
+        if ($ResumeMissedDaily -and $plan.Interval -eq 0) {
+            $settingsArgs.StartWhenAvailable = $true
+        }
+        $settings = New-ScheduledTaskSettingsSet @settingsArgs
         Register-ScheduledTask -TaskPath '\' -TaskName $plan.Name -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Opt-in local research only. No real orders or automatic model promotion.' | Out-Null
         $created += $plan.Name
     }
