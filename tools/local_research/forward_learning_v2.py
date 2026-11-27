@@ -499,6 +499,10 @@ with closing(sqlite3.connect(
                 "ar1": fit_predict(returns)*100,
                 "chronos": (mid/last-1)*100
             },
+            "quality_context": {
+                "last_observation_age_seconds": (created - samples[current-1]["at"]).total_seconds(),
+                "mean_abs_context_return_pct": mean(abs(r)*100 for r in returns)
+            },
             "p10": low,
             "p50": mid,
             "p90": high,
