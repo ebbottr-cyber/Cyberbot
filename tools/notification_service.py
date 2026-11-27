@@ -25,12 +25,12 @@ def run_cycle(store, push_store, queue, *, events=(), sources=(), user_agent=Non
         subscriptions = push_store.subscriptions()
         # Bounded initial integration; durable cursor and digest scheduling remain separate.
         for notification in store.list(limit=500, unread=True):
-            if route(notification, now, push_enabled=True, quiet_start=settings.get("quiet_start", "12:30"), quiet_end=settings.get("quiet_end", "08:00"), muted=settings.get("muted", ())) == "immediate":
+            if route(notification, now, push_enabled=True, quiet_start=settings.get("quiet_start", "00:30"), quiet_end=settings.get("quiet_end", "08:00"), muted=settings.get("muted", ())) == "immediate":
                 queue.enqueue(notification["id"], subscriptions)
         def eligible(nid):
             with closing(store.connect()) as db:
                 row = db.execute("SELECT * FROM notifications WHERE id=?", (nid,)).fetchone()
-            return row is not None and route(dict(row), datetime.now(timezone.utc), push_enabled=True, quiet_start=settings.get("quiet_start", "12:30"), quiet_end=settings.get("quiet_end", "08:00"), muted=settings.get("muted", ())) == "immediate"
+            return row is not None and route(dict(row), datetime.now(timezone.utc), push_enabled=True, quiet_start=settings.get("quiet_start", "00:30"), quiet_end=settings.get("quiet_end", "08:00"), muted=settings.get("muted", ())) == "immediate"
         result["delivery"] = queue.drain(push_store, sender, enabled=True, eligible=eligible)
     else:
         result["delivery"] = {"status": "disabled"}
