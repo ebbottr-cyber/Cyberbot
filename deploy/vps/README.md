@@ -27,10 +27,27 @@ journal; it is not a live trading service or continuous model training daemon.
 The journal rebuilds state from up to 10,000 settled records. No pickle files.
 
 Resource policy: River replay is limited to 1 GiB and one CPU equivalent
-with a 180-second timeout. Chronos and LightGBM must use the common heavy
-job guard; their service scheduling and hard limits remain to be wired.
+with a 180-second timeout. Chronos and LightGBM service templates use the common heavy job guard
+and cyberbot-ai.slice (MemoryHigh=5G, MemoryMax=6G, CPUQuota=200%).
 No Gemini calls are made; free quota and data-sharing policies require review.
 
 The hardware and real workloads have not been benchmarked. Provider CPU
 limits, legal data access and disk growth may require adjusting the profile.
 No credentials, private databases, raw data or model weights belong in Git.
+
+## Heavy research timers
+
+Separate .venv-chronos and .venv-lightgbm environments are required, including
+all reviewed runtime dependencies. Chronos requires the existing verified
+local runtime report with a valid Linux model_path and the local pilot database.
+LightGBM uses settled forecasts only. Neither service downloads data or models.
+Both services share /opt/cyberbot/var/ai/heavy-lock. A busy guard returns 75
+and the scheduled run is skipped; there is no guaranteed queue or retry.
+Chronos runs 10 bounded cycles at quarter-hour intervals outside 02 UTC.
+LightGBM trains once daily at 02:05 UTC, with a 30-minute guard timeout.
+The LightGBM journal uses at most 10,000 rows, spaced 22 minutes apart after
+validation, at least 10 UTC days, 60 training and 20 holdout observations.
+Unchanged data are not retrained. The fitted model is discarded after scoring;
+only local aggregate reports are saved, not deployable model weights.
+The source and all SQLite files must remain local and authorized.
+Validate all services and timers on the actual Ubuntu host before enabling.
