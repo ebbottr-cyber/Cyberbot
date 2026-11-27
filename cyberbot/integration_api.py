@@ -155,6 +155,7 @@ def notifications_status():
 
 from .pilot_performance import snapshot as pilot_performance_snapshot
 from .pilot_control import snapshot as pilot_control_snapshot
+from .dexterm_replay_status import read as dexterm_replay_status
 
 OBSERVED_MARKETS = ("BIST", "NASDAQ", "XETRA", "FUTURES")
 PORTFOLIO_FIELDS = ("equity", "cash", "daily_pnl", "current_drawdown_pct", "position_open", "risk_gate")
@@ -187,7 +188,7 @@ def portfolio_risk_status():
         item = {"market": market, "currency": CURRENCIES[market], "status": "unavailable",
                 "source": "observed_pilot", "statistics": None, **dict.fromkeys(PORTFOLIO_FIELDS)}
         if market == "SOLANA":
-            item.update(source="DexTerm", status="dexterm_portfolio_not_connected")
+            item.update(source="DexTerm", status="dexterm_portfolio_not_connected", historical_replay=dexterm_replay_status())
         elif market in rows:
             row = rows[market]
             if row.get("currency") == item["currency"]:
