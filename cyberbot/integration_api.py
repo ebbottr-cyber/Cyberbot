@@ -330,3 +330,41 @@ def dexterm_learning_status():
         return result
     except (OSError,ValueError,KeyError,TypeError,sqlite3.Error,ImportError,ArithmeticError,AttributeError):
         return {**base,"status":"unavailable"}
+
+
+@router.get("/api/integration/preflight")
+def central_preflight():
+    """Independent local evidence only; no network, tests, or activation."""
+    from .pilot_preflight import snapshot as preflight_snapshot
+    checks = {}
+    try:
+        data = preflight_snapshot()
+        if data.get("real_orders") is not False or data.get("network_probed") is not False:
+            raise ValueError("Unexpected preflight authority")
+        rows = {r["market"]: r for r in data["markets"]}
+        checks = {"python_supported": data.get("python_supported") is True,
+                  "dependencies_present": all(data.get("dependencies", {}).get(n) for n in ("fastapi", "uvicorn", "httpx")),
+                  "database_isolation_checked": data.get("database_isolation") == "checked",
+                  "entry_halted": data.get("entry_halted") if type(data.get("entry_halted")) is bool else None}
+    except (OSError, RuntimeError, ValueError, TypeError, KeyError, sqlite3.Error, ArithmeticError):
+        rows = {}
+    dex = dexterm_status()
+    markets = []
+    for market in MARKETS:
+        if market == "SOLANA":
+            item = {"market": market, "source": "DexTerm", "archive_status": dex["status"],
+                    "local_quote_validated": False, "adapter_configured": None,
+                    "blockers": ["dexterm_live_quote_collection_unverified", "same_engine_forward_test_missing"]}
+        else:
+            row = rows.get(market, {})
+            item = {"market": market, "source": "Binance USD-M" if market == "FUTURES" else market,
+                    "adapter_configured": row.get("adapter_configured") is True,
+                    "local_quote_validated": row.get("local_quote_validated") is True,
+                    "blockers": [x for x in row.get("blockers", []) if x in ("not_selected","pilot_permissions","local_quote_or_session_not_validated","network_and_funding_probe_required","configuration_or_quote_review_required","adapter_not_configured","provider_runtime_not_verified","same_engine_forward_test_missing")]}
+            if not row:
+                item["blockers"] = ["preflight_unavailable"]
+        item.update(status="blocked", live_paper_verified=False, real_orders=False)
+        markets.append(item)
+    return {"version":"central-preflight-1", "status":"blocked", "checks":checks, "markets":markets,
+            "network_probed":False,"tests_executed":False,"automatic_entry_enabled":False,"real_orders":False,
+            "live_paper_verified":False}
