@@ -110,3 +110,23 @@ outcomes are selectively observed, not a comparison of all possible strategies.
 All actual actions remain HOLD; no existing strategy policy is replaced.
 Legacy decisions without the new diagnostic are excluded. The report is not
 scheduled, and prospective strategy optimization remains pending.
+
+## Three-stage equity parameter review
+
+After confirming local research rights, run from the repository root:
+
+    python -m tools.local_research.equity_parameter_review --market BIST --symbol THYAO.IS
+
+This uses the existing long-only simulator and local daily equity archive,
+requiring an exact unique market mapping in the 5m archive and a single daily
+source. Both databases are read-only. It evaluates 15 fixed configurations on
+the first 50% of observations, shortlists at most three, selects one using the
+next 25%, and tests only that frozen configuration on the last 25%. All stages
+require positive normal and doubled-cost returns, drawdowns at most 10%, and
+at least five closed trades. Each segment begins flat. The result is a JSON
+research report to stdout, not a strategy activation or scheduled training job.
+The same rolling dataset may reuse previous holdout observations, so results
+are not independent evidence. Daily continuity and large price changes are
+screened, but exchange sessions and corporate actions remain unverified.
+Futures and Solana are deliberately excluded from this equity simulator.
+No real orders, automatic promotion, or claims of executable profitability.
