@@ -60,3 +60,19 @@ başarı işareti oluşturur. `-Mode Status` salt okunur pilot ön kontrolüdür
 önceden yapılandırılmış sınırlı yerel okuma girdilerini korur. Giriş freni açık,
 uzaktan erişim ve otomatik sağlayıcı/görev başlatma yok. AI/DexTerm/Futures özel
 çalışma ortamları ve PWA cihaz erişimi ayrıca kurulur. Gerçek Windows testi bekler.
+
+## DexTerm portfoy deney baglantisi
+
+Ayri DexTerm arastirma worktree'sinde mevcut, incelenmis Python ortami ile
+`python -m tools.solana_paper_positions --database PATH --risk-mode` komutu
+cevrimdisi tarihsel pozisyon raporu uretir. Basarili ciktiyi UTF-8 JSON olarak
+ayri yerel dosyada saklayin (Windows PowerShell 5.1 varsayilan UTF-16 yonlendirmesi
+yerine UTF-8 kullanin). `CYBERBOT_DEXTERM_REPLAY_REPORT` bu dosyayi gosterir.
+Dosya yolu GitHub'a kaydedilmez; islem kasalariyla cakismasi engellenir.
+Panel raporun muhasebe tutarliligini ve yetki bayraklarini kontrol eder. Deney
+USDC nakdi, gerceklesen K/Z, acik/kapali pozisyon sayilari ve deney giris freni
+ayri alt bolumde gorunur. Acik pozisyon varken deney son degeri bilinmez.
+Gozlem portfoyunun SOLANA satirinda canli kasa degerleri bos kalir; rapor toplam
+portfoye eklenmez. Rapor gecmisi, kaynak tazeligi veya gercek dolum kaniti degildir.
+Rapor uretimi su an manuel; surekli DexTerm calismasi ve canli sanal motor
+baglantisi ayrica dogrulanmalidir. Eski Solana saglayicisi geri yuklenmez.
