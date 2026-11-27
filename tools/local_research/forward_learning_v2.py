@@ -17,6 +17,8 @@ os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
 root = Path(sys.argv[1]).resolve()
 cycles = int(sys.argv[2])
+if not 1 <= cycles <= 10:
+    raise ValueError("Research cycles must be between 1 and 10")
 
 sys.path.insert(0, str(root))
 
@@ -32,6 +34,7 @@ MARKET = "FUTURES"
 SYMBOL = "BTCUSDT"
 SOURCE = "binance-usdm-public"
 CONTEXT = 21
+MAX_SCORE_ROWS = 10000
 
 NAMES = (
     "naive",
@@ -492,8 +495,10 @@ with closing(sqlite3.connect(
               AND symbol = ?
               AND source = ?
               AND status = 'measured'
+            ORDER BY target_minute DESC
+            LIMIT ?
         """, (
-            MARKET, SYMBOL, SOURCE
+            MARKET, SYMBOL, SOURCE, MAX_SCORE_ROWS
         )).fetchall()
 
         rows = [
@@ -528,6 +533,9 @@ with closing(sqlite3.connect(
             "counts": counts,
             "mae_pct": scores,
             "measured_forecasts": len(rows),
+            "metrics_window": "latest_measured_forecasts",
+            "metrics_window_limit": MAX_SCORE_ROWS,
+            "total_measured_forecasts": counts.get("measured", 0),
             "chronos_interval_coverage_pct": (
                 round(100*mean(
                     x["interval_covered"]
