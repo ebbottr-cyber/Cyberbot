@@ -1,5 +1,6 @@
 """Installable shell only. No financial data or credential caching."""
 import hashlib
+import os
 import struct
 import zlib
 from functools import lru_cache
@@ -42,7 +43,11 @@ def icon(size:int):
 
 @router.get("/sw.js")
 def worker():
-    return Response((WEB/"sw.js").read_text(encoding="utf-8"),media_type="application/javascript",
+    script = (WEB/"sw.js").read_text(encoding="utf-8")
+    if os.getenv("CYBERBOT_NOTIFICATION_PANEL_ENABLED") == "1":
+        push = WEB.parent.parent / "tools" / "notification_push_worker.js"
+        script += "\n" + push.read_text(encoding="utf-8")
+    return Response(script,media_type="application/javascript",
                     headers={"Service-Worker-Allowed":"/"})
 
 @router.get("/pwa/version")
@@ -54,4 +59,13 @@ def panel_version():
             digest.update(path.name.encode("utf-8")+b"\x00")
             digest.update(hashlib.sha256(path.read_bytes()).digest())
     digest.update(hashlib.sha256(Path(__file__).read_bytes()).digest())
+    if os.getenv("CYBERBOT_NOTIFICATION_PANEL_ENABLED") == "1":
+        digest.update(b"notification-panel-enabled")
+        for path in sorted((WEB.parent.parent / "tools").glob("notification_*.js")):
+            digest.update(path.name.encode("utf-8") + b"\x00")
+            digest.update(hashlib.sha256(path.read_bytes()).digest())
+        for path in sorted((WEB.parent.parent / "tools").glob("notification_*.css")):
+            digest.update(path.name.encode("utf-8") + b"\x00")
+            digest.update(hashlib.sha256(path.read_bytes()).digest())
+        digest.update(hashlib.sha256((WEB.parent / "api.py").read_bytes()).digest())
     return JSONResponse({"ui_revision":digest.hexdigest()[:16]},headers={"Cache-Control":"no-store"})
