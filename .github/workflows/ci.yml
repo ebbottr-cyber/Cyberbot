@@ -3,9 +3,6 @@ on:
   push:
   pull_request:
   workflow_dispatch:
-concurrency:
-  group: cyberbot-ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
