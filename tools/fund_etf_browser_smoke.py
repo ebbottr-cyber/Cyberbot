@@ -2,6 +2,7 @@
 import json
 import os
 import subprocess
+import socket
 import sys
 import tempfile
 import time
@@ -21,10 +22,15 @@ def main():
                 dict(market="TEFAS",symbol="FIXTURE_TR",category="fixture",status="research_review"),
                 dict(market="ETF",symbol="FIXTURE_ETF",sector="fixture",status="research_review")])),
             encoding="utf-8")
-        env=dict(os.environ,CYBERBOT_FUND_ETF_SNAPSHOT=str(snapshot))
-        proc=subprocess.Popen([sys.executable,"-m","uvicorn","cyberbot.api:app","--host","127.0.0.1","--port","18791"],
-                              env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-        url="http://127.0.0.1:18791"
+        # Do not read or write the operator's local market archives or use their credentials.
+        env={k:v for k,v in os.environ.items() if not k.upper().startswith("CYBERBOT_") and k.upper() not in ("FRED_API_KEY","EVDS_API_KEY","GEMINI_API_KEY","GOOGLE_API_KEY")}
+        env.update(CYBERBOT_FUND_ETF_SNAPSHOT=str(snapshot),CYBERBOT_FUND_ETF_DEVELOPMENT=str(root/"empty-development.sqlite3"),PYTHONPATH=str(Path(__file__).resolve().parent.parent))
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1",0))
+            port=sock.getsockname()[1]
+        proc=subprocess.Popen([sys.executable,"-m","uvicorn","cyberbot.api:app","--host","127.0.0.1","--port",str(port),"--no-proxy-headers"],
+                              cwd=root,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        url=f"http://127.0.0.1:{port}"
         try:
             for _ in range(100):
                 if proc.poll() is not None:
