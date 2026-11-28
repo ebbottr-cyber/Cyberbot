@@ -1,5 +1,6 @@
 """Read-only panel snapshot. No router registration or execution."""
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 def snapshot(database):
@@ -8,7 +9,7 @@ def snapshot(database):
     if not path.is_file():
         result["status"]="archive_missing"
         return result
-    with sqlite3.connect(path.as_uri()+"?mode=ro",uri=True) as db:
+    with closing(sqlite3.connect(path.as_uri()+"?mode=ro",uri=True)) as db, db:
         tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         for market in ("TEFAS","ETF"):
             item={"market":market,"title":"TEFAS Fonları" if market=="TEFAS" else "Global ETF","price_observations":0,"last_session":None,"accounts":[],"news_count":0,"live_data_verified":False}
