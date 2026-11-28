@@ -1,6 +1,7 @@
 """Offline regression tests for the refresh gate; no provider calls."""
 import csv
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from datetime import date, timedelta
@@ -47,7 +48,7 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual(self.refresh()["status"], "quality_checked")
         self.write([(2,"1.02"), (1,"1.01")])
         self.assertEqual(self.refresh()["reason"], "historical_revision_review_required")
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db, db:
             self.assertEqual(db.execute("SELECT close FROM fund_prices ORDER BY session").fetchall(),
                              [("1",), ("1.01",)])
 
