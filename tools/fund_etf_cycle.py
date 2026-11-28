@@ -6,6 +6,7 @@ import os
 import sqlite3
 import tempfile
 from collections import defaultdict
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -58,9 +59,9 @@ def cycle(database, config, *, yahoo_enabled=False):
     result["analysis_cutoff"]=cutoff.isoformat()
     with tempfile.TemporaryDirectory() as folder:
         frozen=Path(folder)/"snapshot.sqlite3"
-        with sqlite3.connect(path.as_uri()+"?mode=ro",uri=True) as src, sqlite3.connect(frozen) as dst:
+        with closing(sqlite3.connect(path.as_uri()+"?mode=ro",uri=True)) as src, closing(sqlite3.connect(frozen)) as dst:
             src.backup(dst)
-        with sqlite3.connect(frozen) as db:
+        with closing(sqlite3.connect(frozen)) as db, db:
             tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             counts={market:db.execute("SELECT COUNT(*) FROM "+table).fetchone()[0] if table in tables else 0
                     for market,table in (("TEFAS","tefas_catalog"),("ETF","etf_catalog"))}
@@ -92,7 +93,7 @@ def cycle(database, config, *, yahoo_enabled=False):
                     item["status"]="data_unavailable"
                     continue
                 try:
-                    with sqlite3.connect(frozen) as db:
+                    with closing(sqlite3.connect(frozen)) as db, db:
                         rows=db.execute("SELECT market,symbol,session,currency,close,source FROM fund_prices WHERE market=? AND symbol=? AND currency=? AND source=?",
                                         (market,m["symbol"],m["currency"],m["source"])).fetchall()
                     validate(rows,market,m["symbol"],m["currency"],m["source"],max_age_days=age,min_rows=21)
