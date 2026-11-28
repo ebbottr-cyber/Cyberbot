@@ -3,6 +3,7 @@ import argparse
 import json
 import math
 import sqlite3
+from contextlib import closing
 from datetime import date
 from pathlib import Path
 
@@ -109,7 +110,7 @@ def from_archive(database, market, symbol, currency, source, **policy):
     if market not in ("ETF", "TEFAS"):
         raise ValueError("invalid_market")
     path = Path(database).resolve()
-    with sqlite3.connect(path.as_uri()+"?mode=ro", uri=True) as db:
+    with closing(sqlite3.connect(path.as_uri()+"?mode=ro", uri=True)) as db, db:
         rows = db.execute("SELECT session,close FROM fund_prices WHERE market=? AND symbol=? AND currency=? AND source=? ORDER BY session",
                           (market, symbol, currency, source)).fetchall()
     return dict(evaluate(rows, **policy), market=market, symbol=symbol,
