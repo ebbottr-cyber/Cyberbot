@@ -46,6 +46,10 @@ def main():
                             if path=="/models":
                                 expect(page.locator("#summary")).to_be_disabled()
                                 expect(page.locator("#chronosRun")).to_be_disabled()
+                                page.locator("#aiResearchRefresh").click()
+                                expect(page.locator("#aiResearchMessage")).to_contain_text("Rapor okundu",timeout=30000)
+                                expect(page.locator("#aiResearchRows tr")).to_have_count(17)
+                                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2"),(path,size,"AI report overflow")
                             if path=="/data":expect(page.locator("#scan")).to_be_disabled()
                         if size["width"]==390:
                             page.goto(origin+"/",wait_until="networkidle")
