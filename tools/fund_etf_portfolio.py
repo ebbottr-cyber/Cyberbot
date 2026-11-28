@@ -1,5 +1,6 @@
 """Same-currency price-only portfolio research; no orders or automatic rebalance."""
 import sqlite3
+from contextlib import closing
 import math
 
 def optimize(database, market, symbols, currency, source, *, max_weight=0.25, min_observations=60):
@@ -9,7 +10,7 @@ def optimize(database, market, symbols, currency, source, *, max_weight=0.25, mi
     n=len(symbols)
     if market not in ("TEFAS","ETF") or n<2 or len(set(symbols))!=n or not 0<max_weight<=1 or n*max_weight<1-1e-10 or min_observations<60:
         raise ValueError("Invalid portfolio constraints")
-    with sqlite3.connect(database) as db:
+    with closing(sqlite3.connect(database)) as db, db:
         histories={s:dict(db.execute("SELECT session,close FROM fund_prices WHERE market=? AND symbol=? AND currency=? AND source=?",(market,s,currency,source))) for s in symbols}
     dates=sorted(set.intersection(*(set(h) for h in histories.values())))
     if len(dates)<min_observations+1:
