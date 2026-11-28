@@ -1,5 +1,6 @@
 """Offline orchestration checks with mocked optional model dependencies."""
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from datetime import date, timedelta
@@ -15,7 +16,7 @@ class AIReviewTests(unittest.TestCase):
         self.path = Path(self.folder.name)/"prices.sqlite3"
         self.identity = ("ETF", "TEST", "USD", "fixture")
         start = date.today()-timedelta(days=800)
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("CREATE TABLE fund_prices (market TEXT,symbol TEXT,currency TEXT,source TEXT,session TEXT,close TEXT)")
             db.executemany("INSERT INTO fund_prices VALUES (?,?,?,?,?,?)",
                            [self.identity+((start+timedelta(days=i)).isoformat(),str(100+i*.01))
@@ -45,7 +46,7 @@ class AIReviewTests(unittest.TestCase):
         self.assertIsNone(result["candidate"])
 
     def test_future_price_blocks(self):
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("INSERT INTO fund_prices VALUES (?,?,?,?,?,?)",
                        self.identity+((date.today()+timedelta(days=1)).isoformat(),"100"))
         self.assertEqual(review.model_review(self.path,*self.identity)["status"],"blocked")
