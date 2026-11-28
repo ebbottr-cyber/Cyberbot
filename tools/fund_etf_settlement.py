@@ -4,7 +4,7 @@ End-of-session convention: submissions, price publication, settlement,
 then dividend eligibility and payment. No real orders, taxes or splits.
 """
 import math
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -34,7 +34,7 @@ def replay(*, market, symbol, currency, rules, sessions, prices, orders,
     if rules.get("corporate_actions_reviewed") is not True:
         raise ValueError("corporate_actions_review_required")
     end = date.fromisoformat(as_of)
-    zone = ZoneInfo(rules["timezone"])
+    zone = timezone.utc if rules["timezone"]=="UTC" else ZoneInfo(rules["timezone"])
     if end > datetime.now(zone).date():
         raise ValueError("future_replay")
     days = [date.fromisoformat(s["date"]) for s in sessions]
@@ -142,7 +142,21 @@ def replay(*, market, symbol, currency, rules, sessions, prices, orders,
                 cash+=ent["amount"]; ent["paid"]=True
                 emit(day,"dividend_paid",amount=str(ent["amount"]))
     active = [p for p in pending if p["state"]!="settled"]
-    return dict(status="review_required" if any(p["state"].startswith("blocked") for p in active) else "paper_replay",
+    # Do not value unresolved trades or infer an unpublished closing price.
+    eligible=[d for d in observations if idx[d]+max(rules["buy_publication_lag"],rules["sell_publication_lag"])<len(days)
+              and days[idx[d]+max(rules["buy_publication_lag"],rules["sell_publication_lag"])]<=end]
+    pnl=None
+    if not active and not any(not e["paid"] for e in entitlements) and eligible and days[0] in observations:
+        latest=max(eligible)
+        first=number(observations[days[0]],positive=True)
+        last=number(observations[latest],positive=True)
+        basis=starting_cash+starting_units*first
+        marked=cash+units*last
+        pnl=dict(mark_session=latest.isoformat(),initial_equity=str(basis),
+                 marked_equity=str(marked),profit_loss=str(marked-basis),
+                 return_pct=str((marked/basis-1)*100) if basis>0 else None,
+                 actual_account_pnl=False)
+    return dict(pnl=pnl,status="review_required" if any(p["state"].startswith("blocked") for p in active) else "paper_replay",
                 market=market,symbol=symbol,currency=currency,as_of=as_of,
                 initial_cash=str(starting_cash),initial_units=str(starting_units),
                 available_cash=str(cash),available_units=str(units),
