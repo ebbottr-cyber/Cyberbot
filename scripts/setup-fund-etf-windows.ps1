@@ -42,7 +42,7 @@ try {
         Invoke-Checked $python @('-m','pip','install','--disable-pip-version-check','-r','requirements.txt','-r','requirements-fund-etf.txt')
     }
     Invoke-Checked $python @('-m','pip','check')
-    Invoke-Checked $python @('-c','import numpy, scipy, sklearn, lightgbm, xgboost, river, yfinance, httpx, fastapi; from google import genai; from zoneinfo import ZoneInfo; ZoneInfo("Europe/Istanbul"); import tools.fund_etf_cycle')
+    Invoke-Checked $python @('-c','import numpy, scipy, sklearn, lightgbm, xgboost, river, yfinance, httpx, fastapi; from google import genai; from zoneinfo import ZoneInfo; ZoneInfo(''Europe/Istanbul''); import tools.fund_etf_cycle')
     if (-not (Test-Path -LiteralPath $localConfig)) {
         if ($CheckOnly) { throw 'Local configuration missing.' }
         # FileMode.CreateNew rejects races and never overwrites an existing config.
@@ -52,7 +52,7 @@ try {
             $stream.Write($bytes,0,$bytes.Length)
         } finally { $stream.Dispose() }
     }
-    Invoke-Checked $python @('-c','import json,sys; c=json.load(open(sys.argv[1],encoding="utf-8-sig")); assert isinstance(c,dict)', $localConfig)
+    Invoke-Checked $python @('-c','import json,sys; c=json.load(open(sys.argv[1],encoding=''utf-8-sig'')); assert isinstance(c,dict)', $localConfig)
     Invoke-Checked $python @('-m','unittest','discover','-s','tests','-p','test_fund_etf*.py','-v')
     if (-not $SkipBrowser) {
         $oldBrowser=$env:PLAYWRIGHT_BROWSERS_PATH
