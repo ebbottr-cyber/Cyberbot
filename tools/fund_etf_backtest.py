@@ -1,12 +1,13 @@
 """Price-only hypothetical backtest; no settlement or executable fills."""
 import math
 import sqlite3
+from contextlib import closing
 from datetime import date
 
 def backtest(database, market, symbol, currency, source, *, initial_cash, cost_bps, lookback=20, execution_lag=1):
     if market not in ("TEFAS","ETF") or not math.isfinite(initial_cash) or initial_cash<=0 or not math.isfinite(cost_bps) or not 0<=cost_bps<10000 or not isinstance(lookback,int) or lookback<2 or not isinstance(execution_lag,int) or execution_lag<1:
         raise ValueError("Invalid simulation parameters")
-    with sqlite3.connect(database) as db:
+    with closing(sqlite3.connect(database)) as db, db:
         rows=db.execute("SELECT session,close FROM fund_prices WHERE market=? AND symbol=? AND currency=? AND source=? ORDER BY session",(market,symbol,currency,source)).fetchall()
     if len(rows)<=lookback+execution_lag:
         return {"status":"insufficient_data","real_orders":False}
