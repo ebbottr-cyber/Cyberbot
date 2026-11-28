@@ -40,11 +40,13 @@ def data():
             items.append(dict(market=i.get("market"),symbol=i.get("symbol"),name=i.get("name"),
                 group=i.get("category") or i.get("sector"),currency=m.get("currency") or i.get("currency"),
                 status=i.get("status"),score=rank.get("research_score"),peer_rank=i.get("peer_rank"),
-                last_session=m.get("last_session"),action=decision.get("action"),reason=decision.get("reason_tr")))
+                last_session=m.get("last_session"),action=decision.get("action"),reason=decision.get("reason_tr"), commentary=(i.get("explanation") or {}).get("commentary"), commentary_provider=(i.get("explanation") or {}).get("provider")))
         portfolios=[{k:p.get(k) for k in ("id","currency","status","equity","cash","cash_weight","last_session","hypothetical_drawdown","alerts")} for p in obj.get("portfolios",[])]
         payload=dict(base,status=obj.get("status"),generated_at=stamp.isoformat(),age_seconds=age,
                      stale=age>172800,markets=obj.get("markets",[]),counts=obj.get("counts",{}),
-                     instruments=items,portfolios=portfolios,errors=obj.get("errors",[]))
+                     instruments=items,portfolios=portfolios,errors=obj.get("errors",[]),
+                     paper_replays=[{k:p.get(k) for k in ("id","market","symbol","currency","status","available_cash","available_units","reserved_cash","reserved_units","pending","events")} for p in obj.get("paper_replays",[])],
+                     optimizations=[{k:p.get(k) for k in ("id","market","currency","status","weights","last_session")} for p in obj.get("optimizations",[])])
         return JSONResponse(payload)
     except (OSError,ValueError,TypeError,KeyError,AttributeError):
         return JSONResponse(dict(base,reason="Araştırma çıktısı yok veya okunamadı."),status_code=503)
