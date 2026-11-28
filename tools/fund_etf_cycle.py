@@ -22,6 +22,8 @@ from tools.fund_etf_ai_review import model_review
 from tools.fund_etf_risk import assess
 from tools.fund_etf_portfolio import optimize
 from tools.fund_etf_settlement import replay
+from tools.fund_etf_macro import import_macro
+from tools.fund_etf_news import ingest as ingest_news
 
 MARKETS = ("TEFAS", "ETF")
 
@@ -60,6 +62,31 @@ def cycle(database, config, *, yahoo_enabled=False):
         if result["refresh"]["status"]!="quality_checked":
             result["errors"].append("refresh_failed")
             return result
+    # Optional user-authorized local files refreshed by an external data export.
+    # Import all context before freezing the database. No hidden HTTP scraper.
+    try:
+        imports=config.get("context_imports",[])
+        if not isinstance(imports,list) or len(imports)>20:
+            raise ValueError("invalid_context_imports")
+        for job in imports:
+            if job.get("rights_confirmed") is not True:
+                raise ValueError("context_source_not_authorized")
+            source_path=Path(job["file"])
+            if source_path.stat().st_size>10_000_000:
+                raise ValueError("context_file_too_large")
+            if job["kind"]=="macro_csv":
+                import_macro(database,source_path,job["source"])
+            elif job["kind"]=="news_json":
+                with source_path.open(encoding="utf-8-sig") as f:
+                    news=json.load(f)
+                if not isinstance(news,list) or len(news)>5000:
+                    raise ValueError("invalid_news_batch")
+                ingest_news(database,news)
+            else:
+                raise ValueError("unsupported_context_import")
+    except Exception as exc:
+        result["errors"].append("context_import_"+type(exc).__name__)
+        return result
     path=Path(database).resolve()
     if not path.is_file():
         result["errors"].append("archive_missing")
