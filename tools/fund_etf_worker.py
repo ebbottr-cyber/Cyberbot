@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import sqlite3
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -75,7 +76,7 @@ def main():
     db,config,output,status=paths
     try:
         locks=check_paths(db,config,output,status)
-    except (OSError,ValueError,RuntimeError) as exc:
+    except (OSError,ValueError,RuntimeError,sqlite3.Error) as exc:
         p.error("unsafe fund ETF paths: "+type(exc).__name__)
     if a.status:
         try:
@@ -101,7 +102,7 @@ def main():
                 publish(dict(status="stopped",finished_at=now(),real_orders=False,
                              execution_allowed=False),status)
                 return 0
-    except OSError:
+    except (OSError,ValueError,sqlite3.Error):
         print(json.dumps({"status":"lock_or_io_error","real_orders":False}))
         return 2
 
