@@ -1,0 +1,49 @@
+name: Fund ETF integration
+on:
+  push:
+    branches: [feature/free-fund-etf-research]
+  pull_request:
+    branches: [integration/cyberbot-master]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  research:
+    if: github.ref_name == 'feature/free-fund-etf-research' || github.head_ref == 'feature/free-fund-etf-research'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.12']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -r requirements.txt -r requirements-fund-etf.txt
+      - run: python -m unittest discover -s tests -p "test_fund_etf*.py" -v
+      - name: Windows script syntax
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $tokens=$null; $errors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path scripts/fund-etf-windows.ps1).Path,[ref]$tokens,[ref]$errors) | Out-Null
+          if ($errors.Count) { throw ($errors | Out-String) }
+  browser:
+    if: github.ref_name == 'feature/free-fund-etf-research' || github.head_ref == 'feature/free-fund-etf-research'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt "playwright>=1.50,<2"
+      - run: python -m playwright install --with-deps chromium
+      - run: python -m tools.fund_etf_browser_smoke
