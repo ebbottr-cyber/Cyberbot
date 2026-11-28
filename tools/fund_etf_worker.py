@@ -3,42 +3,19 @@ import argparse
 import json
 import os
 import time
-from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from tools.fund_etf_cycle import cycle, publish
 from tools.fund_etf_backup import daily_backup
+from tools.fund_etf_safety import check_paths, exclusive
 
 
 def now():
     return datetime.now(timezone.utc).isoformat()
 
 
-@contextmanager
-def exclusive(path):
-    """OS-backed advisory lock; automatically released when process exits."""
-    with open(path,"a+b") as f:
-        f.seek(0,os.SEEK_END)
-        if f.tell()==0:
-            f.write(b"0"); f.flush()
-        f.seek(0)
-        if os.name=="nt":
-            import msvcrt
-            msvcrt.locking(f.fileno(),msvcrt.LK_NBLCK,1)
-            try:
-                yield
-            finally:
-                f.seek(0); msvcrt.locking(f.fileno(),msvcrt.LK_UNLCK,1)
-        else:
-            import fcntl
-            fcntl.flock(f.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
-            try:
-                yield
-            finally:
-                fcntl.flock(f.fileno(),fcntl.LOCK_UN)
-
-
 def run_once(database, config_path, output, status_path, *, yahoo_enabled=False):
+    check_paths(database,config_path,output,status_path)
     started=now()
     publish(dict(status="running",started_at=started,real_orders=False,
                  execution_allowed=False),status_path)
@@ -96,9 +73,10 @@ def main():
     if len(set(paths))!=4:
         p.error("input and output paths must be distinct")
     db,config,output,status=paths
-    lock=output.parent/(output.name+".lock")
-    if lock in paths:
-        p.error("lock path collision")
+    try:
+        locks=check_paths(db,config,output,status)
+    except (OSError,ValueError,RuntimeError) as exc:
+        p.error("unsafe fund ETF paths: "+type(exc).__name__)
     if a.status:
         try:
             with status.open(encoding="utf-8") as f:
@@ -108,10 +86,10 @@ def main():
             info={"status":"unavailable","running_verified":False}
         print(json.dumps(info,ensure_ascii=True))
         return 0
-    for path in (output,status):
+    for path in (db,output,status):
         path.parent.mkdir(parents=True,exist_ok=True)
     try:
-        with exclusive(lock):
+        with exclusive(locks[0]), exclusive(locks[1]):
             try:
                 while True:
                     result=run_once(db,config,output,status,yahoo_enabled=a.enable_yahoo)
