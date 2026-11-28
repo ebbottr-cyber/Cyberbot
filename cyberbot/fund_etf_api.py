@@ -44,7 +44,7 @@ def data():
         portfolios=[{k:p.get(k) for k in ("id","currency","status","equity","cash","cash_weight","last_session","hypothetical_drawdown","alerts")} for p in obj.get("portfolios",[])]
         payload=dict(base,status=obj.get("status"),generated_at=stamp.isoformat(),age_seconds=age,
                      stale=age>172800,markets=obj.get("markets",[]),counts=obj.get("counts",{}),
-                     instruments=items,portfolios=portfolios,errors=obj.get("errors",[]),source_checks=obj.get("source_checks",[]),backup=obj.get("backup",{"status":"disabled"}),
+                     instruments=items,portfolios=portfolios,errors=obj.get("errors",[]),source_checks=obj.get("source_checks",[]),backup=obj.get("backup",{"status":"disabled"}),context_collection=obj.get("context_collection",{"status":"disabled","results":[]}),
                      paper_replays=[{k:p.get(k) for k in ("id","market","symbol","currency","status","available_cash","available_units","reserved_cash","reserved_units","pending","events","pnl")} for p in obj.get("paper_replays",[])],
                      auto_paper=[{k:p.get(k) for k in ("id","market","symbol","currency","status","available_cash","available_units","reserved_cash","reserved_units","pending","history","reason_tr","pnl")} for p in obj.get("auto_paper",[])],
                      optimizations=[{k:p.get(k) for k in ("id","market","currency","status","weights","last_session")} for p in obj.get("optimizations",[])])
