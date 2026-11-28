@@ -1,11 +1,12 @@
 """Historical price-only research; no execution or predictive AI."""
 import math
 import sqlite3
+from contextlib import closing
 from statistics import stdev
 from datetime import date
 
 def analyze(database, market, symbol, currency, source):
-    with sqlite3.connect(database) as db:
+    with closing(sqlite3.connect(database)) as db, db:
         rows = db.execute("SELECT session, close FROM fund_prices WHERE market=? AND symbol=? AND currency=? AND source=? ORDER BY session", (market,symbol,currency,source)).fetchall()
     if len(rows)<21:
         return {"status":"insufficient_data","observations":len(rows),"real_orders":False}
