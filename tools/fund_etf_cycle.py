@@ -27,6 +27,7 @@ from tools.fund_etf_news import ingest as ingest_news
 from tools.fund_etf_auto_paper import run as run_auto_paper
 from tools.fund_etf_development import record as record_development
 from tools.fund_etf_source_check import compare_sources
+from tools.fund_etf_context_collect import run as collect_context
 
 MARKETS = ("TEFAS", "ETF")
 
@@ -96,6 +97,12 @@ def cycle(database, config, *, yahoo_enabled=False):
     except Exception as exc:
         result["errors"].append("context_import_"+type(exc).__name__)
         return result
+    collection_jobs=config.get("context_collection",[])
+    if collection_jobs:
+        result["context_collection"]=collect_context(database,collection_jobs)
+        if result["context_collection"]["status"]!="collected":
+            result["errors"].append("context_collection_failed")
+            return result
     path=Path(database).resolve()
     if not path.is_file():
         result["errors"].append("archive_missing")
