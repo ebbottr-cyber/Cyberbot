@@ -75,3 +75,22 @@ context_collection varsayılan boş. Her sağlayıcı için rights_confirmed=tru
 KAP: provider=kap_export, file=<izinli yerel JSON>. Biçim {exported_at: ISO-8601 saat dilimli zaman, items: mevcut fund_etf_news.ingest şemasında KAP kayıtları}. 24 saatten eski dosya engellenir. KAP resmi REST veri yayını dağıtım sözleşmesi gerektirir; ücretsiz doğrudan otomatik KAP erişimi doğrulanmadı. Dışa aktarımın üretilmesi ayrı süreçtir; tam kapsama doğrulanmış değildir. İş başarısızsa mevcut araştırma döngüsü engellenir. API anahtarları Git'e yazılmaz; sağlayıcı hatalarında URL veya anahtar gösterilmez. httpx mevcut requirements.txt içinde bulunur. Canlı API çağrıları ve ücretsiz kullanım koşulları yerel kabul testinde doğrulanmalıdır.
 
 Kaynaklar: https://fred.stlouisfed.org/docs/api/fred/series_observations.html ; https://evds3.tcmb.gov.tr/ ; https://www.kap.org.tr/tr/about/genel-bilgi .
+
+## Tek komutlu Windows kurulumu
+
+Geliştirme dalının veya onaylanmış entegrasyon sürümünün çalışma kopyasında PowerShell ile:
+
+```powershell
+& .\scripts\setup-fund-etf-windows.ps1
+```
+
+Kurulum yalnız var/fund-etf-venv altında Python 3.11/3.12 sanal ortamı oluşturur; mevcut .venv ve .venv-futures değiştirilmez. PyPI bağımlılıkları, pip check, model importları, İstanbul saat dilimi, Fon & ETF unit testleri ve varsayılan olarak Chromium masaüstü/mobil smoke testleri kontrol edilir. Tarayıcı dosyaları var/fund-etf-browsers altında tutulur. Mevcut var/fund-etf-config.json üzerine yazılmaz; yoksa güvenli örnek oluşturulur. -CheckOnly mevcut kurulumda bağımlılık yüklemeden testleri yeniden çalıştırır; -SkipBrowser tarayıcı kısmını atlar. -PythonExecutable ile uygun Python yolu seçilebilir. Başarısız adım kurulumu durdurur, yarım ortam otomatik silinmez. Ağ erişimi yalnız bağımlılık ve Chromium kurulumu için gerekir; canlı veri sağlayıcısı veya gerçek emir başlatılmaz.
+
+Kurulumdan sonra, yalnız yerel veri/ürün koşulları ve ücretsiz erişim onaylanmışsa:
+
+```powershell
+& .\scripts\fund-etf-windows.ps1 -Mode Status
+& .\scripts\fund-etf-windows.ps1 -Mode Once
+```
+
+Register ve Start ayrı operatör işlemleridir. Mevcut görev başka çalışma kopyasına aitse Start/Stop engellenir. Kurulum Git dallarını değiştirmez. Ana uygulama ayrı Cyberbot ortamından sunulmaya devam eder; araştırma worker'ı yeni izole ortamdan çalışır. Özel veritabanı yolları varsa API ortam değişkenlerini ayrıca ayarlayın. Gerçek Windows kurulumu, canlı API erişimi ve iPhone Safari kabul testi henüz doğrulanmadı.
