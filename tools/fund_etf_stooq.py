@@ -9,11 +9,14 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 from tools.fund_etf_import import ingest
 
-def run(database, symbol, currency, *, enabled=False):
+def run(database, symbol, currency, *, enabled=False, canonical_symbol=None):
     if enabled is not True:
         raise ValueError("Explicit provider permission required")
     if not re.fullmatch(r"[a-z0-9][a-z0-9.-]{0,24}", symbol):
         raise ValueError("Invalid Stooq symbol")
+    canonical_symbol=canonical_symbol or symbol.upper()
+    if not re.fullmatch(r"[A-Z0-9][A-Z0-9.=-]{0,24}",canonical_symbol):
+        raise ValueError("Invalid canonical symbol")
     url = "https://stooq.com/q/d/l/?" + urlencode({"s":symbol,"i":"d"})
     with urlopen(url, timeout=20) as response:
         if not response.geturl().startswith("https://stooq.com/"):
@@ -29,8 +32,12 @@ def run(database, symbol, currency, *, enabled=False):
         with path.open("w",encoding="utf-8",newline="") as f:
             writer=csv.writer(f)
             writer.writerow(["symbol","date","close"])
+            seen=set()
             for row in reader:
-                writer.writerow([symbol,row["Date"],row["Close"]])
+                if row["Date"] in seen:
+                    raise ValueError("duplicate_stooq_session")
+                seen.add(row["Date"])
+                writer.writerow([canonical_symbol,row["Date"],row["Close"]])
         return ingest(database,path,"ETF","Stooq",currency)
 
 if __name__=="__main__":
