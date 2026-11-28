@@ -1,6 +1,7 @@
 """Offline macro observations with release dates; no automatic provider access."""
 import csv
 import sqlite3
+from contextlib import closing
 from datetime import date
 from decimal import Decimal
 
@@ -18,14 +19,14 @@ def import_macro(database, filename, source):
             rows.append((source,r["series"],r["unit"],period.isoformat(),released.isoformat(),str(value)))
     if not rows:
         raise ValueError("Empty macro file")
-    with sqlite3.connect(database) as db:
+    with closing(sqlite3.connect(database)) as db, db:
         db.execute("CREATE TABLE IF NOT EXISTS fund_macro (source TEXT,series TEXT,unit TEXT,period TEXT,released TEXT,value TEXT,PRIMARY KEY(source,series,unit,period,released))")
         db.executemany("INSERT INTO fund_macro VALUES (?,?,?,?,?,?) ON CONFLICT DO NOTHING",rows)
     return len(rows)
 
 def as_of(database, source, series, unit, cutoff):
     cutoff=date.fromisoformat(cutoff).isoformat()
-    with sqlite3.connect(database) as db:
+    with closing(sqlite3.connect(database)) as db, db:
         rows=db.execute("SELECT period,released,value FROM fund_macro WHERE source=? AND series=? AND unit=? AND released<=? ORDER BY period,released",(source,series,unit,cutoff)).fetchall()
     return {period:{"released":released,"value":value} for period,released,value in rows}
 
