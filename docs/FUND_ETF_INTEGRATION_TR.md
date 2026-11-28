@@ -53,3 +53,17 @@ Ortak cyberbot/development_api.py dosyasında yalnız panel() yanıtına with_fu
 TEFAS yeni web JSON fiyat geçmişi adaptörü: provider=tefas, market=TEFAS, symbol, currency=TRY, months=60, rights_confirmed=true, free_access_confirmed=true. Teknik şema: https://github.com/eneshikmetkayim/Tefas-API/blob/main/TEFAS_API.md (topluluk dokümanı, resmi kullanım izni değildir). Otomatik erişim hakkı ve ücretsiz kullanım teyit edilmeden etkinleştirmeyin. 403/429, HTML, hatalı yanıt ve boş geçmişte durur. Canlı erişim test edilmedi.
 
 Stooq: provider=stooq, market=ETF, symbol (katalog kodu), provider_symbol (Stooq kodu), currency, rights_confirmed=true, free_access_confirmed=true, identity_reviewed=true. Kimlik, borsa ve para birimi eşleşmesi operatör tarafından teyit edilir. sources.ETF açıkça seçilir; Yahoo ve Stooq geçmişleri birleştirilmez. Stooq'un düzeltilmiş fiyatları Yahoo kapanışlarıyla eşdeğer olmayabilir. source_checks: market, symbol, currency, primary, secondary, tolerance (varsayılan 0.01), min_overlap (20). Uyumsuzluk tüm yeni alış incelemelerini durdurur. Kaynak otomatik değiştirilmez; ücretli fallback yoktur. CSV yolu korunur. Tüm yeni ayarlar varsayılan kapalıdır. Önceki TEFAS CSV sınırlaması bu deneysel adaptörle genişletildi, canlı servis ve kullanım hakkı kabul koşulları devam ediyor.
+
+## SQLite yedekleme ve kurtarma
+
+Yeni örnek konfigürasyonda backup.enabled=true ve backup.destination=var/fund-etf-backups. Mevcut konfigürasyonlar değiştirilmez; alan yoksa devre dışıdır. Worker tarama sonrasında günün ilk doğrulanmış yedeğini oluşturur; aynı UTC gününde yeniden kullanır, yeni sanal işlem/öğrenme defteri oluştuğunda yeni paket oluşturur. Daha yeni değişiklikler o günün ilk paketinde bulunmaz. Yedekleme hatası rapora yansır, tamamlanmış sanal işlemler geri alınmaz. Otomatik eski dosya silme yoktur; disk alanı izlenmeli ve harici diske kopyalanmalıdır. Her SQLite dosyası online backup API ile alınır, bütünlük ve SHA-256 doğrulanır; dosyalar arası atomiklik garanti edilmez. Tutarlı manuel yedek için tüm yazıcıları durdurun. Ana fiyat arşivi zorunlu, henüz oluşmamış sanal defter ve gelişim defteri manifestte eksik olarak belirtilir. Konfigürasyon, kaynak CSV dosyaları, API anahtarları ve snapshot yedeğe dahil değildir. Bunlar ayrı ve güvenli biçimde saklanmalıdır.
+
+Komutlar (sanal ortam):
+
+```
+python -m tools.fund_etf_backup backup
+python -m tools.fund_etf_backup verify --bundle var/fund-etf-backups/PAKET
+python -m tools.fund_etf_backup restore --bundle var/fund-etf-backups/PAKET --destination var/fund-etf-recovered
+```
+
+Kurtarma yalnız yeni klasörde yapılır. Worker otomatik başlatılmaz, mevcut arşiv değiştirilmez. Kayıtları inceleyip yapılandırma ve dosya yollarını yeniden onaylamak gerekir. Günlük paket tam felaket kurtarma veya şifreli dış yedek yerine geçmez. CI ve gerçek Windows cihaz testi kabul koşuludur.
