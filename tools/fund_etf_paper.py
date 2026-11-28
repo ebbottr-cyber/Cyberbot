@@ -1,5 +1,6 @@
 """Offline paper ledger; no live execution, settlement or broker integration."""
 import sqlite3
+from contextlib import closing
 import math
 from datetime import date
 
@@ -13,7 +14,7 @@ def connect(database):
 def create_account(database, account, market, currency, cash):
     if not account or market not in ("TEFAS","ETF") or currency not in ("TRY","USD","EUR","GBP") or (market=="TEFAS" and currency!="TRY") or not math.isfinite(cash) or cash<=0:
         raise ValueError("Invalid account")
-    with connect(database) as db:
+    with closing(connect(database)) as db, db:
         db.execute("INSERT INTO fund_paper_accounts VALUES (?,?,?,?,?)",(account,market,currency,cash,cash))
 
 def trade(database, account, trade_id, symbol, source, side, signal_date, session, units, *, cost_bps, max_position_fraction=0.2):
@@ -21,7 +22,7 @@ def trade(database, account, trade_id, symbol, source, side, signal_date, sessio
         raise ValueError("Invalid order")
     if not date.fromisoformat(signal_date)<date.fromisoformat(session)<=date.today():
         raise ValueError("Execution must follow signal")
-    with connect(database) as db:
+    with closing(connect(database)) as db, db:
         db.execute("BEGIN IMMEDIATE")
         a=db.execute("SELECT market,currency,cash,initial_cash FROM fund_paper_accounts WHERE id=?",(account,)).fetchone()
         if not a:
