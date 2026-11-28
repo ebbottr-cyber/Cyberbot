@@ -62,3 +62,35 @@ def with_fund_menu(html):
     if marker in html:
         return html.replace(marker,FUND_MENU+marker,1)
     return html
+
+@router.get("/api/fund-etf/development")
+def development_data():
+    from tools.fund_etf_development import overview
+    import sqlite3
+    base=dict(status="unavailable",markets=[],recent=[],paper_accounts=[],
+              real_orders=False,model_promoted=False,profitability_verified=False)
+    try:
+        history=overview(os.environ.get("CYBERBOT_FUND_ETF_DEVELOPMENT","var/fund-etf.sqlite3.development.sqlite3"))
+        current=data()
+        history["paper_accounts"]=[]
+        history["paper_snapshot_status"]="unavailable"
+        if current.status_code==200:
+            snap=json.loads(current.body)
+            history["paper_snapshot_status"]="stale" if snap["stale"] else snap["status"]
+            history["paper_generated_at"]=snap["generated_at"]
+            if not snap["stale"] and snap["status"] in ("research_only","partial"):
+                for p in snap.get("auto_paper",[]):
+                    history["paper_accounts"].append({**{k:p.get(k) for k in ("id","market","symbol","currency","status","pnl","reason_tr")},
+                        "pending_count":len(p.get("pending") or []),
+                        "intent_count":len(p.get("history") or [])})
+        return JSONResponse(history)
+    except (sqlite3.Error,OSError,ValueError,KeyError,TypeError,AttributeError):
+        return JSONResponse(base,status_code=503)
+
+
+def with_fund_development(html):
+    """Add an independent section without editing the shared static dashboard."""
+    fragment=(Path(__file__).parent/"web"/"fund_etf_development_fragment.html").read_text(encoding="utf-8")
+    if 'id="fundDevelopment"' in html:
+        return html
+    return html.replace("</main>",fragment+"</main>",1)
