@@ -26,15 +26,31 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: python -m pip install -r requirements.txt -r requirements-fund-etf.txt
-      - run: python -m unittest discover -s tests -p "test_fund_etf*.py" -v
+      - name: Install research dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: python -m pip install -r requirements.txt -r requirements-fund-etf.txt
+      - name: Research tests (Linux)
+        if: runner.os == 'Linux'
+        run: python -m unittest discover -s tests -p "test_fund_etf*.py" -v
+      - name: Run actual isolated Windows installer and research tests
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $python=(Get-Command python.exe).Source
+          if ("${{ matrix.python }}" -eq "3.12") {
+            & .\scripts\setup-fund-etf-windows.ps1 -PythonExecutable $python
+          } else {
+            & .\scripts\setup-fund-etf-windows.ps1 -PythonExecutable $python -SkipBrowser
+          }
       - name: Windows script syntax
         if: runner.os == 'Windows'
         shell: powershell
         run: |
           $tokens=$null; $errors=$null
-          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path scripts/fund-etf-windows.ps1).Path,[ref]$tokens,[ref]$errors) | Out-Null
-          if ($errors.Count) { throw ($errors | Out-String) }
+          foreach ($script in @("scripts/fund-etf-windows.ps1","scripts/setup-fund-etf-windows.ps1")) {
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script).Path,[ref]$tokens,[ref]$errors) | Out-Null
+            if ($errors.Count) { throw ($errors | Out-String) }
+          }
   browser:
     if: github.ref_name == 'feature/free-fund-etf-research' || github.head_ref == 'feature/free-fund-etf-research'
     runs-on: ubuntu-latest
