@@ -67,3 +67,11 @@ python -m tools.fund_etf_backup restore --bundle var/fund-etf-backups/PAKET --de
 ```
 
 Kurtarma yalnız yeni klasörde yapılır. Worker otomatik başlatılmaz, mevcut arşiv değiştirilmez. Kayıtları inceleyip yapılandırma ve dosya yollarını yeniden onaylamak gerekir. Günlük paket tam felaket kurtarma veya şifreli dış yedek yerine geçmez. CI ve gerçek Windows cihaz testi kabul koşuludur.
+
+## Otomatik makro veri toplama
+
+context_collection varsayılan boş. Her sağlayıcı için rights_confirmed=true ve free_access_confirmed=true açık onay gereklidir. FRED: provider=fred, series=FEDFUNDS (örnek), unit=percent, lookback_days=365, yerel FRED_API_KEY. EVDS3: provider=evds, series=TP.DK.USD.A (örnek), unit=TRY/USD, frequency=daily, yerel EVDS_API_KEY. Seri ve birim operatör tarafından doğrulanmalıdır. EVDS aylık/çeyreklik tarih biçimi bu sürümde desteklenmez. FRED güncel vintage, EVDS güncel gözlem alınır; gerçek ilk yayın günü olduğu varsayılmaz. İlk görülme UTC günü arşivde released olarak kullanılır; mevcut iki günlük güvenlik tamponu uygulanır. Değişmemiş değerler yeniden yazılmaz, aynı gün çelişkili revizyon bloke edilir. Bu yöntem tarihsel vintage arşivinin yerine geçmez.
+
+KAP: provider=kap_export, file=<izinli yerel JSON>. Biçim {exported_at: ISO-8601 saat dilimli zaman, items: mevcut fund_etf_news.ingest şemasında KAP kayıtları}. 24 saatten eski dosya engellenir. KAP resmi REST veri yayını dağıtım sözleşmesi gerektirir; ücretsiz doğrudan otomatik KAP erişimi doğrulanmadı. Dışa aktarımın üretilmesi ayrı süreçtir; tam kapsama doğrulanmış değildir. İş başarısızsa mevcut araştırma döngüsü engellenir. API anahtarları Git'e yazılmaz; sağlayıcı hatalarında URL veya anahtar gösterilmez. httpx mevcut requirements.txt içinde bulunur. Canlı API çağrıları ve ücretsiz kullanım koşulları yerel kabul testinde doğrulanmalıdır.
+
+Kaynaklar: https://fred.stlouisfed.org/docs/api/fred/series_observations.html ; https://evds3.tcmb.gov.tr/ ; https://www.kap.org.tr/tr/about/genel-bilgi .
