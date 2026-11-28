@@ -9,8 +9,10 @@ from .lab import experiment
 from .market import INDEX
 from .access import authorize
 from .db_paths import checked,PathCollision
+from .fund_etf_api import router as fund_etf_router, with_fund_menu
 
 app=FastAPI(title="Cyberbot Obsidian",docs_url=None,redoc_url=None,openapi_url=None)
+app.include_router(fund_etf_router)
 
 @lru_cache
 def _ledger(path):
@@ -44,7 +46,7 @@ class Buy(BaseModel):
 
 @app.get("/",response_class=HTMLResponse)
 def home():
-    return (Path(__file__).parent/"web"/"index.html").read_text(encoding="utf-8")
+    return with_fund_menu((Path(__file__).parent/"web"/"index.html").read_text(encoding="utf-8"))
 
 @app.get("/api/status")
 def status():
@@ -109,6 +111,3 @@ app.include_router(development_router)
 
 from .knowledge_api import router as knowledge_router
 app.include_router(knowledge_router)
-
-from .fund_etf_api import router as fund_etf_router
-app.include_router(fund_etf_router)
