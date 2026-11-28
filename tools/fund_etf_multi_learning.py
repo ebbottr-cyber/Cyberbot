@@ -1,6 +1,7 @@
 """Offline optional model challengers. No automatic promotion or orders."""
 import math
 import sqlite3
+from contextlib import closing
 
 def evaluate(database, market, symbol, currency, source, *, min_train=100, horizon=5, step=20):
     if min_train<100 or horizon<1 or step<1:
@@ -8,7 +9,7 @@ def evaluate(database, market, symbol, currency, source, *, min_train=100, horiz
     from lightgbm import LGBMClassifier
     from xgboost import XGBClassifier
     from river import linear_model, preprocessing
-    with sqlite3.connect(database) as db:
+    with closing(sqlite3.connect(database)) as db, db:
         rows=db.execute("SELECT session,close FROM fund_prices WHERE market=? AND symbol=? AND currency=? AND source=? ORDER BY session",(market,symbol,currency,source)).fetchall()
     p=[float(r[1]) for r in rows]
     if any(not math.isfinite(v) or v<=0 for v in p):
