@@ -1,0 +1,50 @@
+"""Read-only fund/ETF snapshot endpoints, protected by the existing app middleware."""
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+from fastapi import APIRouter
+from fastapi.responses import HTMLResponse, JSONResponse
+
+router = APIRouter()
+MAX_BYTES = 25_000_000
+
+@router.get("/fund-etf", response_class=HTMLResponse)
+def page():
+    return (Path(__file__).parent/"web"/"fund_etf.html").read_text(encoding="utf-8")
+
+@router.get("/api/fund-etf")
+def data():
+    base=dict(status="unavailable",real_orders=False,execution_allowed=False,live_data_verified=False)
+    path=Path(os.environ.get("CYBERBOT_FUND_ETF_SNAPSHOT","var/fund-etf-snapshot.json"))
+    try:
+        with path.open("rb") as f:
+            raw=f.read(MAX_BYTES+1)
+        if len(raw)>MAX_BYTES:
+            raise ValueError("snapshot_too_large")
+        obj=json.loads(raw,parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite")))
+        if obj.get("schema_version")!=1 or obj.get("real_orders") is not False or obj.get("execution_allowed") is not False:
+            raise ValueError("invalid_snapshot")
+        stamp=datetime.fromisoformat(obj["generated_at"])
+        if stamp.tzinfo is None:
+            raise ValueError("timezone_required")
+        age=(datetime.now(timezone.utc)-stamp).total_seconds()
+        if age<0:
+            raise ValueError("future_snapshot")
+        if not isinstance(obj.get("instruments"),list) or not isinstance(obj.get("portfolios",[]),list):
+            raise ValueError("invalid_snapshot")
+        # Return only UI fields; do not publish untrusted external URLs or full news text.
+        items=[]
+        for i in obj["instruments"]:
+            m=i.get("metrics") or {}; rank=i.get("rank") or {}; decision=i.get("decision") or {}
+            items.append(dict(market=i.get("market"),symbol=i.get("symbol"),name=i.get("name"),
+                group=i.get("category") or i.get("sector"),currency=m.get("currency") or i.get("currency"),
+                status=i.get("status"),score=rank.get("research_score"),peer_rank=i.get("peer_rank"),
+                last_session=m.get("last_session"),action=decision.get("action"),reason=decision.get("reason_tr")))
+        portfolios=[{k:p.get(k) for k in ("id","currency","status","equity","cash","cash_weight","last_session","hypothetical_drawdown","alerts")} for p in obj.get("portfolios",[])]
+        payload=dict(base,status=obj.get("status"),generated_at=stamp.isoformat(),age_seconds=age,
+                     stale=age>172800,markets=obj.get("markets",[]),counts=obj.get("counts",{}),
+                     instruments=items,portfolios=portfolios,errors=obj.get("errors",[]))
+        return JSONResponse(payload)
+    except (OSError,ValueError,TypeError,KeyError,AttributeError):
+        return JSONResponse(dict(base,reason="Araştırma çıktısı yok veya okunamadı."),status_code=503)
