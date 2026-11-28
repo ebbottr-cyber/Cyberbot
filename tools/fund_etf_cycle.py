@@ -28,6 +28,7 @@ from tools.fund_etf_auto_paper import run as run_auto_paper
 from tools.fund_etf_development import record as record_development
 from tools.fund_etf_source_check import compare_sources
 from tools.fund_etf_context_collect import run as collect_context
+from tools.fund_etf_safety import archive_paths, check_paths, exclusive
 
 MARKETS = ("TEFAS", "ETF")
 
@@ -38,6 +39,7 @@ def cycle(database, config, *, yahoo_enabled=False):
     A frozen SQLite copy ensures consistent analysis. Expensive historical model
     evaluations are separately opt-in and bounded; they never promote a model.
     """
+    archive_paths(database)  # Before any refresh or ledger writer.
     start = datetime.now(timezone.utc)
     result = dict(schema_version=1, generated_at=start.isoformat(),
                   status="blocked", mode="research_only", markets=[],
@@ -313,12 +315,17 @@ def main():
     p.add_argument("--output",required=True)
     p.add_argument("--enable-yahoo",action="store_true")
     a=p.parse_args()
-    if Path(a.output).resolve() in (Path(a.database).resolve(),Path(a.config).resolve()):
-        p.error("output must not replace input")
-    with open(a.config,encoding="utf-8") as f:
+    try:
+        locks=check_paths(a.database,a.config,a.output)
+    except (OSError,ValueError,sqlite3.Error) as exc:
+        p.error("unsafe fund ETF paths: "+type(exc).__name__)
+    with open(a.config,encoding="utf-8-sig") as f:
         config=json.load(f)
-    report=cycle(a.database,config,yahoo_enabled=a.enable_yahoo)
-    publish(report,a.output)
+    for lock in locks:
+        lock.parent.mkdir(parents=True,exist_ok=True)
+    with exclusive(locks[0]), exclusive(locks[1]):
+        report=cycle(a.database,config,yahoo_enabled=a.enable_yahoo)
+        publish(report,a.output)
     return 0 if report["status"]=="research_only" else 2
 
 
