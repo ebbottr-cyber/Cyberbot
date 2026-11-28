@@ -24,6 +24,7 @@ from tools.fund_etf_portfolio import optimize
 from tools.fund_etf_settlement import replay
 from tools.fund_etf_macro import import_macro
 from tools.fund_etf_news import ingest as ingest_news
+from tools.fund_etf_auto_paper import run as run_auto_paper
 
 MARKETS = ("TEFAS", "ETF")
 
@@ -37,7 +38,7 @@ def cycle(database, config, *, yahoo_enabled=False):
     start = datetime.now(timezone.utc)
     result = dict(schema_version=1, generated_at=start.isoformat(),
                   status="blocked", mode="research_only", markets=[],
-                  groups=[], instruments=[], portfolios=[], paper_replays=[], optimizations=[], errors=[], real_orders=False,
+                  groups=[], instruments=[], portfolios=[], paper_replays=[], auto_paper=[], optimizations=[], errors=[], real_orders=False,
                   execution_allowed=False, live_data_verified=False)
     age = config.get("max_age_days",7)
     limit = config.get("max_instruments",1000)
@@ -50,6 +51,12 @@ def cycle(database, config, *, yahoo_enabled=False):
     sources = config.get("sources",{"TEFAS":"TEFAS","ETF":"Yahoo Finance"})
     if set(sources)!=set(MARKETS) or any(not isinstance(v,str) or not v.strip() for v in sources.values()):
         raise ValueError("invalid_sources")
+    paper_accounts=config.get("paper_accounts",[])
+    if not isinstance(paper_accounts,list) or len(paper_accounts)>10:
+        raise ValueError("invalid_paper_accounts")
+    paper_ids=[a["id"] for a in paper_accounts]
+    if any(not isinstance(i,str) or not i.strip() for i in paper_ids) or len(set(paper_ids))!=len(paper_ids):
+        raise ValueError("invalid_paper_ids")
     portfolios=config.get("portfolios",[])
     if not isinstance(portfolios,list) or len(portfolios)>10:
         raise ValueError("invalid_portfolios")
@@ -250,6 +257,13 @@ def cycle(database, config, *, yahoo_enabled=False):
         result["status"]=("partial" if result["errors"] or any(
             i["status"]!="research_review" or i.get("evaluation_error") for i in result["instruments"])
             else "research_only") if candidates else "blocked"
+        if paper_accounts:
+            ledger=path.with_name(path.name+".auto-paper.sqlite3")
+            result["auto_paper"]=run_auto_paper(ledger,frozen,paper_accounts,result)
+            if any(a["status"]=="blocked" for a in result["auto_paper"]):
+                result["errors"].append("auto_paper_review_required")
+                if result["status"]=="research_only":
+                    result["status"]="partial"
     result["counts"]={"instruments":len(result["instruments"]),"ranked":len(candidates),
                       "buy_review":sum(i["decision"]["action"]=="BUY_REVIEW" for i in candidates)}
     return result
