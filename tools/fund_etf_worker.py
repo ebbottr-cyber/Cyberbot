@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from tools.fund_etf_cycle import cycle, publish
+from tools.fund_etf_backup import daily_backup
 
 
 def now():
@@ -45,9 +46,21 @@ def run_once(database, config_path, output, status_path, *, yahoo_enabled=False)
         with open(config_path,encoding="utf-8-sig") as f:
             config=json.load(f)
         result=cycle(database,config,yahoo_enabled=yahoo_enabled)
+        policy=config.get("backup",{})
+        backup_status={"status":"disabled"}
+        if policy.get("enabled") is True:
+            try:
+                backup_status=daily_backup(database,policy.get("destination","var/fund-etf-backups"))
+            except Exception as exc:
+                backup_status={"status":"failed","error_type":type(exc).__name__}
+                result.setdefault("errors",[]).append("backup_failed")
+                if result["status"]=="research_only":
+                    result["status"]="partial"
+        # Keep local backup paths out of the public snapshot.
+        result["backup"]={k:v for k,v in backup_status.items() if k!="bundle"}
         publish(result,output)
         status=dict(status=result["status"],counts=result.get("counts",{}),
-                    errors=result.get("errors",[]))
+                    errors=result.get("errors",[]),backup=backup_status)
     except Exception as exc:
         status=dict(status="failed",error_type=type(exc).__name__)
         # Replace obsolete signals with an explicit failure snapshot, never
