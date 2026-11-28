@@ -2,6 +2,7 @@
 import argparse
 import csv
 import sqlite3
+from contextlib import closing
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -26,7 +27,7 @@ def ingest(database, filename, market, source, currency):
             rows.append((market, symbol, session.isoformat(), currency, str(price), source))
     if not rows:
         raise ValueError("Empty input")
-    with sqlite3.connect(database) as db:
+    with closing(sqlite3.connect(database)) as db, db:
         db.execute("CREATE TABLE IF NOT EXISTS fund_prices (market TEXT, symbol TEXT, session TEXT, currency TEXT, close TEXT, source TEXT, PRIMARY KEY(market,symbol,session,currency,source))")
         db.executemany("INSERT INTO fund_prices VALUES (?,?,?,?,?,?) ON CONFLICT DO NOTHING", rows)
     return {"input_rows": len(rows), "market": market, "source": source, "live_data_verified": False, "real_orders": False}
