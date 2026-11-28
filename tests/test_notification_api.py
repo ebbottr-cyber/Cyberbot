@@ -65,3 +65,34 @@ class NotificationApiTest(unittest.TestCase):
                 self.assertEqual(len(store.list(unread=True)), 1)
                 self.assertEqual(client.post(url, headers={**auth, "X-Test-CSRF":"allowed"}).status_code, 200)
                 self.assertEqual(store.list(unread=True), [])
+
+    def test_existing_nested_route_collision(self):
+        from fastapi import APIRouter
+        from tools.notification_panel_integration import mount_notification_panel
+        from tools.notification_preferences import Preferences
+        from tools.notification_push_server import PushStore
+        from tools.notification_push_queue import PushQueue
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            app = FastAPI()
+            child = APIRouter()
+            @child.get("/notifications")
+            def existing():
+                return {"original": True}
+            parent = APIRouter(prefix="/api")
+            parent.include_router(child)
+            app.include_router(parent)
+            args = dict(store=NotificationStore(root / "inbox.db"),
+                        preferences=Preferences(root / "prefs.db"),
+                        push_store=PushStore(root / "push.db"),
+                        queue=PushQueue(root / "queue.db"),
+                        health_path=root / "health.json",
+                        require_user=lambda: None, require_csrf=lambda: None)
+            with self.assertRaisesRegex(RuntimeError, "route collision"):
+                mount_notification_panel(app, enabled=True, **args)
+            self.assertFalse(getattr(app.state, "notification_panel_mounted", False))
+            with TestClient(app) as client:
+                self.assertEqual(client.get("/api/notifications").json(), {"original": True})
+                self.assertEqual(client.get("/api/notifications/preferences").status_code, 404)
+            with self.assertRaises(ValueError):
+                mount_notification_panel(app, enabled=True, **{**args, "require_csrf": None})
