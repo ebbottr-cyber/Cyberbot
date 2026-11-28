@@ -1,6 +1,7 @@
 """Offline orchestration regression tests with synthetic prices."""
 import json
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from datetime import date, timedelta
@@ -40,7 +41,7 @@ class CycleTests(unittest.TestCase):
         self.assertTrue(all(i["metrics"]["last_session"]<date.today().isoformat()
                             for i in result["instruments"]))
         self.assertFalse(result["execution_allowed"])
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db, db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM fund_prices WHERE session=?",
                                         (date.today().isoformat(),)).fetchone()[0],5)
 
