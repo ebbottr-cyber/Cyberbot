@@ -42,6 +42,10 @@ def main():
                 for width,height in ((1440,900),(390,844)):
                     page=browser.new_page(viewport={"width":width,"height":height},is_mobile=width<500,
                                           has_touch=width<500)
+                    page.goto(url+"/")
+                    menu=page.locator('#mobileModules a[href="/fund-etf"]')
+                    assert menu.count()==1, "Fund ETF menu missing or duplicated"
+                    assert page.locator('#mobileModules a[href="/futures"]').count()==1
                     page.goto(url+"/fund-etf")
                     page.get_by_text("TEFAS / FIXTURE_TR").wait_for()
                     assert page.get_by_text("ETF / FIXTURE_ETF").count()==0
