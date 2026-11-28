@@ -1,0 +1,33 @@
+{
+  "sources": {
+    "TEFAS": "TEFAS",
+    "ETF": "Yahoo Finance"
+  },
+  "max_age_days": 7,
+  "min_peers": 5,
+  "max_instruments": 1000,
+  "refresh_jobs": [],
+  "context_imports": [],
+  "macro_series": {
+    "TEFAS": [],
+    "ETF": []
+  },
+  "portfolios": [],
+  "paper_replays": [],
+  "optimizations": [],
+  "evaluation_limit": 0,
+  "evaluate_models": false,
+  "gemini": {
+    "enabled": false,
+    "free_tier_confirmed": false,
+    "limit": 0,
+    "model": null
+  },
+  "paper_accounts": [],
+  "source_checks": [],
+  "backup": {
+    "enabled": true,
+    "destination": "var/fund-etf-backups"
+  },
+  "context_collection": []
+}
