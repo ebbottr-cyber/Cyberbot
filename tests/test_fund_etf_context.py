@@ -1,5 +1,6 @@
 """Offline regression tests for point-in-time context and risk gate."""
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,7 +13,7 @@ class ContextTests(unittest.TestCase):
         self.addCleanup(folder.cleanup)
         self.db=Path(folder.name)/"context.sqlite3"
         self.spec=[dict(source="FRED",series="RATE",unit="percent",max_age_days=30,change_threshold=2)]
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db, db:
             db.execute("CREATE TABLE fund_macro (source TEXT,series TEXT,unit TEXT,period TEXT,released TEXT,value TEXT)")
             db.executemany("INSERT INTO fund_macro VALUES (?,?,?,?,?,?)",[
                 ("FRED","RATE","percent","2025-01-01","2025-01-02","3"),
