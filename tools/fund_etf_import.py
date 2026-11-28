@@ -17,6 +17,7 @@ def ingest(database, filename, market, source, currency):
     if not source.strip():
         raise ValueError("Source required")
     rows = []
+    seen = set()
     with open(filename, encoding="utf-8-sig", newline="") as f:
         for row in csv.DictReader(f):
             symbol = row["symbol"].strip().upper()
@@ -24,11 +25,20 @@ def ingest(database, filename, market, source, currency):
             price = Decimal(row["close"])
             if not symbol or session > date.today() or not price.is_finite() or price <= 0:
                 raise ValueError("Invalid observation")
+            key=(symbol,session)
+            if key in seen:
+                raise ValueError("duplicate_input")
+            seen.add(key)
             rows.append((market, symbol, session.isoformat(), currency, str(price), source))
     if not rows:
         raise ValueError("Empty input")
     with closing(sqlite3.connect(database)) as db, db:
         db.execute("CREATE TABLE IF NOT EXISTS fund_prices (market TEXT, symbol TEXT, session TEXT, currency TEXT, close TEXT, source TEXT, PRIMARY KEY(market,symbol,session,currency,source))")
+        db.execute("BEGIN IMMEDIATE")
+        for m,s,d,c,p,src in rows:
+            prior=db.execute("SELECT close FROM fund_prices WHERE market=? AND symbol=? AND session=? AND currency=? AND source=?",(m,s,d,c,src)).fetchone()
+            if prior and Decimal(prior[0])!=Decimal(p):
+                raise ValueError("historical_revision_review_required")
         db.executemany("INSERT INTO fund_prices VALUES (?,?,?,?,?,?) ON CONFLICT DO NOTHING", rows)
     return {"input_rows": len(rows), "market": market, "source": source, "live_data_verified": False, "real_orders": False}
 
