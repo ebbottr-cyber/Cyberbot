@@ -25,6 +25,7 @@ from tools.fund_etf_settlement import replay
 from tools.fund_etf_macro import import_macro
 from tools.fund_etf_news import ingest as ingest_news
 from tools.fund_etf_auto_paper import run as run_auto_paper
+from tools.fund_etf_development import record as record_development
 
 MARKETS = ("TEFAS", "ETF")
 
@@ -252,6 +253,8 @@ def cycle(database, config, *, yahoo_enabled=False):
                 item["backtest"]={k:v for k,v in report.items() if k!="folds"}
                 if config.get("evaluate_models") is True:
                     item["model_review"]=model_review(*args)
+                evidence=path.with_name(path.name+".development.sqlite3")
+                item["new_evidence_records"]=record_development(evidence,frozen,item,cutoff.isoformat())
             except Exception as exc:
                 item["evaluation_error"]=type(exc).__name__
         result["status"]=("partial" if result["errors"] or any(
