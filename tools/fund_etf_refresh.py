@@ -4,6 +4,7 @@ import json
 import re
 import sqlite3
 import tempfile
+from contextlib import closing
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -74,13 +75,13 @@ def refresh(database, job, *, yahoo_enabled=False):
             yahoo(stage, symbol, currency, enabled=True)
         else:
             raise ValueError("provider_disabled_or_unsupported")
-        with sqlite3.connect(stage) as db:
+        with closing(sqlite3.connect(stage)) as db:
             rows = db.execute("SELECT * FROM fund_prices").fetchall()
         policy = dict(max_age_days=int(job.get("max_age_days", 7)),
                       min_rows=int(job.get("min_rows", 2)),
                       jump_limit=job.get("jump_limit", "0.30"))
         quality = validate(rows, market, symbol, currency, source, **policy)
-        with sqlite3.connect(database, timeout=20) as db:
+        with closing(sqlite3.connect(database, timeout=20)) as db, db:
             db.execute(SCHEMA)
             db.execute("BEGIN IMMEDIATE")
             old = db.execute("SELECT * FROM fund_prices WHERE market=? AND symbol=? AND currency=? AND source=?",
