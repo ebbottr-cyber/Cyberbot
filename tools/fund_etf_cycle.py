@@ -19,6 +19,7 @@ from tools.fund_etf_gemini import explain
 from tools.fund_etf_panel import snapshot
 from tools.fund_etf_walkforward import from_archive
 from tools.fund_etf_ai_review import model_review
+from tools.fund_etf_risk import assess
 
 MARKETS = ("TEFAS", "ETF")
 
@@ -32,7 +33,7 @@ def cycle(database, config, *, yahoo_enabled=False):
     start = datetime.now(timezone.utc)
     result = dict(schema_version=1, generated_at=start.isoformat(),
                   status="blocked", mode="research_only", markets=[],
-                  groups=[], instruments=[], errors=[], real_orders=False,
+                  groups=[], instruments=[], portfolios=[], errors=[], real_orders=False,
                   execution_allowed=False, live_data_verified=False)
     age = config.get("max_age_days",7)
     limit = config.get("max_instruments",1000)
@@ -45,6 +46,12 @@ def cycle(database, config, *, yahoo_enabled=False):
     sources = config.get("sources",{"TEFAS":"TEFAS","ETF":"Yahoo Finance"})
     if set(sources)!=set(MARKETS) or any(not isinstance(v,str) or not v.strip() for v in sources.values()):
         raise ValueError("invalid_sources")
+    portfolios=config.get("portfolios",[])
+    if not isinstance(portfolios,list) or len(portfolios)>10:
+        raise ValueError("invalid_portfolios")
+    ids=[p["id"] for p in portfolios]
+    if any(not isinstance(i,str) or not i.strip() for i in ids) or len(set(ids))!=len(ids):
+        raise ValueError("invalid_portfolio_ids")
     jobs=config.get("refresh_jobs",[])
     if jobs:
         result["refresh"]=refresh(database,jobs,yahoo_enabled=yahoo_enabled)
@@ -73,6 +80,20 @@ def cycle(database, config, *, yahoo_enabled=False):
             if "fund_prices" in tables:
                 db.execute("DELETE FROM fund_prices WHERE session>=?",(cutoff.date().isoformat(),))
         result["markets"]=snapshot(frozen)["markets"]
+        for portfolio in portfolios:
+            pid=portfolio["id"]
+            args={k:v for k,v in portfolio.items() if k!="id"}
+            args["as_of"]=cutoff.date().isoformat()
+            args.setdefault("max_age_days",age)
+            try:
+                risk=assess(frozen,**args)
+                result["portfolios"].append(dict(risk,id=pid))
+                if risk["status"]!="research_only":
+                    result["errors"].append("portfolio_review_required")
+            except Exception as exc:
+                result["portfolios"].append(dict(id=pid,status="blocked",
+                    error_type=type(exc).__name__,real_orders=False))
+                result["errors"].append("portfolio_assessment_failed")
         groups=defaultdict(list)
         for market in MARKETS:
             if not counts[market]:
@@ -130,6 +151,10 @@ def cycle(database, config, *, yahoo_enabled=False):
                                  config.get("macro_series",{}).get(market,[]))
                     item["context"]=info
                     decision=contextual_decision(m,score,info)
+                    if decision["action"]=="BUY_REVIEW" and any(
+                        p["status"]!="research_only" for p in result["portfolios"]
+                    ):
+                        decision.update(action="WAIT",reason_tr="Portföy risk incelemesi tamamlanmadı.")
                     item["decision"]=decision
                     item["explanation"]=explain(decision,m)  # Local only in bulk scans.
                     item["status"]="research_review"
