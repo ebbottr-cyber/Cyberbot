@@ -1,6 +1,7 @@
 """Read-only cross-market fund/ETF portfolio risk, one currency at a time."""
 import math
 import sqlite3
+from contextlib import closing
 from datetime import date
 from pathlib import Path
 from statistics import stdev, correlation
@@ -34,7 +35,7 @@ def assess(database, holdings, *, currency, cash=0.0, as_of=None,
     identities = set()
     # Multiple price vendors for the same symbol are not independent assets.
     histories = []
-    with sqlite3.connect(Path(database).resolve().as_uri()+"?mode=ro", uri=True) as db:
+    with closing(sqlite3.connect(Path(database).resolve().as_uri()+"?mode=ro", uri=True)) as db, db:
         for h in holdings:
             market, symbol, source, c, group = (h[k] for k in ("market","symbol","source","currency","group"))
             units = h["units"]
