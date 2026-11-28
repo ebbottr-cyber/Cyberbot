@@ -5,10 +5,10 @@ param(
 )
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
-$python=Join-Path $root '.venv\Scripts\python.exe'
+$python=Join-Path $root 'var\fund-etf-venv\Scripts\python.exe'
 $name='Cyberbot-Fund-ETF-Worker'
 $script=Join-Path $root 'scripts\fund-etf-windows.ps1'
-if (-not (Test-Path $python)) { throw 'Run setup-windows.ps1 first.' }
+if (-not (Test-Path $python)) { throw 'Run setup-fund-etf-windows.ps1 first.' }
 Push-Location $root
 try {
     switch ($Mode) {
@@ -25,10 +25,14 @@ try {
         }
         'Start' {
             if (-not (Test-Path (Join-Path $root 'var\fund-etf-config.json'))) { throw 'Missing research configuration.' }
+            $task=Get-ScheduledTask -TaskName $name
+            if ($task.Actions.Count -ne 1 -or $task.Actions[0].Arguments -notlike ('*"'+$script+'"*')) { throw 'Existing task belongs to another checkout.' }
             Enable-ScheduledTask -TaskName $name | Out-Null
             Start-ScheduledTask -TaskName $name
         }
         'Stop' {
+            $task=Get-ScheduledTask -TaskName $name
+            if ($task.Actions.Count -ne 1 -or $task.Actions[0].Arguments -notlike ('*"'+$script+'"*')) { throw 'Existing task belongs to another checkout.' }
             Disable-ScheduledTask -TaskName $name | Out-Null
             Stop-ScheduledTask -TaskName $name
         }
