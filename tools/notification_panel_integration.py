@@ -23,16 +23,31 @@ def mount_notification_panel(app, *, store, preferences, push_store, queue, heal
                                   dependencies=[Depends(require_user), Depends(require_csrf)])
         else:
             guarded.routes.append(route)
-    combined = APIRouter()
-    combined.include_router(guarded)
-    combined.include_router(build_preferences_router(preferences, require_user, require_csrf))
-    combined.include_router(build_push_router(push_store, require_user, require_csrf))
-    combined.include_router(build_health_router(health_path, queue, push_store, require_user))
+    routers = [guarded, build_preferences_router(preferences, require_user, require_csrf),
+               build_push_router(push_store, require_user, require_csrf),
+               build_health_router(health_path, queue, push_store, require_user)]
     if news_store is not None:
-        combined.include_router(build_news_router(news_store, require_user))
-    existing = {(r.path,m) for r in app.routes for m in (getattr(r,"methods",None) or ())}
-    if any((r.path,m) in existing for r in combined.routes for m in r.methods):
-        raise RuntimeError("Notification route collision")
-    app.include_router(combined)
+        routers.append(build_news_router(news_store, require_user))
+    # FastAPI may retain included routers as lazy wrappers. Inspect the
+    # public OpenAPI representation for nested host routes, plus direct routes.
+    from fastapi.openapi.utils import get_openapi
+    schema = get_openapi(title=app.title, version=app.version, routes=app.routes)
+    verbs = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
+    existing = {(path, method.upper()) for path, operations in schema.get("paths", {}).items()
+                for method in operations if method in verbs}
+    existing.update((r.path, m) for r in app.routes for m in (getattr(r, "methods", None) or ()))
+    for router in routers:
+        for route in router.routes:
+            methods = getattr(route, "methods", None)
+            if methods is None or not hasattr(route, "path"):
+                raise RuntimeError("Unsupported notification route")
+            for method in methods:
+                key = (route.path, method)
+                if key in existing:
+                    raise RuntimeError("Notification route collision")
+                existing.add(key)
+    for router in routers:
+        app.include_router(router)
+    app.openapi_schema = None
     app.state.notification_panel_mounted = True
     return True
