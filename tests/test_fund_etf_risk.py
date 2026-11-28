@@ -1,5 +1,6 @@
 """Offline portfolio risk regression tests."""
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from datetime import date, timedelta
@@ -15,7 +16,7 @@ class RiskTests(unittest.TestCase):
         self.holdings = [
             dict(market="TEFAS",symbol="AAA",currency="TRY",source="fixture",group="equity",units=1),
             dict(market="ETF",symbol="BBB",currency="TRY",source="fixture",group="equity",units=1)]
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db, db:
             db.execute("CREATE TABLE fund_prices (market TEXT,symbol TEXT,currency TEXT,source TEXT,session TEXT,close TEXT)")
             for h in self.holdings:
                 for i in range(90):
