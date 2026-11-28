@@ -50,3 +50,14 @@ def data():
         return JSONResponse(payload)
     except (OSError,ValueError,TypeError,KeyError,AttributeError):
         return JSONResponse(dict(base,reason="Araştırma çıktısı yok veya okunamadı."),status_code=503)
+
+FUND_MENU = '<a class="tile" href="/fund-etf"><strong>Fon &amp; ETF</strong><span>TEFAS · Global ETF</span></a>'
+
+def with_fund_menu(html):
+    """Render one idempotent menu link while retaining all other market markup."""
+    if 'href="/fund-etf"' in html:
+        return html
+    marker='<a class="tile" href="/futures">'
+    if marker in html:
+        return html.replace(marker,FUND_MENU+marker,1)
+    return html
