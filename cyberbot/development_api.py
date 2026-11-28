@@ -3,12 +3,13 @@ import sqlite3
 from fastapi import APIRouter,HTTPException
 from fastapi.responses import HTMLResponse
 from .development import overview
+from .fund_etf_api import with_fund_development
 from .worker import status as worker_status
 from .operations import health
 
 router=APIRouter()
 @router.get("/development",response_class=HTMLResponse)
-def panel():return (Path(__file__).parent/"web"/"development.html").read_text(encoding="utf-8")
+def panel():return with_fund_development((Path(__file__).parent/"web"/"development.html").read_text(encoding="utf-8"))
 @router.get("/api/development")
 def data(mode:str="synthetic"):
     if mode not in ("synthetic","historical_unverified"):raise HTTPException(422,"Geçersiz veri modu.")
