@@ -20,6 +20,8 @@ from tools.fund_etf_panel import snapshot
 from tools.fund_etf_walkforward import from_archive
 from tools.fund_etf_ai_review import model_review
 from tools.fund_etf_risk import assess
+from tools.fund_etf_portfolio import optimize
+from tools.fund_etf_settlement import replay
 
 MARKETS = ("TEFAS", "ETF")
 
@@ -33,7 +35,7 @@ def cycle(database, config, *, yahoo_enabled=False):
     start = datetime.now(timezone.utc)
     result = dict(schema_version=1, generated_at=start.isoformat(),
                   status="blocked", mode="research_only", markets=[],
-                  groups=[], instruments=[], portfolios=[], errors=[], real_orders=False,
+                  groups=[], instruments=[], portfolios=[], paper_replays=[], optimizations=[], errors=[], real_orders=False,
                   execution_allowed=False, live_data_verified=False)
     age = config.get("max_age_days",7)
     limit = config.get("max_instruments",1000)
@@ -94,6 +96,32 @@ def cycle(database, config, *, yahoo_enabled=False):
                 result["portfolios"].append(dict(id=pid,status="blocked",
                     error_type=type(exc).__name__,real_orders=False))
                 result["errors"].append("portfolio_assessment_failed")
+        for section,fn,key in (("optimizations",optimize,"optimizations"),("paper_replays",None,"paper_replays")):
+            requests=config.get(section,[])
+            if not isinstance(requests,list) or len(requests)>10:
+                raise ValueError("invalid_research_requests")
+            for job in requests:
+                job_id=job.get("id")
+                try:
+                    args={k:v for k,v in job.items() if k!="id"}
+                    if fn:
+                        report=fn(frozen,**args)
+                    else:
+                        if "prices" in args:
+                            raise ValueError("paper_prices_must_come_from_archive")
+                        source=args.pop("source")
+                        with closing(sqlite3.connect(frozen)) as db:
+                            rows=db.execute("SELECT session,close FROM fund_prices WHERE market=? AND symbol=? AND currency=? AND source=? AND session<=? ORDER BY session",
+                                (args["market"],args["symbol"],args["currency"],source,args["as_of"])).fetchall()
+                        calendar={s["date"] for s in args["sessions"]}
+                        args["prices"]={d:p for d,p in rows if d in calendar}
+                        report=replay(**args)
+                    result[key].append(dict(report,id=job_id))
+                    if report["status"] not in ("research_only","paper_replay"):
+                        result["errors"].append(section+"_review_required")
+                except Exception as exc:
+                    result[key].append(dict(id=job_id,status="blocked",error_type=type(exc).__name__,real_orders=False))
+                    result["errors"].append(section+"_failed")
         groups=defaultdict(list)
         for market in MARKETS:
             if not counts[market]:
@@ -156,7 +184,7 @@ def cycle(database, config, *, yahoo_enabled=False):
                     ):
                         decision.update(action="WAIT",reason_tr="Portföy risk incelemesi tamamlanmadı.")
                     item["decision"]=decision
-                    item["explanation"]=explain(decision,m)  # Local only in bulk scans.
+                    item["explanation"]=explain(decision,m)  # Optional Gemini on bounded subset below.
                     item["status"]="research_review"
                     candidates.append(item)
                 except Exception as exc:
@@ -174,6 +202,14 @@ def cycle(database, config, *, yahoo_enabled=False):
                 item["peer_rank"]=i
         ordered=[item for i in range(max(map(len,by_group.values()),default=0))
                  for key in sorted(by_group) if i<len(by_group[key]) for item in [by_group[key][i]]]
+        gemini=config.get("gemini",{})
+        gemini_limit=gemini.get("limit",0)
+        if type(gemini_limit) is not int or not 0<=gemini_limit<=10:
+            raise ValueError("invalid_gemini_limit")
+        if gemini.get("enabled") is True and gemini.get("free_tier_confirmed") is True:
+            for item in ordered[:gemini_limit]:
+                item["explanation"]=explain(item["decision"],item["metrics"],enabled=True,
+                    free_tier_confirmed=True,model=gemini.get("model"))
         for item in ordered[:expensive]:
             m=item["metrics"]
             args=(frozen,item["market"],m["symbol"],m["currency"],m["source"])
