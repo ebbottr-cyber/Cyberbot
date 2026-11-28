@@ -46,6 +46,10 @@ def main():
                     menu=page.locator('#mobileModules a[href="/fund-etf"]')
                     assert menu.count()==1, "Fund ETF menu missing or duplicated"
                     assert page.locator('#mobileModules a[href="/futures"]').count()==1
+                    page.goto(url+"/development")
+                    assert page.locator("#fundDevelopment").count()==1
+                    page.locator("#fundDevCounters .card").first.wait_for()
+                    assert page.locator("#fundDevCounters .card").count()==2
                     page.goto(url+"/fund-etf")
                     page.get_by_text("TEFAS / FIXTURE_TR").wait_for()
                     assert page.get_by_text("ETF / FIXTURE_ETF").count()==0
