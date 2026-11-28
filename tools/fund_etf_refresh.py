@@ -11,6 +11,8 @@ from pathlib import Path
 
 from tools.fund_etf_import import ingest
 from tools.fund_etf_yahoo import yahoo
+from tools.fund_etf_tefas import fetch as tefas
+from tools.fund_etf_stooq import run as stooq
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS fund_prices (
 market TEXT, symbol TEXT, session TEXT, currency TEXT, close TEXT, source TEXT,
@@ -73,6 +75,12 @@ def refresh(database, job, *, yahoo_enabled=False):
         elif provider == "yahoo" and market == "ETF" and yahoo_enabled:
             source = "Yahoo Finance"
             yahoo(stage, symbol, currency, enabled=True)
+        elif provider == "tefas" and market=="TEFAS" and job.get("rights_confirmed") is True and job.get("free_access_confirmed") is True:
+            source="TEFAS"
+            tefas(stage,symbol,months=job.get("months",60),enabled=True)
+        elif provider=="stooq" and market=="ETF" and job.get("rights_confirmed") is True and job.get("free_access_confirmed") is True and job.get("identity_reviewed") is True:
+            source="Stooq"
+            stooq(stage,job["provider_symbol"],currency,enabled=True,canonical_symbol=symbol)
         else:
             raise ValueError("provider_disabled_or_unsupported")
         with closing(sqlite3.connect(stage)) as db:
@@ -108,8 +116,9 @@ def run(database, jobs, *, yahoo_enabled=False):
         item = {"market": job.get("market"), "symbol": job.get("symbol")} if isinstance(job, dict) else {}
         try:
             item.update(refresh(database, job, yahoo_enabled=yahoo_enabled))
+            item["provider"]=job["provider"]
         except Exception as exc:
-            item.update(status="blocked", error_type=type(exc).__name__,
+            item.update(status="blocked", provider=job.get("provider") if isinstance(job,dict) else None, error_type=type(exc).__name__,
                         reason=str(exc) if isinstance(exc, ValueError) else "provider_or_archive_error",
                         live_data_verified=False, real_orders=False)
         results.append(item)
