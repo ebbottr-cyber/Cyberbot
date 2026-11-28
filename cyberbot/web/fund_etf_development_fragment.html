@@ -1,0 +1,32 @@
+<section id="fundDevelopment"><h2>Fon &amp; ETF — Bot Gelişimi</h2>
+<p>Geçmiş fiyat araştırması ve sanal işlem sonuçları. Diğer piyasaların deney sayaçlarına dahil değildir.</p>
+<nav><a href="/fund-etf">Fon &amp; ETF araştırma merkezi</a></nav>
+<button type="button" id="fundDevRefresh">Fon &amp; ETF kayıtlarını yenile</button>
+<p id="fundDevStatus" role="status">Kayıtlar okunuyor…</p>
+<div class="grid" id="fundDevCounters"></div><div id="fundDevDetails"></div>
+<h3>Son araştırma kayıtları</h3><div id="fundDevRecent"></div>
+<h3>Otomatik sanal hesaplar</h3><div id="fundDevPaper"></div>
+<p>Yeni veri veya politika ile yapılan kayıtlar örtüşen geçmiş dönemler içerebilir; bağımsız kanıt veya canlı öğrenme başarısı değildir. Model terfisi ve gerçek emir kapalıdır.</p>
+</section>
+<script>
+(()=>{const $=id=>document.getElementById(id);let generation=0;
+const el=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=String(text??"—");if(cls)n.className=cls;return n};
+const fmt=x=>typeof x==="number"&&Number.isFinite(x)?x.toLocaleString("tr-TR",{maximumFractionDigits:4}):String(x??"—");
+const pct=x=>typeof x==="number"?fmt(x)+"%":"—";
+const status={offline_research:"Geçmiş araştırma",review_required:"İnceleme gerekli",no_eligible_model:"Uygun model yok",paper_replay:"Sanal hesap",blocked:"Engellendi",disabled:"Kapalı"};
+function table(headers,rows){const wrap=el("div","","scroll"),t=el("table",""),head=el("thead",""),tr=el("tr","");headers.forEach(x=>tr.append(el("th",x)));head.append(tr);t.append(head);const body=el("tbody","");rows.forEach(values=>{const r=el("tr","");values.forEach(x=>r.append(el("td",fmt(x))));body.append(r)});t.append(body);wrap.append(t);return wrap}
+function card(parent,label,value){const c=el("div","","card");c.append(el("small",label),el("b",value));parent.append(c)}
+async function load(){const g=++generation;for(const id of ["fundDevCounters","fundDevDetails","fundDevRecent","fundDevPaper"])$(id).replaceChildren();$("fundDevStatus").textContent="Kayıtlar okunuyor…";
+try{const r=await fetch("/api/fund-etf/development",{cache:"no-store"});if(!r.ok)throw Error("Kayıtlar okunamadı.");const d=await r.json();if(g!==generation)return;
+$("fundDevStatus").textContent=d.status==="empty"?"Henüz tamamlanmış değerlendirme yok.":"Kayıtlı geçmiş değerlendirmeler";
+for(const m of d.markets){card($("fundDevCounters"),(m.market==="TEFAS"?"TEFAS":"Global ETF")+" değerlendirme kaydı",m.records);const root=$("fundDevDetails");root.append(el("h3",m.market==="TEFAS"?"TEFAS Fonları":"Global ETF"));
+if(!m.latest.length)root.append(el("p","Bu piyasada kayıt yok."));
+for(const x of m.latest){const p=x.report;root.append(el("p",x.symbol+" · "+x.currency+" · "+x.source+" · "+x.last_session+" · "+(status[p.status]||p.status)));
+if(x.stage==="backtest"){const s=p.summary||{};root.append(table(["Test bölümü","Getiri","En kötü düşüş","Pozitif bölüm"],[["Walk-forward",pct(s.test?.chained_return_pct),pct(s.test?.worst_fold_drawdown_pct),s.test?.positive_folds],["Referans",pct(s.benchmark?.chained_return_pct),pct(s.benchmark?.worst_fold_drawdown_pct),s.benchmark?.positive_folds],["Çift maliyet",pct(s.stress?.chained_return_pct),pct(s.stress?.worst_fold_drawdown_pct),s.stress?.positive_folds]]));root.append(el("p","Test bölümü: "+fmt(p.fold_count)));}
+else{root.append(el("p","İnceleme adayı: "+(p.candidate||"Yok")));root.append(table(["Model","Yön doğruluğu","Referans doğruluğu","Brier hatası"],(p.ranking?.results||[]).map(v=>[v.model,pct(100*v.accuracy),pct(100*v.baseline_accuracy),v.brier])));}
+}}
+const recent=$("fundDevRecent");recent.append(d.recent.length?table(["Piyasa","Sembol","Aşama","Veri tarihi","Kayıt zamanı"],d.recent.map(x=>[x.market,x.symbol,x.stage==="backtest"?"Walk-forward":"Model karşılaştırması",x.last_session,x.recorded_at])):el("p","Kayıt yok."));
+const paper=$("fundDevPaper");paper.append(el("p","Panel çıktısı: "+(d.paper_generated_at||"Yok")+" · "+(d.paper_snapshot_status||"—")));paper.append(d.paper_accounts.length?table(["Hesap","Piyasa / kod","Durum","Emir kaydı","Bekleyen","Sanal K/Z"],d.paper_accounts.map(a=>[a.id,a.market+" / "+a.symbol,status[a.status]||a.status,a.intent_count,a.pending_count,a.pnl?.profit_loss==null?"—":a.pnl.profit_loss+" "+a.currency])):el("p","Güncel sanal hesap sonucu yok."));
+}catch(e){if(g===generation){for(const id of ["fundDevCounters","fundDevDetails","fundDevRecent","fundDevPaper"])$(id).replaceChildren();$("fundDevStatus").textContent="Fon ve ETF kayıtları okunamadı.";}}}
+$("fundDevRefresh").addEventListener("click",load);load();})();
+</script>
