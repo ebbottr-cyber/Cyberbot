@@ -3,6 +3,7 @@ import json
 import math
 import sqlite3
 import tempfile
+from contextlib import closing
 from datetime import date
 from pathlib import Path
 
@@ -26,7 +27,7 @@ def model_review(database, market, symbol, currency, source, *, min_train=100,
                   status="blocked", candidate=None, model_promoted=False,
                   real_orders=False, live_data_verified=False, ai_prediction=False)
     try:
-        with sqlite3.connect(Path(database).resolve().as_uri()+"?mode=ro", uri=True) as db:
+        with closing(sqlite3.connect(Path(database).resolve().as_uri()+"?mode=ro", uri=True)) as db:
             rows = db.execute("SELECT session,close FROM fund_prices WHERE market=? AND symbol=? AND currency=? AND source=? ORDER BY session", identity).fetchall()
     except sqlite3.Error:
         return dict(result, reason_tr="Fiyat arşivi okunamadı.")
@@ -39,7 +40,7 @@ def model_review(database, market, symbol, currency, source, *, min_train=100,
             raise ValueError("invalid_prices")
     except (ValueError, TypeError, OverflowError):
         return dict(result, reason_tr="Geçersiz fiyat veya tarih bulundu.")
-    if len(rows) < 20+min_train+2*horizon+min_samples:
+    if len(rows) < 20+min_train+2*horizon+(min_samples-1)*horizon+1:
         return dict(result, reason_tr="Ortak model testi için yeterli geçmiş veri yok.",
                     observations=len(rows))
     policy = dict(min_train=min_train, horizon=horizon, step=step)
@@ -47,7 +48,7 @@ def model_review(database, market, symbol, currency, source, *, min_train=100,
     reports = {}
     with tempfile.TemporaryDirectory() as folder:
         snapshot = Path(folder)/"evaluation.sqlite3"
-        with sqlite3.connect(snapshot) as db:
+        with closing(sqlite3.connect(snapshot)) as db, db:
             db.execute("CREATE TABLE fund_prices (market TEXT,symbol TEXT,currency TEXT,source TEXT,session TEXT,close TEXT)")
             db.executemany("INSERT INTO fund_prices VALUES (?,?,?,?,?,?)",
                            [identity+tuple(r) for r in rows])
