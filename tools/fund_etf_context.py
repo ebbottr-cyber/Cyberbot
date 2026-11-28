@@ -6,6 +6,7 @@ No network access, sentiment guessing, or real orders.
 """
 import math
 import sqlite3
+from contextlib import closing
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -37,7 +38,7 @@ def context(database, market, symbol, cutoff, series, *, news_days=7, news_limit
                point_in_time_vintages_verified=False,live_data_verified=False,
                real_orders=False,execution_allowed=False)
     seen = set()
-    with sqlite3.connect(Path(database).resolve().as_uri()+"?mode=ro",uri=True) as db:
+    with closing(sqlite3.connect(Path(database).resolve().as_uri()+"?mode=ro",uri=True)) as db, db:
         db.execute("BEGIN")
         tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         for spec in series:
