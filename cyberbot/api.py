@@ -109,3 +109,6 @@ app.include_router(development_router)
 
 from .knowledge_api import router as knowledge_router
 app.include_router(knowledge_router)
+
+from .fund_etf_api import router as fund_etf_router
+app.include_router(fund_etf_router)
