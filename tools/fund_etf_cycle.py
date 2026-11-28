@@ -26,6 +26,7 @@ from tools.fund_etf_macro import import_macro
 from tools.fund_etf_news import ingest as ingest_news
 from tools.fund_etf_auto_paper import run as run_auto_paper
 from tools.fund_etf_development import record as record_development
+from tools.fund_etf_source_check import compare_sources
 
 MARKETS = ("TEFAS", "ETF")
 
@@ -117,6 +118,17 @@ def cycle(database, config, *, yahoo_enabled=False):
             if "fund_prices" in tables:
                 db.execute("DELETE FROM fund_prices WHERE session>=?",(cutoff.date().isoformat(),))
         result["markets"]=snapshot(frozen)["markets"]
+        checks=config.get("source_checks",[])
+        if not isinstance(checks,list) or len(checks)>100:
+            raise ValueError("invalid_source_checks")
+        result["source_checks"]=[]
+        for check in checks:
+            try:
+                result["source_checks"].append(compare_sources(frozen,**check))
+            except Exception as exc:
+                result["source_checks"].append(dict(status="blocked",error_type=type(exc).__name__,real_orders=False))
+        if any(c["status"]!="research_agreement" for c in result["source_checks"]):
+            result["errors"].append("source_agreement_review_required")
         for portfolio in portfolios:
             pid=portfolio["id"]
             args={k:v for k,v in portfolio.items() if k!="id"}
@@ -214,10 +226,10 @@ def cycle(database, config, *, yahoo_enabled=False):
                                  config.get("macro_series",{}).get(market,[]))
                     item["context"]=info
                     decision=contextual_decision(m,score,info)
-                    if decision["action"]=="BUY_REVIEW" and any(
+                    if decision["action"]=="BUY_REVIEW" and (any(
                         p["status"]!="research_only" for p in result["portfolios"]
-                    ):
-                        decision.update(action="WAIT",reason_tr="Portföy risk incelemesi tamamlanmadı.")
+                    ) or any(c["status"]!="research_agreement" for c in result["source_checks"])):
+                        decision.update(action="WAIT",reason_tr="Portföy riski veya kaynak uyumu incelemesi tamamlanmadı.")
                     item["decision"]=decision
                     item["explanation"]=explain(decision,m)  # Optional Gemini on bounded subset below.
                     item["status"]="research_review"
