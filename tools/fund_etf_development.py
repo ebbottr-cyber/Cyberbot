@@ -37,6 +37,10 @@ def record(database, archive, item, recorded_at):
             report=item.get(stage)
             if not isinstance(report,dict) or report.get("real_orders") is not False:
                 continue
+            if stage=="backtest" and report.get("status")!="offline_research":
+                continue
+            if stage=="model_review" and (report.get("status") not in ("review_required","no_eligible_model") or not (report.get("ranking") or {}).get("results")):
+                continue
             if stage=="backtest":
                 policy={k:report.get(k) for k in ("cost_bps","lag_observations","train_observations","test_observations","risk_penalty")}
                 payload={k:report.get(k) for k in ("status","fold_count","summary")}
