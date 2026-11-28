@@ -4,8 +4,8 @@ Dal: feature/free-fund-etf-research. Hedef: integration/cyberbot-master. Main/ma
 
 ## Ortak dosyalar
 
-- cyberbot/api.py: yalnız fund_etf_router kaydı. Hedef dalda mevcut yönlendiricilere ek olarak taşınmalı; tüm dosya üzerine yazılmamalı.
-- cyberbot/web/index.html: ana masaüstü/mobil modül menüsüne /fund-etf bağlantısı. Hedef panelin diğer navigasyon öğelerini koru.
+- cyberbot/api.py: uygulama başında fund_etf_router kaydı ve home() yanıtında with_fund_menu çağrısı. Hedef dalın diğer yönlendiricileri korunur.
+- cyberbot/web/index.html: ortak kaynak dosyası taban haline geri alındı; menü bağlantısı fund_etf_api.with_fund_menu tarafından mevcut Futures menüsünün önüne sunucu tarafında eklenir. Böylece hedef panelin kendi değişiklikleri üzerine yazılmaz. Menü sözleşmesi tarayıcı testiyle kontrol edilir.
 - Yeni cyberbot/fund_etf_api.py ve cyberbot/web/fund_etf.html: salt okunur JSON ve Türkçe TEFAS/ETF alt sekmeleri. Mevcut uygulama erişim kontrolü, CSP ve no-store politikası kullanılır.
 - Yeni .github/workflows/fund-etf-ci.yml: yalnız geliştirme dalı ve hedefe açılan Fon & ETF PR'ı için Windows/Linux 3.11/3.12 + Chromium masaüstü/mobil testi. Diğer CI dosyaları korunur.
 
